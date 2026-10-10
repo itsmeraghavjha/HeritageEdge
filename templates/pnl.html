@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}P&L statement | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>P&amp;L statement</h1>
+    <p class="lede">Gross to net to contribution, cut by chain, state, sales office and SKU. Open any row to go one level deeper.</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/">Edit scenario</a>
+    <button type="button" class="btn btn-primary" id="exportBtn">Export to Excel</button>
+  </div>
+</header>
+
+<div class="banner" id="banner" role="status"></div>
+
+<div class="toolbar">
+  <div class="field-row" role="group" aria-label="Group rows by">
+    <div class="field"><label for="dim0">Group by</label><select id="dim0" class="select"></select></div>
+    <div class="field"><label for="dim1">Then by</label><select id="dim1" class="select"></select></div>
+    <div class="field"><label for="dim2">Then by</label><select id="dim2" class="select"></select></div>
+  </div>
+  <div class="toolbar-right">
+    <div class="seg" role="radiogroup" aria-label="Show">
+      <button type="button" role="radio" data-mode="base" aria-checked="false">Baseline</button>
+      <button type="button" role="radio" data-mode="sim" aria-checked="true">Scenario</button>
+      <button type="button" role="radio" data-mode="delta" aria-checked="false">Change</button>
+    </div>
+    <button type="button" class="btn btn-small" id="expandAll">Expand all</button>
+    <button type="button" class="btn btn-small" id="collapseAll">Collapse all</button>
+  </div>
+</div>
+
+<div class="panel table-panel">
+  <div class="table-wrap">
+    <table class="pnl" id="pnlTable"></table>
+  </div>
+  <p class="table-foot" id="tableFoot">Rupees lakh a month. Volume in thousand units.</p>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/pnl.js') }}"></script>{% endblock %}

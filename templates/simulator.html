@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Promo simulator | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Promo simulator</h1>
+    <p class="lede">Change price, promo, chain terms and costs. See what each one does to net revenue, margin and contribution, against today&rsquo;s baseline.</p>
+  </div>
+  <div class="head-actions">
+    <label class="visually-hidden" for="loadSelect">Load a scenario</label>
+    <select id="loadSelect" class="select"></select>
+    <button type="button" class="btn" id="resetBtn">Reset levers</button>
+    <button type="button" class="btn" id="saveBtn">Save scenario</button>
+    <a class="btn btn-primary" href="/pnl">Open in P&amp;L</a>
+  </div>
+</header>
+
+<div class="sim-grid">
+  <aside class="panel levers" aria-label="Scenario levers">
+    <details class="scope" id="scope">
+      <summary>
+        <span class="scope-title">Apply price, promo and chain terms to</span>
+        <span class="scope-summary" id="scopeSummary">All chains, states and SKUs</span>
+      </summary>
+      <div class="scope-body" id="scopeBody"></div>
+    </details>
+    <div id="leverGroups"></div>
+  </aside>
+
+  <section class="results" aria-live="polite" aria-label="Scenario results">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2>What moves contribution</h2>
+        <p class="sub">Monthly contribution from baseline to scenario, one lever group at a time.</p>
+      </div>
+      <div class="bridge-wrap"><div id="bridge"></div></div>
+      <p class="chart-note" id="bridgeNote"></p>
+    </div>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="panel-head"><h2>Scenario P&amp;L</h2><p class="sub">Rupees lakh a month</p></div>
+        <div class="table-scroll"><table class="data" id="summary"></table></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Where it lands</h2>
+          <div class="tabs" role="tablist" aria-label="Break down by">
+            <button type="button" role="tab" data-dim="chain" aria-selected="true">Chain</button>
+            <button type="button" role="tab" data-dim="state" aria-selected="false">State</button>
+            <button type="button" role="tab" data-dim="sku" aria-selected="false">SKU</button>
+          </div>
+        </div>
+        <div class="table-scroll"><table class="data" id="breakdown"></table></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<dialog id="saveDialog" class="dialog">
+  <form method="dialog" id="saveForm">
+    <h2>Save scenario</h2>
+    <label for="saveName">Scenario name</label>
+    <input id="saveName" name="name" class="text" maxlength="60" required placeholder="Diwali display, Hyderabad">
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="saveCancel">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save scenario</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/simulator.js') }}"></script>{% endblock %}

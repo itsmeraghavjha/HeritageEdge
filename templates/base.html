@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}HeritageEdge{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <a class="brand" href="/">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M16 3C10 10 6 14.5 6 19.5a10 10 0 0 0 20 0C26 14.5 22 10 16 3z" fill="#259821"/>
+        <path d="M16 12c-3 3.6-5 6-5 8.6a5 5 0 0 0 10 0c0-2.600-2-5-5-8.600z" fill="#E0A526"/>
+      </svg>
+      <span class="brand-text"><strong>HeritageEdge</strong><small>MRF studio</small></span>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="/" class="{{ 'is-active' if active == 'simulator' }}">Promo simulator</a>
+      <a href="/pnl" class="{{ 'is-active' if active == 'pnl' }}">P&amp;L statement</a>
+    </nav>
+    <p class="side-note">Sample data, monthly run-rate. Replace the loader in <code>engine/data.py</code> with actuals.</p>
+  </aside>
+  <main class="main">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
