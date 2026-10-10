@@ -21,7 +21,7 @@
         <legend>${HE.esc(g.title)}</legend>
         ${g.note ? `<p class="group-note">${HE.esc(g.note)}</p>` : ''}
         ${g.levers.map((l) => `
-          <div class="lever" data-key="${l.key}">
+          <div class="lever" data-key="${l.key}" title="${HE.esc(l.hint)}">
             <div class="lever-top">
               <label for="num-${l.key}">${HE.esc(l.label)}</label>
               <span class="lever-input">
@@ -31,7 +31,7 @@
             </div>
             <input type="range" id="rng-${l.key}" aria-label="${HE.esc(l.label)}"
                    min="${l.min}" max="${l.max}" step="${l.step}">
-            <p class="hint">${HE.esc(l.hint)}</p>
+            <p class="hint visually-hidden">${HE.esc(l.hint)}</p>
           </div>`).join('')}
       </fieldset>`).join('');
 
@@ -114,8 +114,8 @@
   }
 
   /* ---------- results ---------- */
-  function kpi(label, value, deltaText, deltaTone, sub) {
-    return `<div class="kpi">
+  function kpi(label, value, deltaText, deltaTone, sub, key) {
+    return `<div class="kpi${key ? ' kpi-key' : ''}">
       <p class="kpi-label">${label}</p>
       <p class="kpi-value">${value}</p>
       <p class="kpi-delta ${deltaTone}">${deltaText}</p>
@@ -135,18 +135,20 @@
           `${HE.inr(s.gm)}, baseline ${HE.pct(b.gm_pct)}`) +
       kpi('Contribution', HE.inr(s.cm),
           `${HE.inrSigned(dCm)} (${HE.relText(HE.rel(b.cm, s.cm))})`, HE.tone(dCm, true, 500),
-          `${HE.pct(s.cm_pct)} of net revenue, baseline ${HE.pct(b.cm_pct)}`) +
+          `${HE.pct(s.cm_pct)} of net revenue, baseline ${HE.pct(b.cm_pct)}`, true) +
       kpi('Volume in units', (s.units / 1e5).toFixed(1) + ' lakh',
           HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
           `Baseline ${(b.units / 1e5).toFixed(1)} lakh units`);
   }
 
   function renderBridge(steps) {
-    const W = 760, H = 320, padL = 16, padR = 16, top = 34, bottom = 56;
+    // Draw at the container's real pixel width so text stays at a fixed, readable size.
+    const W = Math.max(560, Math.round($('bridge').clientWidth || 760));
+    const H = 300, padL = 12, padR = 12, top = 30, bottom = 40;
     const plotH = H - top - bottom;
     const n = steps.length;
     const slot = (W - padL - padR) / n;
-    const barW = Math.min(76, slot * 0.64);
+    const barW = Math.min(64, slot * 0.56);
 
     let run = steps[0].value;
     const levels = [run];
@@ -181,7 +183,7 @@
         y1 = Math.min(y(from), y(to)); y2 = Math.max(y(from), y(to));
         const flat = Math.abs(s.value) < 500;
         cls = flat ? 'bar-zero' : s.value > 0 ? 'bar-up' : 'bar-down';
-        label = flat ? 'No change' : HE.inrSigned(s.value);
+        label = flat ? '–' : HE.inrSigned(s.value);
         cursor = to;
       }
       if (i < n - 1) {
@@ -190,12 +192,12 @@
       const h = Math.max(2, y2 - y1);
       bars += `<rect class="${cls}" x="${x}" y="${y1}" width="${barW}" height="${h}" rx="2"/>`;
       bars += `<text class="bar-value ${cls}-t" x="${cx}" y="${y1 - 8}" text-anchor="middle">${label}</text>`;
-      bars += `<text class="bar-label" x="${cx}" y="${H - bottom + 22}" text-anchor="middle">${HE.esc(s.label)}</text>`;
+      bars += `<text class="bar-label" x="${cx}" y="${H - bottom + 24}" text-anchor="middle">${HE.esc(s.label)}</text>`;
     });
     const parts = `<line class="axis" x1="${padL}" x2="${W - padR}" y1="${floor}" y2="${floor}"/>${links}${bars}`;
 
     const first = steps[0].value, last = steps[n - 1].value;
-    $('bridge').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img"
+    $('bridge').innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
       aria-label="Contribution moves from ${HE.inr(first)} to ${HE.inr(last)}">${parts}</svg>`;
     $('bridgeNote').textContent = truncated
       ? `Bars start at ${HE.inr(axisMin)} so small changes stay visible.`
@@ -329,6 +331,12 @@
     HE.storeSaved(list);
     renderLoadSelect();
   }
+
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { if (latest) renderBridge(latest.bridge); }, 120);
+  });
 
   document.querySelectorAll('.tabs [role=tab]').forEach((tab) => {
     tab.addEventListener('click', () => {
