@@ -11,7 +11,7 @@ pip install -r requirements.txt
 python app.py                    # http://localhost:5000
 ```
 
-The app starts on sample data. To work with real data see the README, and **never commit anything from `data/`, `.env` or `engine/sql/billing.sql`**.
+The app starts on sample data. To work with real data see the README, and **never commit anything from `data/` or `.env`**.
 
 Read in this order: `README.md`, `docs/HOW_IT_WORKS.md`, `docs/DECISIONS.md`.
 

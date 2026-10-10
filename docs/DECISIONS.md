@@ -18,7 +18,7 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **Scenarios save in the browser.** It was the quickest way to let people keep scenarios without building accounts. It is also the main limitation: nothing is shared (see `ROADMAP.md`).
 
-**Real data never goes into git.** The dataset holds chain-wise prices, offers and costs. `data/`, `.env`, `engine/sql/billing.sql` and Excel files are git-ignored, tests use synthetic data, and the repo carries a synthetic `sample_data/` so a fresh clone still runs. The app also refuses to listen beyond the local computer without `APP_PASSWORD`.
+**Real data never goes into git.** The dataset holds chain-wise prices, offers and costs. `data/`, `.env` and Excel files are git-ignored, tests use synthetic data, and the repo carries a synthetic `sample_data/` so a fresh clone still runs. The billing query (`engine/sql/billing.sql`) *is* in git, because it holds table names but no login or data, and the whole team needs the same one. The login (host, port, user, password) lives only in each person's `.env`. The app also refuses to listen beyond the local computer without `APP_PASSWORD`.
 
 **Volumes from SQL, terms from the offer file, costs from the MIS.** Billing is the source of truth for volume and net price. The offer file gives list price, trade margin and offers. The MIS gives costs, but has no chain column, so costs are spread to chains (see `HOW_IT_WORKS.md`).
 

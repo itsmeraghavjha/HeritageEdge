@@ -7,9 +7,9 @@ venv/
 .DS_Store
 
 # Confidential: real company data, uploads and credentials. Never commit these.
+# (engine/sql/billing.sql is NOT here: it holds table names only, no data or credentials, and the team shares it.)
 data/
 .env
-engine/sql/billing.sql
 *.xlsb
 *.xlsx
 !sample_data/**

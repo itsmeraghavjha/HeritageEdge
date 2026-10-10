@@ -15,8 +15,8 @@ The app runs on one dataset: a table with a row per chain x customer group x sal
 ## Setting up the SQL connection
 
 1. Install `pyodbc` (`pip install pyodbc`) and the Microsoft ODBC Driver for SQL Server.
-2. Copy `.env.example` to `.env` and set `SQL_SERVER`, `SQL_DATABASE`, `SQL_USER`, `SQL_PASSWORD`. Ask IT for a **read-only** login.
-3. Copy `engine/sql/billing.example.sql` to `engine/sql/billing.sql` and use your own table names. Keep the **output column names**, because the app reads them. The single `?` in the query is the first billing date to pull.
+2. Copy `.env.example` to `.env` and set `SQL_SERVER`, `SQL_DATABASE`, `SQL_USER` and `SQL_PASSWORD`. Set `SQL_PORT` too if the server is not on the default port (or write it as `host,1433` in `SQL_SERVER`). Ask IT for a **read-only** login. `.env` is never committed.
+3. The billing query is `engine/sql/billing.sql`, shared in the repo. It holds table names only, no login. If you change it, keep the **output column names** listed in its header, because the app reads them (a test checks this). The single `?` is the first billing date to pull, and comments in the file are stripped before it runs.
 4. Restart the app, open *Data* and press *Test connection*.
 
 The computer running the app must be able to reach the SQL Server (company network or VPN).

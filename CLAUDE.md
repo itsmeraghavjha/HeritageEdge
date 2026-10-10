@@ -16,8 +16,8 @@ Everything is a monthly run-rate in rupees. With no real data built, the app run
 
 The real dataset holds chain-wise prices, offers and costs. It must never reach git.
 
-- Ignored by git: `data/` (built dataset, uploads, cached SQL pull), `.env` (SQL login, app password), `engine/sql/billing.sql` (real table names), `*.xlsb`, `*.xlsx`.
-- Safe in git: `sample_data/`, `config/` (elasticities, milk share, cost attribution rules), `engine/sql/billing.example.sql`.
+- Ignored by git: `data/` (built dataset, uploads, cached SQL pull), `.env` (SQL host, port, user, password, app password), `*.xlsb`, `*.xlsx`.
+- Safe in git: `sample_data/`, `config/` (elasticities, milk share, cost attribution rules), `engine/sql/billing.sql` (the shared billing query: table names only, never a login).
 - Never put real chain names, prices, volumes or costs in code, tests, docs, commit messages or screenshots. Tests use `tests/synth.py`.
 - Never print or log `SQL_PASSWORD`. `sql_source._clean()` scrubs it from errors.
 - `app.py` refuses to listen beyond this computer unless `APP_PASSWORD` is set.
@@ -30,12 +30,12 @@ python app.py        # http://localhost:5000
 pytest               # run before every commit
 ```
 
-SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `.env.example` to `.env` and fill it in.
+SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `.env.example` to `.env` and fill it in (`SQL_PORT` is optional).
 
 ## Architecture
 
 - `engine/data.py`: loads `data/rows.csv` if a real dataset has been built, otherwise `sample_data/rows.csv`. One row per chain x customer group x sales office x SKU with baseline `units`, terms and attributed costs. Defines the dimensions (`DIM_DEFS`).
-- `engine/sql_source.py` + `engine/sql/billing.sql`: pulls billing volumes from SQL Server into `data/billing.csv`. The query's output column names are a contract; `billing.example.sql` lists them.
+- `engine/sql_source.py` + `engine/sql/billing.sql`: pulls billing volumes from SQL Server into `data/billing.csv`. The query's output column names are a contract (listed in its header, checked by a test). Comments are stripped before it runs.
 - `engine/prepare.py`: builds `rows.csv` from billing + offer file + MIS. Averages the chosen base months, takes terms from the offer file, spreads MIS costs to chains, and writes `meta.json` with a quality report and a reconciliation against the MIS.
 - `engine/datastore.py`: uploads and background jobs for the Data page.
 - `engine/simulate.py`: all the maths. `calc_row` computes one row's P&L; `simulate`, `pnl` and `bridge` aggregate. Levers are a frozen dataclass; `LIMITS` clamps API input.
