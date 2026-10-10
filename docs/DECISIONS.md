@@ -4,7 +4,7 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 ## Decisions made
 
-**Plain Python and Flask, sample data first.** The team needed something to react to quickly. Flask matches the team's other projects, and a pure-Python engine is easy to read and test. Real data comes later through one function (`build_rows`).
+**Plain Python and Flask, sample data first, then real data.** The team needed something to react to quickly. Flask matches the team's other projects, and a pure-Python engine is easy to read and test. Real data now comes in through the Data page.
 
 **One engine, two screens.** The simulator and the P&L page both call the same engine in `engine/simulate.py`, so they can never disagree.
 
@@ -18,10 +18,21 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **Scenarios save in the browser.** It was the quickest way to let people keep scenarios without building accounts. It is also the main limitation: nothing is shared (see `ROADMAP.md`).
 
+**Real data never goes into git.** The dataset holds chain-wise prices, offers and costs. `data/`, `.env`, `engine/sql/billing.sql` and Excel files are git-ignored, tests use synthetic data, and the repo carries a synthetic `sample_data/` so a fresh clone still runs. The app also refuses to listen beyond the local computer without `APP_PASSWORD`.
+
+**Volumes from SQL, terms from the offer file, costs from the MIS.** Billing is the source of truth for volume and net price. The offer file gives list price, trade margin and offers. The MIS gives costs, but has no chain column, so costs are spread to chains (see `HOW_IT_WORKS.md`).
+
+**Scope is the offer file.** Only customer x SKU lines that appear in the offer file are included, so customers without terms on file (for example institutions) are left out rather than guessed at.
+
+**Net revenue always ties to billing.** The "rebates and other" line is the balancing item between list invoice and billed price. It keeps the baseline exact, at the cost of mixing fees with credit notes and mix effects.
+
+**Contribution is gross margin less S&D.** Net margin is the new bottom line, after P&A, interest, over/under and marketing.
+
 ## Open questions (please confirm)
 
-- **"SO" means Sales Office.** This was assumed. If it means something else (for example Sales Officer), the P&L grouping needs changing.
 - **Trade margin definition.** The model treats it as a share of MRP, and rebates and promo as shares of invoice value. Confirm this matches how the chains' terms are actually written.
-- **Sales and distribution at a flat 3.5% of net revenue.** Replace with real figures by chain or state if available.
-- **Which costs belong between gross margin and contribution?** Currently only logistics and sales and distribution. Add others (for example A&P, trade spends outside promo) if the team's contribution definition includes them.
+- **Net margin against finance.** In a first trial build the model's net margin came out several times higher than the MIS's own net margin for the same customer groups. Part of the gap is the window and scope, but it needs explaining. Use the reconciliation on the Data page and agree the result with finance before the bottom line is shown to anyone.
+- **Is the offer value GST-inclusive?** The build treats offers on the same basis as MRP (including GST) and converts them to the ex-GST invoice. If offers are already ex-GST, promo is understated and "rebates and other" is overstated by the same amount. Net revenue is unaffected.
+- **Contribution definition.** Currently gross margin less S&D. Confirm that matches how the MRF team and finance define it.
+- **Cost allocation.** Volume-based allocation gives every chain the same cost per pack. Decide whether S&D or others should use another driver (for example drop count), which would need route-level data.
 - **Elasticities and response constants** are assumptions. See `DATA.md`, section 4.

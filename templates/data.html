@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Data | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <h1>Data</h1>
+    <p class="lede">Bring in your own numbers. Volumes come from SQL Server, the offer file and the MIS workbook are uploaded here. Everything stays on this computer and is never added to GitHub.</p>
+  </div>
+  <div class="head-actions"><span class="pill" id="modePill"></span></div>
+</header>
+
+<div class="banner" id="jobBanner" role="status" hidden>
+  <div class="job-text" id="jobText"></div>
+  <div class="progress" id="jobBar" hidden><span></span></div>
+</div>
+
+<ol class="steps">
+  <li class="panel step" id="stepVolumes">
+    <div class="step-head">
+      <h2>Volumes from SQL Server</h2>
+      <span class="state" id="volState"></span>
+    </div>
+    <p class="sub" id="volInfo"></p>
+    <div class="step-actions">
+      <div class="field"><label for="startDate">Pull billing from</label><input id="startDate" type="date" class="text"></div>
+      <button type="button" class="btn" id="testSql">Test connection</button>
+      <button type="button" class="btn btn-primary" id="pullSql">Refresh from SQL</button>
+    </div>
+    <p class="note" id="sqlNote" role="status"></p>
+  </li>
+
+  <li class="panel step" id="stepOffer">
+    <div class="step-head"><h2>Offer file</h2><span class="state" id="offerState"></span></div>
+    <p class="sub">The monthly offer workbook with list prices, trade margin and offers per customer and SKU. Excel or .xlsb.</p>
+    <div class="step-actions">
+      <input id="offerFile" type="file" accept=".xlsb,.xlsx,.xlsm" class="visually-hidden">
+      <label for="offerFile" class="btn">Choose file</label>
+      <span class="filename" id="offerName"></span>
+    </div>
+    <p class="note" id="offerNote" role="status"></p>
+  </li>
+
+  <li class="panel step" id="stepMis">
+    <div class="step-head"><h2>MIS workbook</h2><span class="state" id="misState"></span></div>
+    <p class="sub">The P&amp;L MIS with costs by SKU, sales office and customer group. It can be large, so uploading may take a minute.</p>
+    <div class="step-actions">
+      <input id="misFile" type="file" accept=".xlsx,.xlsm" class="visually-hidden">
+      <label for="misFile" class="btn">Choose file</label>
+      <span class="filename" id="misName"></span>
+    </div>
+    <p class="note" id="misNote" role="status"></p>
+  </li>
+
+  <li class="panel step" id="stepBuild">
+    <div class="step-head"><h2>Build the dataset</h2><span class="state" id="buildState"></span></div>
+    <p class="sub">Uses the average of the months you tick as the baseline. Reading the MIS takes a few minutes. The simulator and P&amp;L switch to the new data when it finishes.</p>
+    <div class="months" id="months" role="group" aria-label="Base months"></div>
+    <div class="step-actions">
+      <button type="button" class="btn btn-primary" id="buildBtn">Build dataset</button>
+    </div>
+    <p class="note" id="buildNote" role="status"></p>
+  </li>
+</ol>
+
+<section class="panel" id="resultPanel" hidden>
+  <div class="panel-head"><h2>What was built</h2><p class="sub" id="builtSub"></p></div>
+  <div class="facts" id="facts"></div>
+  <div class="panel-head"><h2>Costs against the MIS</h2>
+    <p class="sub">Each attributed cost as a share of net revenue, next to the same share in the MIS. The MIS covers more customers and months than the offer file, so some gap is expected. A large gap on one line shows where to look.</p>
+  </div>
+  <div class="table-scroll"><table class="data" id="reconTable"></table></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/data.js') }}"></script>{% endblock %}

@@ -1,111 +1,142 @@
-"""Illustrative modern-trade dairy data for HeritageEdge.
+"""Loads the dataset HeritageEdge runs on.
 
-Everything here is made-up sample data so the app works out of the box.
-To use real numbers, replace build_rows() with a loader that returns the same
-row shape: {"chain", "state", "so", "sku", "units"} where units is the
-baseline monthly volume for that chain / sales office / SKU combination.
+Real data     data/rows.csv         built inside the app from SQL billing + the offer file + the MIS.
+                                    Confidential. Ignored by git. Never commit it.
+Sample data   sample_data/rows.csv  synthetic, in git. Used whenever no real data has been built yet.
+
+Grain: one row per chain x customer group x sales office x SKU, with the baseline monthly packs and
+the commercial terms and attributed costs behind them. Team inputs that are safe to share live in
+config/ (elasticity and milk share per product family, and how each MIS cost is attributed).
 """
-import random
+import csv
+import json
+import os
+import re
+from datetime import datetime
+from pathlib import Path
 
-VOLUME_SCALE = 4.5
+ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(os.environ.get("HERITAGEEDGE_DATA_DIR", ROOT / "data"))
+SAMPLE_DIR = ROOT / "sample_data"
+CONFIG_DIR = ROOT / "config"
 
-STATES = [
-    {"id": "TS", "name": "Telangana", "freight_factor": 1.00},
-    {"id": "AP", "name": "Andhra Pradesh", "freight_factor": 1.10},
-    {"id": "KA", "name": "Karnataka", "freight_factor": 1.15},
-    {"id": "TN", "name": "Tamil Nadu", "freight_factor": 1.20},
-    {"id": "MH", "name": "Maharashtra", "freight_factor": 1.60},
-]
+LINES = ("cogs", "sd", "pa", "interest", "ou", "mktg")
+NUM = ("units", "mrp_x", "trade", "promo_rate", "other_rate", "net_px") + LINES
+DEFAULT_ASSUMPTION = (-1.0, 0.6)
+NOT_RECORDED = "(not recorded)"
 
-SALES_OFFICES = [
-    {"id": "hyd-c", "name": "Hyderabad Central", "state": "TS", "weight": 1.6},
-    {"id": "hyd-n", "name": "Hyderabad North", "state": "TS", "weight": 1.3},
-    {"id": "wgl", "name": "Warangal", "state": "TS", "weight": 0.6},
-    {"id": "knr", "name": "Karimnagar", "state": "TS", "weight": 0.5},
-    {"id": "vja", "name": "Vijayawada", "state": "AP", "weight": 1.0},
-    {"id": "vsp", "name": "Visakhapatnam", "state": "AP", "weight": 0.9},
-    {"id": "tpt", "name": "Tirupati", "state": "AP", "weight": 0.5},
-    {"id": "gnt", "name": "Guntur", "state": "AP", "weight": 0.6},
-    {"id": "blr-n", "name": "Bengaluru North", "state": "KA", "weight": 1.2},
-    {"id": "blr-s", "name": "Bengaluru South", "state": "KA", "weight": 1.1},
-    {"id": "mys", "name": "Mysuru", "state": "KA", "weight": 0.5},
-    {"id": "maa", "name": "Chennai", "state": "TN", "weight": 1.0},
-    {"id": "cbe", "name": "Coimbatore", "state": "TN", "weight": 0.5},
-    {"id": "bom", "name": "Mumbai", "state": "MH", "weight": 0.8},
-    {"id": "pnq", "name": "Pune", "state": "MH", "weight": 0.6},
-]
+# id, label. The id is also the key used in API requests (scope, filters, dims) and in each row.
+DIM_DEFS = (
+    ("chain", "Chain"),
+    ("grp", "Customer group"),
+    ("state", "State"),
+    ("city", "City"),
+    ("so", "Sales office"),
+    ("family", "Product category"),
+    ("variant", "Variant"),
+    ("pack", "Pack size"),
+    ("sku", "SKU"),
+)
+DIM_IDS = tuple(d for d, _ in DIM_DEFS)
 
-# trade_margin: share of MRP kept by the chain.
-# rebate / base_promo: share of invoice value (display fees, listing fees, schemes).
-CHAINS = [
-    {"id": "dmart", "name": "DMart", "trade_margin": 0.115, "rebate": 0.020,
-     "base_promo": 0.015, "size": 1.30, "states": ["TS", "AP", "KA", "MH"]},
-    {"id": "reliance", "name": "Reliance Retail", "trade_margin": 0.125, "rebate": 0.025,
-     "base_promo": 0.020, "size": 1.20, "states": ["TS", "AP", "KA", "TN", "MH"]},
-    {"id": "more", "name": "More Retail", "trade_margin": 0.140, "rebate": 0.022,
-     "base_promo": 0.020, "size": 0.80, "states": ["TS", "AP", "KA", "TN"]},
-    {"id": "spencers", "name": "Spencer's", "trade_margin": 0.150, "rebate": 0.028,
-     "base_promo": 0.025, "size": 0.45, "states": ["TS", "AP", "TN"]},
-    {"id": "metro", "name": "Metro Cash & Carry", "trade_margin": 0.090, "rebate": 0.015,
-     "base_promo": 0.010, "size": 0.70, "states": ["TS", "KA", "TN", "MH"]},
-    {"id": "ratnadeep", "name": "Ratnadeep", "trade_margin": 0.135, "rebate": 0.020,
-     "base_promo": 0.018, "size": 0.55, "states": ["TS", "AP"]},
-]
-
-# mrp, cogs and freight are per unit in rupees. milk_share is the share of COGS
-# driven by milk procurement. elasticity is the price elasticity of demand.
-SKUS = [
-    {"id": "toned-500", "name": "Toned milk 500 ml", "category": "Milk", "mrp": 27,
-     "cogs": 20.0, "milk_share": 0.85, "freight": 0.45, "elasticity": -0.35, "base_units": 9000},
-    {"id": "fcm-500", "name": "Full cream milk 500 ml", "category": "Milk", "mrp": 34,
-     "cogs": 25.0, "milk_share": 0.85, "freight": 0.45, "elasticity": -0.45, "base_units": 5500},
-    {"id": "curd-400", "name": "Curd cup 400 g", "category": "Curd and beverages", "mrp": 40,
-     "cogs": 27.5, "milk_share": 0.70, "freight": 0.70, "elasticity": -0.80, "base_units": 3000},
-    {"id": "curd-1kg", "name": "Curd tub 1 kg", "category": "Curd and beverages", "mrp": 85,
-     "cogs": 56.0, "milk_share": 0.70, "freight": 1.40, "elasticity": -0.90, "base_units": 900},
-    {"id": "lassi-200", "name": "Lassi 200 ml", "category": "Curd and beverages", "mrp": 20,
-     "cogs": 12.5, "milk_share": 0.55, "freight": 0.40, "elasticity": -1.00, "base_units": 2000},
-    {"id": "bm-200", "name": "Buttermilk 200 ml", "category": "Curd and beverages", "mrp": 15,
-     "cogs": 9.5, "milk_share": 0.50, "freight": 0.35, "elasticity": -0.90, "base_units": 2200},
-    {"id": "shake-180", "name": "Milkshake 180 ml", "category": "Curd and beverages", "mrp": 30,
-     "cogs": 19.0, "milk_share": 0.50, "freight": 0.45, "elasticity": -1.20, "base_units": 900},
-    {"id": "paneer-200", "name": "Paneer 200 g", "category": "Value-added", "mrp": 95,
-     "cogs": 66.0, "milk_share": 0.75, "freight": 1.20, "elasticity": -1.10, "base_units": 1100},
-    {"id": "butter-100", "name": "Butter 100 g", "category": "Value-added", "mrp": 58,
-     "cogs": 40.0, "milk_share": 0.80, "freight": 0.90, "elasticity": -1.00, "base_units": 700},
-    {"id": "ghee-1l", "name": "Ghee 1 L carton", "category": "Value-added", "mrp": 640,
-     "cogs": 470.0, "milk_share": 0.88, "freight": 3.50, "elasticity": -1.30, "base_units": 450},
-    {"id": "cheese-200", "name": "Cheese slices 200 g", "category": "Value-added", "mrp": 135,
-     "cogs": 92.0, "milk_share": 0.65, "freight": 1.40, "elasticity": -1.50, "base_units": 280},
-]
-
-CHAIN_BY_ID = {c["id"]: c for c in CHAINS}
-STATE_BY_ID = {s["id"]: s for s in STATES}
-SO_BY_ID = {s["id"]: s for s in SALES_OFFICES}
-SKU_BY_ID = {s["id"]: s for s in SKUS}
+# Filled by reload(): ROWS, BASIS, OPTIONS, LABEL, MODE, META
+ROWS = []
+BASIS = {}
+OPTIONS = {}
+LABEL = {}
+MODE = "sample"
+META = {}
 
 
-def build_rows(seed=7):
-    """One row per chain x sales office x SKU, with baseline monthly units."""
-    rng = random.Random(seed)
+def _read(path):
+    with open(path, newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh))
+
+
+def _city(so_name):
+    """Older files have no city column: take it from the sales office name
+    ('Bangalore Sales Office - 3' -> 'Bangalore'). Approximate."""
+    name = re.sub(r"\s+(sales\s*office|so)\b.*$", "", (so_name or "").strip(), flags=re.I).strip()
+    return name.title() or (so_name or "").title()
+
+
+def _label(dim, row):
+    if dim == "so":
+        return row["so_name"] or row["so"]
+    if dim == "sku":
+        return row["name"] or row["sku"]
+    return row[dim] or NOT_RECORDED
+
+
+def _load_meta(mode):
+    path = DATA_DIR / "meta.json"
+    if mode == "actual" and path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass
+    return {}
+
+
+def months_text(months):
+    """['2026-07-01', '2026-08-01', '2026-09-01'] -> 'Jul to Sep 2026'."""
+    if not months:
+        return ""
+    dts = [datetime.strptime(m[:10], "%Y-%m-%d") for m in sorted(months)]
+    first, last = dts[0], dts[-1]
+    if len(dts) == 1:
+        return first.strftime("%b %Y")
+    if first.year == last.year:
+        return f"{first.strftime('%b')} to {last.strftime('%b %Y')}"
+    return f"{first.strftime('%b %Y')} to {last.strftime('%b %Y')}"
+
+
+def status():
+    """Short description of the data in use, for the sidebar and the data page."""
+    if MODE == "actual":
+        months = months_text(META.get("base_months", []))
+        return {"mode": MODE, "title": "Actual data",
+                "detail": (f"{months} billing, offer terms and MIS costs. Monthly run-rates."
+                           if months else "Billing, offer terms and MIS costs. Monthly run-rates.")}
+    return {"mode": MODE, "title": "Sample data",
+            "detail": "Figures are illustrative monthly run-rates, not actuals."}
+
+
+def reload():
+    """(Re)read the dataset. Called at import and again after a new dataset is built."""
+    global ROWS, BASIS, OPTIONS, LABEL, MODE, META
+    real = DATA_DIR / "rows.csv"
+    use_real = real.exists() and os.environ.get("HERITAGEEDGE_USE_SAMPLE") != "1"
+    path = real if use_real else SAMPLE_DIR / "rows.csv"
+
+    assume = {r["family"]: (float(r["elasticity"]), float(r["milk_share"]))
+              for r in _read(CONFIG_DIR / "assumptions.csv")}
+    basis = {r["line"]: r["basis"] for r in _read(CONFIG_DIR / "attribution.csv")}
+
     rows = []
-    for chain in CHAINS:
-        for so in SALES_OFFICES:
-            if so["state"] not in chain["states"]:
-                continue
-            for sku in SKUS:
-                if rng.random() < 0.08:  # chain does not stock every SKU everywhere
-                    continue
-                noise = rng.uniform(0.85, 1.15)
-                units = sku["base_units"] * chain["size"] * so["weight"] * noise * VOLUME_SCALE
-                rows.append({
-                    "chain": chain["id"],
-                    "state": so["state"],
-                    "so": so["id"],
-                    "sku": sku["id"],
-                    "units": round(units),
-                })
-    return rows
+    for r in _read(path):
+        for k in NUM:
+            r[k] = float(r[k])
+        r["e"], r["milk_share"] = assume.get(r["family"], DEFAULT_ASSUMPTION)
+        r["so_name"] = r.get("so_name") or r["so"]
+        r["name"] = r.get("name") or r["sku"]
+        r["city"] = r.get("city") or _city(r["so_name"])
+        for k in ("grp", "variant", "pack"):
+            r[k] = r.get(k) or ""
+        rows.append(r)
+
+    options, label = {}, {}
+    for dim in DIM_IDS:
+        seen = {}
+        for r in rows:
+            seen.setdefault(r[dim], _label(dim, r))
+        label[dim] = seen
+        options[dim] = [{"id": k, "name": v}
+                        for k, v in sorted(seen.items(), key=lambda kv: str(kv[1]).lower())]
+
+    mode = "actual" if use_real else "sample"
+    ROWS, BASIS, OPTIONS, LABEL, MODE = rows, basis, options, label, mode
+    META = _load_meta(mode)
 
 
-ROWS = build_rows()
+reload()

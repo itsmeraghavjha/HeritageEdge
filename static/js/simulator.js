@@ -61,57 +61,29 @@
   }
   function syncAllLevers() { HE.FLAT.forEach(syncLever); }
 
-  /* ---------- scope chips ---------- */
-  function renderScope() {
-    const section = (title, key, items) => `
-      <div class="chip-group">
-        <p class="chip-title">${title}</p>
-        <div class="chips" data-scope="${key}">
-          ${items.map((it) => `<button type="button" class="chip" data-id="${it.id}"
-              aria-pressed="${state.scope[key].includes(it.id)}">${HE.esc(it.name)}</button>`).join('')}
-        </div>
-      </div>`;
-    $('scopeBody').innerHTML =
-      section('Chains', 'chains', meta.chains) +
-      section('States', 'states', meta.states) +
-      section('SKUs', 'skus', meta.skus) +
-      '<button type="button" class="link-btn" id="scopeClear">Clear selection</button>';
+  /* ---------- scope: where price, promo and chain terms apply ---------- */
+  let selectors = null;
 
-    $('scopeBody').addEventListener('click', (e) => {
-      const chip = e.target.closest('.chip');
-      if (chip) {
-        const key = chip.parentElement.dataset.scope;
-        const list = state.scope[key];
-        const i = list.indexOf(chip.dataset.id);
-        if (i >= 0) list.splice(i, 1); else list.push(chip.dataset.id);
-        chip.setAttribute('aria-pressed', String(i < 0));
-        changed();
-      } else if (e.target.id === 'scopeClear') {
-        state.scope = HE.emptyScope();
-        $('scopeBody').querySelectorAll('.chip').forEach((c) => c.setAttribute('aria-pressed', 'false'));
-        changed();
-      }
-    });
+  function renderScope() {
+    selectors = HE.buildSelectors({ host: $('scopeDims'), dims: meta.dims, holder: state, key: 'scope',
+                                    onChange: changed, mode: 'inline' });
     updateScopeSummary();
   }
 
   function updateScopeSummary(res) {
-    const names = (key, items, all) => {
-      const ids = state.scope[key];
-      if (!ids.length) return all;
-      const n = items.filter((i) => ids.includes(i.id)).map((i) => i.name);
-      return n.length > 2 ? n.length + ' ' + all.replace('All ', '') : n.join(', ');
-    };
-    let text = [
-      names('chains', meta.chains, 'All chains'),
-      names('states', meta.states, 'all states'),
-      names('skus', meta.skus, 'all SKUs'),
-    ].join(', ');
+    let text = HE.describeSelection(state.scope, meta.dims) || 'Everything';
     if (res && res.rows_in_scope !== res.rows_total) {
-      text += ` (${res.rows_in_scope} of ${res.rows_total} lines)`;
+      text += ` (${res.rows_in_scope.toLocaleString('en-IN')} of ${res.rows_total.toLocaleString('en-IN')} lines)`;
     }
     $('scopeSummary').textContent = text;
+    $('scopeClear').hidden = !HE.hasSelection(state.scope);
   }
+
+  $('scopeClear').addEventListener('click', () => {
+    state.scope = HE.emptyScope();
+    selectors.refresh();
+    changed();
+  });
 
   /* ---------- results ---------- */
   function kpi(label, value, deltaText, deltaTone, sub, key) {
@@ -125,7 +97,7 @@
 
   function renderKpis(r) {
     const b = r.base, s = r.sim;
-    const dNet = s.net - b.net, dCm = s.cm - b.cm, dUnits = s.units - b.units;
+    const dNet = s.net - b.net, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
     $('kpis').innerHTML =
       kpi('Net revenue', HE.inr(s.net),
           `${HE.inrSigned(dNet)} (${HE.relText(HE.rel(b.net, s.net))})`, HE.tone(dNet, true, 500),
@@ -136,6 +108,9 @@
       kpi('Contribution', HE.inr(s.cm),
           `${HE.inrSigned(dCm)} (${HE.relText(HE.rel(b.cm, s.cm))})`, HE.tone(dCm, true, 500),
           `${HE.pct(s.cm_pct)} of net revenue, baseline ${HE.pct(b.cm_pct)}`, true) +
+      kpi('Net margin', HE.inr(s.nm),
+          `${HE.inrSigned(dNm)} (${HE.pp(s.nm_pct - b.nm_pct)})`, HE.tone(dNm, true, 500),
+          `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`) +
       kpi('Volume in units', (s.units / 1e5).toFixed(1) + ' lakh',
           HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
           `Baseline ${(b.units / 1e5).toFixed(1)} lakh units`);
@@ -212,11 +187,16 @@
     ['Net revenue', 'net', 'l', true, 'strong'],
     ['COGS', 'cogs', 'l', false],
     ['Gross margin', 'gm', 'l', true, 'strong'],
-    ['Logistics', 'logistics', 'l', false],
-    ['Sales and distribution', 'sd', 'l', false],
+    ['S&D / freight', 'logistics', 'l', false],
     ['Contribution', 'cm', 'l', true, 'strong'],
+    ['P&A', 'pa', 'l', false],
+    ['Interest', 'interest', 'l', false],
+    ['Over/under', 'ou', 'l', false],
+    ['Marketing', 'mktg', 'l', false],
+    ['Net margin', 'nm', 'l', true, 'strong'],
     ['Gross margin %', 'gm_pct', 'p', true],
     ['Contribution %', 'cm_pct', 'p', true],
+    ['Net margin %', 'nm_pct', 'p', true],
   ];
 
   function renderSummary(r) {
@@ -233,6 +213,25 @@
       <th scope="col">Scenario</th><th scope="col">Change</th></tr></thead><tbody>${rows}</tbody>`;
   }
 
+  function dimName(id) {
+    const d = meta.dims.find((x) => x.id === id);
+    return d ? d.name : id;
+  }
+
+  let tabsBuilt = false;
+  function buildTabs(keys) {
+    $('breakTabs').innerHTML = keys.map((k) =>
+      `<button type="button" role="tab" data-dim="${k}" aria-selected="${k === activeDim}">${HE.esc(dimName(k))}</button>`).join('');
+    tabsBuilt = true;
+  }
+  $('breakTabs').addEventListener('click', (e) => {
+    const tab = e.target.closest('[role=tab]');
+    if (!tab) return;
+    activeDim = tab.dataset.dim;
+    $('breakTabs').querySelectorAll('[role=tab]').forEach((t) => t.setAttribute('aria-selected', String(t === tab)));
+    if (latest) renderBreakdown(latest);
+  });
+
   function renderBreakdown(r) {
     const rows = r.breakdown[activeDim].map((n) => {
       const dNet = n.sim.net - n.base.net, dCm = n.sim.cm - n.base.cm;
@@ -243,7 +242,7 @@
         <td class="${HE.tone(dCm, true, 500)}">${HE.lakhSigned(dCm)}</td>
         <td>${HE.pct(n.sim.cm_pct)}</td></tr>`;
     }).join('');
-    $('breakdown').innerHTML = `<thead><tr><th scope="col">${activeDim === 'sku' ? 'SKU' : activeDim === 'state' ? 'State' : 'Chain'}</th>
+    $('breakdown').innerHTML = `<thead><tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
       <th scope="col">Net revenue</th><th scope="col">Change</th>
       <th scope="col">Contribution</th><th scope="col">Change</th><th scope="col">CM %</th></tr></thead>
       <tbody>${rows}</tbody>`;
@@ -251,6 +250,7 @@
 
   function render(r) {
     latest = r;
+    if (!tabsBuilt) buildTabs(Object.keys(r.breakdown));
     renderKpis(r);
     renderBridge(r.bridge);
     renderSummary(r);
@@ -291,9 +291,9 @@
 
   function applyScenario(levers, scope) {
     state.levers = Object.assign({}, HE.DEFAULTS, levers || {});
-    if (scope) state.scope = Object.assign(HE.emptyScope(), scope);
+    if (scope) state.scope = HE.pruneSelection(scope, meta.dims);
     syncAllLevers();
-    renderScope();
+    selectors.refresh();
     changed();
   }
 
@@ -338,18 +338,10 @@
     resizeTimer = setTimeout(() => { if (latest) renderBridge(latest.bridge); }, 120);
   });
 
-  document.querySelectorAll('.tabs [role=tab]').forEach((tab) => {
-    tab.addEventListener('click', () => {
-      activeDim = tab.dataset.dim;
-      document.querySelectorAll('.tabs [role=tab]').forEach((t) =>
-        t.setAttribute('aria-selected', String(t === tab)));
-      if (latest) renderBreakdown(latest);
-    });
-  });
-
   /* ---------- start ---------- */
   fetch('/api/meta').then((r) => r.json()).then((m) => {
     meta = m;
+    state.scope = HE.pruneSelection(state.scope, meta.dims);
     renderLevers();
     renderScope();
     renderLoadSelect();

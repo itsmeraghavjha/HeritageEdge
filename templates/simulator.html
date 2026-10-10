@@ -20,9 +20,9 @@
     <details class="scope" id="scope">
       <summary>
         <span class="scope-title">Apply price, promo and chain terms to</span>
-        <span class="scope-summary" id="scopeSummary">All chains, states and SKUs</span>
+        <span class="scope-summary" id="scopeSummary">Everything</span>
       </summary>
-      <div class="scope-body" id="scopeBody"></div>
+      <div class="scope-body" id="scopeBody"><div id="scopeDims"></div><button type="button" class="link-btn" id="scopeClear" hidden>Clear selection</button></div>
     </details>
     <div id="leverGroups"></div>
   </aside>
@@ -47,11 +47,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Where it lands</h2>
-          <div class="tabs" role="tablist" aria-label="Break down by">
-            <button type="button" role="tab" data-dim="chain" aria-selected="true">Chain</button>
-            <button type="button" role="tab" data-dim="state" aria-selected="false">State</button>
-            <button type="button" role="tab" data-dim="sku" aria-selected="false">SKU</button>
-          </div>
+          <div class="tabs" role="tablist" id="breakTabs" aria-label="Break down by"></div>
         </div>
         <div class="table-scroll"><table class="data" id="breakdown"></table></div>
       </div>

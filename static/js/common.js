@@ -48,9 +48,9 @@
       note: 'Costs apply to every chain, state and SKU.',
       levers: [
         { key: 'milk_cost_change_pct', label: 'Milk procurement cost', min: -10, max: 15, step: 0.5, unit: '%', signed: true,
-          hint: 'Flows into COGS in proportion to each SKU’s milk content.' },
-        { key: 'freight_change_pct', label: 'Freight cost', min: -10, max: 20, step: 0.5, unit: '%', signed: true,
-          hint: 'Applied to logistics cost per unit.' },
+          hint: 'Flows into COGS by each product family’s milk share (data/assumptions.csv).' },
+        { key: 'freight_change_pct', label: 'S&D / freight cost', min: -10, max: 20, step: 0.5, unit: '%', signed: true,
+          hint: 'Scales the whole sales, distribution and freight line from the MIS.' },
       ],
     },
   ];
@@ -66,9 +66,11 @@
     { id: 'margin1', name: 'Give chains 1 pp more margin', levers: { trade_margin_add_pp: 1 } },
   ];
 
-  const STATE_KEY = 'heritageedge:scenario:v1';
-  const SAVED_KEY = 'heritageedge:saved:v1';
-  const emptyScope = () => ({ chains: [], states: [], skus: [] });
+  const STATE_KEY = 'heritageedge:scenario:v2';
+  const SAVED_KEY = 'heritageedge:saved:v2';
+  // A selection (scope or filter) is {dimension id: [option ids]}. A missing dimension means "all".
+  const emptyScope = () => ({});
+  const OLD_KEYS = { chains: 'chain', states: 'state', cities: 'city', sos: 'so', families: 'family', skus: 'sku' };
 
   function read(key, fallback) {
     try {
@@ -80,16 +82,167 @@
     try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable */ }
   }
 
+  // Older saves used plural keys (chains, states, skus). Convert them and drop empty lists.
+  function normalizeSelection(sel) {
+    const out = {};
+    Object.keys(sel || {}).forEach((k) => {
+      const list = Array.isArray(sel[k]) ? sel[k].map(String) : [];
+      if (list.length) out[OLD_KEYS[k] || k] = list;
+    });
+    return out;
+  }
+  // Drop ids that do not exist in the current data, so a stale choice cannot silently hide every row.
+  function pruneSelection(sel, dims) {
+    const out = {};
+    dims.forEach((d) => {
+      const known = new Set(d.options.map((o) => String(o.id)));
+      const keep = ((sel || {})[d.id] || []).filter((id) => known.has(String(id)));
+      if (keep.length) out[d.id] = keep;
+    });
+    return out;
+  }
+  function describeSelection(sel, dims) {
+    const parts = [];
+    dims.forEach((d) => {
+      const ids = (sel || {})[d.id] || [];
+      if (!ids.length) return;
+      const names = ids.map((id) => (d.options.find((o) => String(o.id) === String(id)) || { name: id }).name);
+      parts.push(`${d.name}: ${names.slice(0, 2).join(', ')}${names.length > 2 ? ` and ${names.length - 2} more` : ''}`);
+    });
+    return parts.join('; ');
+  }
+  const hasSelection = (sel) => Object.keys(sel || {}).some((k) => (sel[k] || []).length);
+
   function loadState() {
-    const s = read(STATE_KEY, {});
+    const s = read(STATE_KEY, null) || read('heritageedge:scenario:v1', {});
     return {
       levers: Object.assign({}, DEFAULTS, s.levers || {}),
-      scope: Object.assign(emptyScope(), s.scope || {}),
+      scope: normalizeSelection(s.scope),
     };
   }
   function saveState(state) { write(STATE_KEY, state); }
-  function loadSaved() { return read(SAVED_KEY, []); }
+  function loadSaved() {
+    const list = read(SAVED_KEY, null) || read('heritageedge:saved:v1', []);
+    return list.map((x) => Object.assign({}, x, { scope: normalizeSelection(x.scope) }));
+  }
   function storeSaved(list) { write(SAVED_KEY, list); }
+
+  /* ---------- searchable multi-select, one per dimension ----------
+     cfg: { host, dims: [{id, name, options: [{id, name}]}], holder, key, onChange, mode }
+     The selection lives at holder[key] and is replaced (not edited) on every change.
+     mode 'popover' draws dropdown buttons; 'inline' draws collapsible rows for narrow panels. */
+  const MAX_SHOWN = 400;
+  function buildSelectors(cfg) {
+    const { host, dims, holder, key, onChange } = cfg;
+    const inline = cfg.mode === 'inline';
+    const byId = Object.fromEntries(dims.map((d) => [d.id, d]));
+    const sel = () => holder[key] || {};
+
+    const panel = (d) => `
+      <input type="search" class="text msel-search" placeholder="Search ${esc(d.name.toLowerCase())}" aria-label="Search ${esc(d.name)}">
+      <div class="msel-actions">
+        <button type="button" class="link-btn" data-act="all">Select shown</button>
+        <button type="button" class="link-btn" data-act="none">Clear</button>
+      </div>
+      <ul class="msel-list"></ul>`;
+
+    host.innerHTML = dims.map((d) => inline
+      ? `<details class="isel" data-dim="${d.id}">
+           <summary><span class="isel-name">${esc(d.name)}</span><span class="isel-val"></span></summary>
+           <div class="isel-body">${panel(d)}</div></details>`
+      : `<div class="msel" data-dim="${d.id}">
+           <button type="button" class="msel-btn" aria-haspopup="true" aria-expanded="false">${esc(d.name)}<span class="msel-badge" hidden></span></button>
+           <div class="msel-pop" hidden>${panel(d)}</div></div>`).join('');
+
+    const roots = [...host.querySelectorAll('[data-dim]')];
+    const rootOf = (el) => el.closest('[data-dim]');
+
+    function shown(root) {
+      const d = byId[root.dataset.dim];
+      const q = root.querySelector('.msel-search').value.trim().toLowerCase();
+      return d.options.filter((o) => !q || o.name.toLowerCase().includes(q));
+    }
+    function paint(root) {
+      const d = byId[root.dataset.dim];
+      const chosen = new Set((sel()[d.id] || []).map(String));
+      const items = shown(root);
+      root.querySelector('.msel-list').innerHTML = items.slice(0, MAX_SHOWN).map((o) =>
+        `<li><label><input type="checkbox" value="${esc(o.id)}"${chosen.has(String(o.id)) ? ' checked' : ''}>
+         <span>${esc(o.name)}</span></label></li>`).join('') +
+        (items.length > MAX_SHOWN ? `<li class="msel-empty">Showing the first ${MAX_SHOWN}. Search to narrow the list.</li>` : '') +
+        (items.length ? '' : '<li class="msel-empty">No matches</li>');
+    }
+    function summarize(root) {
+      const d = byId[root.dataset.dim];
+      const ids = sel()[d.id] || [];
+      if (inline) {
+        const val = root.querySelector('.isel-val');
+        val.textContent = !ids.length ? 'All'
+          : ids.length === 1 ? (d.options.find((o) => String(o.id) === String(ids[0])) || { name: ids[0] }).name
+            : `${ids.length} selected`;
+        val.classList.toggle('has-value', ids.length > 0);
+      } else {
+        const badge = root.querySelector('.msel-badge');
+        badge.textContent = ids.length || '';
+        badge.hidden = !ids.length;
+        root.querySelector('.msel-btn').classList.toggle('has-value', ids.length > 0);
+      }
+    }
+    function setDim(dim, ids) {
+      const next = Object.assign({}, sel());
+      if (ids.length) next[dim] = ids; else delete next[dim];
+      holder[key] = next;
+    }
+    function refresh() { roots.forEach((r) => { paint(r); summarize(r); }); }
+
+    host.addEventListener('input', (e) => {
+      if (e.target.classList.contains('msel-search')) paint(rootOf(e.target));
+    });
+    host.addEventListener('change', (e) => {
+      const box = e.target.closest('input[type=checkbox]');
+      if (!box) return;
+      const root = rootOf(box);
+      const dim = root.dataset.dim;
+      const set = new Set(sel()[dim] || []);
+      if (box.checked) set.add(box.value); else set.delete(box.value);
+      setDim(dim, [...set]);
+      summarize(root);
+      onChange();
+    });
+    host.addEventListener('click', (e) => {
+      const root = rootOf(e.target);
+      if (!root) return;
+      const act = e.target.dataset && e.target.dataset.act;
+      if (act) {
+        const dim = root.dataset.dim;
+        if (act === 'none') setDim(dim, []);
+        else setDim(dim, [...new Set([...(sel()[dim] || []), ...shown(root).map((o) => String(o.id))])]);
+        paint(root);
+        summarize(root);
+        onChange();
+        return;
+      }
+      const btn = e.target.closest('.msel-btn');
+      if (btn) {
+        const pop = root.querySelector('.msel-pop');
+        const open = pop.hidden;
+        closeAll();
+        pop.hidden = !open;
+        btn.setAttribute('aria-expanded', String(open));
+        if (open) root.querySelector('.msel-search').focus();
+      }
+    });
+    function closeAll() {
+      host.querySelectorAll('.msel-pop').forEach((p) => { p.hidden = true; });
+      host.querySelectorAll('.msel-btn').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+    }
+    if (!inline) {
+      document.addEventListener('click', (e) => { if (!host.contains(e.target)) closeAll(); });
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(); });
+    }
+    refresh();
+    return { refresh };
+  }
 
   async function postJson(url, body) {
     const r = await fetch(url, {
@@ -166,6 +319,7 @@
   window.HE = {
     DEFAULTS, GROUPS, FLAT, PRESETS,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
+    normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,
     postJson, inr, inrSigned, lakh, lakhSigned, thousands, pct, pp, rel, relText, tone, esc,
     leverText, changedLevers, MINUS,
   };

@@ -11,6 +11,8 @@ pip install -r requirements.txt
 python app.py                    # http://localhost:5000
 ```
 
+The app starts on sample data. To work with real data see the README, and **never commit anything from `data/`, `.env` or `engine/sql/billing.sql`**.
+
 Read in this order: `README.md`, `docs/HOW_IT_WORKS.md`, `docs/DECISIONS.md`.
 
 ## Every day
@@ -34,9 +36,9 @@ git push -u origin my-change     # then open a pull request on GitHub
 ## Rules of thumb
 
 - **Run `pytest` before pushing.** The tests check that the P&L adds up and the bridge reconciles.
-- **Change numbers in one place.** Assumptions live in `engine/data.py` and the constants at the top of `engine/simulate.py`. Do not hard-code figures in the pages.
+- **Change numbers in one place.** Assumptions live in `config/` (elasticity, milk share, cost attribution) and the constants at the top of `engine/simulate.py`. Do not hard-code figures in the pages.
 - **Update the docs when behaviour changes.** If you change a formula, update `docs/HOW_IT_WORKS.md`. If you make a choice someone could question, add it to `docs/DECISIONS.md`.
-- **Keep the sample data labelled as sample** until real data is loaded.
+- **Keep real data out of git.** No real chain names, prices, volumes or costs in code, tests, docs or screenshots. Use `tests/synth.py` for test data.
 
 ## Adding a new lever
 
@@ -50,4 +52,8 @@ A lever touches several places. Do all of them:
 
 ## Adding a chain, SKU, state or sales office
 
-Add it to the matching table in `engine/data.py`. Rows only appear if `build_rows()` (or your real loader) returns volume for them.
+Nothing to edit. They come from the data. Add the customer to the offer file and the billing query, then rebuild on the Data page.
+
+## Adding a dimension to group or filter by
+
+Add it to the columns `prepare.py` writes, to `DIM_DEFS` in `engine/data.py`, and make sure `sample_data/rows.csv` (see `tools/make_sample_data.py`) has it too.

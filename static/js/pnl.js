@@ -9,6 +9,16 @@
   let meta = null;
   let requestId = 0;
 
+  /* ---------- view filters (what the table shows; separate from the simulator's scope) ---------- */
+  const FILTER_KEY = 'heritageedge:pnlfilter:v2';
+  const view = { filters: {} };
+  try {
+    const saved = localStorage.getItem(FILTER_KEY) || localStorage.getItem('heritageedge:pnlfilter:v1');
+    view.filters = HE.normalizeSelection(saved ? JSON.parse(saved) : {});
+  } catch (e) { /* none saved */ }
+  const saveFilters = () => { try { localStorage.setItem(FILTER_KEY, JSON.stringify(view.filters)); } catch (e) { /* storage unavailable */ } };
+  const hasFilters = () => HE.hasSelection(view.filters);
+
   // [header, key, kind, good when up]
   const COLS = [
     ['Volume', 'units', 'k', true],
@@ -19,12 +29,17 @@
     ['COGS', 'cogs', 'l', false],
     ['Gross margin', 'gm', 'l', true],
     ['GM %', 'gm_pct', 'p', true],
-    ['Logistics', 'logistics', 'l', false],
-    ['Sales and distribution', 'sd', 'l', false],
+    ['S&D / freight', 'logistics', 'l', false],
     ['Contribution', 'cm', 'l', true],
     ['CM %', 'cm_pct', 'p', true],
+    ['P&A', 'pa', 'l', false],
+    ['Interest', 'interest', 'l', false],
+    ['Over/under', 'ou', 'l', false],
+    ['Marketing', 'mktg', 'l', false],
+    ['Net margin', 'nm', 'l', true],
+    ['NM %', 'nm_pct', 'p', true],
   ];
-  const STRONG = new Set(['net', 'gm', 'cm']);
+  const STRONG = new Set(['net', 'gm', 'cm', 'nm']);
 
   function cell(node, col) {
     const [, key, kind, goodUp] = col;
@@ -82,7 +97,7 @@
 
   function banner() {
     const list = HE.changedLevers(state.levers);
-    const scoped = state.scope.chains.length || state.scope.states.length || state.scope.skus.length;
+    const scope = HE.describeSelection(state.scope, meta.dims);
     if (!list.length) {
       $('banner').className = 'banner';
       $('banner').innerHTML = 'No levers are set, so the scenario matches the baseline. <a href="/">Set levers in the simulator.</a>';
@@ -91,20 +106,22 @@
     $('banner').className = 'banner is-live';
     $('banner').innerHTML = '<strong>Scenario applied:</strong> ' +
       list.map((l) => `${HE.esc(l.label)} ${HE.esc(l.text)}`).join(', ') +
-      (scoped ? '. Price, promo and chain-term levers are limited to your selected chains, states and SKUs' : '') + '.';
+      (scope ? `. Price, promo and chain-term levers apply only to: ${HE.esc(scope)}` : '') + '.';
   }
 
   function dims() {
-    return [$('dim0').value, $('dim1').value, $('dim2').value].filter(Boolean);
+    return DIM_IDS.map((id) => $(id).value).filter(Boolean);
   }
 
   async function load() {
     const id = ++requestId;
     try {
       const res = await (await HE.postJson('/api/pnl',
-        { levers: state.levers, scope: state.scope, dims: dims() })).json();
+        { levers: state.levers, scope: state.scope, dims: dims(), filters: view.filters })).json();
       if (id !== requestId) return;
       data = res;
+      $('filterCount').textContent = hasFilters()
+        ? `Showing ${res.rows_shown.toLocaleString('en-IN')} of ${res.rows_total.toLocaleString('en-IN')} lines` : '';
       if (!expanded.size) data.tree.forEach((n) => { if (n.children) expanded.add(n.id); });
       render();
     } catch (e) {
@@ -112,16 +129,30 @@
     }
   }
 
+  const DIM_IDS = ['dim0', 'dim1', 'dim2', 'dim3', 'dim4', 'dim5'];
+  const DEFAULT_DIMS = ['chain', 'state', 'city', 'sku', '', ''];
+
+  // A level can't repeat one chosen above it, so grey those options out.
+  function syncDims() {
+    const chosen = new Set();
+    DIM_IDS.forEach((id) => {
+      const sel = $(id);
+      [...sel.options].forEach((o) => { o.disabled = !!o.value && chosen.has(o.value); });
+      if (sel.value && chosen.has(sel.value)) sel.value = '';
+      if (sel.value) chosen.add(sel.value);
+    });
+  }
+
   function initSelects() {
     const opts = (withNone) => (withNone ? '<option value="">None</option>' : '') +
       meta.dims.map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
-    $('dim0').innerHTML = opts(false);
-    $('dim1').innerHTML = opts(true);
-    $('dim2').innerHTML = opts(true);
-    $('dim0').value = 'chain';
-    $('dim1').value = 'state';
-    $('dim2').value = 'sku';
-    ['dim0', 'dim1', 'dim2'].forEach((id) => $(id).addEventListener('change', () => {
+    $('dimRow').innerHTML = DIM_IDS.map((id, i) => `
+      <div class="field"><label for="${id}">${i === 0 ? 'Group by' : 'Then by'}</label>
+      <select id="${id}" class="select">${opts(i > 0)}</select></div>`).join('');
+    DIM_IDS.forEach((id, i) => { $(id).value = DEFAULT_DIMS[i]; });
+    syncDims();
+    DIM_IDS.forEach((id) => $(id).addEventListener('change', () => {
+      syncDims();
       expanded.clear();
       load();
     }));
@@ -155,7 +186,7 @@
     const btn = $('exportBtn');
     btn.disabled = true;
     try {
-      const r = await HE.postJson('/api/export', { levers: state.levers, scope: state.scope, dims: dims() });
+      const r = await HE.postJson('/api/export', { levers: state.levers, scope: state.scope, dims: dims(), filters: view.filters });
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
       a.href = url;
@@ -169,6 +200,35 @@
     } finally { btn.disabled = false; }
   });
 
-  banner();
-  fetch('/api/meta').then((r) => r.json()).then((m) => { meta = m; initSelects(); load(); });
+  /* ---------- filters: searchable checkbox lists, one per dimension ---------- */
+  let filterTimer = null;
+  let filterUi = null;
+  function filtersChanged() {
+    saveFilters();
+    $('filterClear').hidden = !hasFilters();
+    expanded.clear();
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(load, 150);   // let a few clicks settle into one request
+  }
+
+  function buildFilters() {
+    filterUi = HE.buildSelectors({ host: $('filters'), dims: meta.dims, holder: view, key: 'filters',
+                                   onChange: filtersChanged, mode: 'popover' });
+    $('filterClear').hidden = !hasFilters();
+    $('filterClear').addEventListener('click', () => {
+      view.filters = {};
+      filterUi.refresh();
+      filtersChanged();
+    });
+  }
+
+  fetch('/api/meta').then((r) => r.json()).then((m) => {
+    meta = m;
+    view.filters = HE.pruneSelection(view.filters, meta.dims);
+    state.scope = HE.pruneSelection(state.scope, meta.dims);
+    banner();
+    initSelects();
+    buildFilters();
+    load();
+  });
 })();

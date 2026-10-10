@@ -10,21 +10,21 @@ Per row (chain x sales office x SKU), monthly run-rate:
     = Net revenue
     - COGS               per-unit cost, milk-linked share moves with milk cost
     = Gross margin
-    - Logistics          per-unit freight x state factor
     - Sales and distribution   percent of net revenue
     = Contribution
+    - P&A, interest, over/under, marketing   attributed from the MIS
+    = Net margin
 """
 from dataclasses import dataclass, fields
 
 from . import data
 
-SD_PCT = 0.035
 PROMO_RESPONSE_BOOST = 3.0  # promo elasticity as a multiple of everyday price elasticity
 PUSH_PER_PP_TRADE = 0.008   # volume lift per +1 pp trade margin (shelf push)
 PUSH_PER_PP_REBATE = 0.004  # volume lift per +1 pp rebate / display fees
 
-METRICS = ("units", "mrp_value", "trade_margin", "gross", "promo", "rebates",
-           "net", "cogs", "gm", "logistics", "sd", "cm")
+METRICS = ("units", "mrp_value", "trade_margin", "gross", "promo", "rebates", "net", "cogs", "gm",
+           "logistics", "cm", "pa", "interest", "ou", "mktg", "nm")
 
 # (min, max) the API will accept for each lever.
 LIMITS = {
@@ -69,48 +69,48 @@ def parse_levers(raw):
     return Levers(**values)
 
 
-def parse_scope(raw):
-    """Empty or missing list for a dimension means 'all'."""
+def parse_selection(raw):
+    """{dimension id: [ids]} -> {dimension id: set}. Empty or missing means 'all' for that dimension."""
     raw = raw or {}
-    return {
-        "chain": set(raw.get("chains") or []),
-        "state": set(raw.get("states") or []),
-        "sku": set(raw.get("skus") or []),
-    }
+    return {d: set(raw.get(d) or []) for d in data.DIM_IDS}
 
 
-def in_scope(row, scope):
-    return all(not scope[d] or row[d] in scope[d] for d in ("chain", "state", "sku"))
+def matches(row, selection):
+    return all(not selection[d] or row[d] in selection[d] for d in data.DIM_IDS)
+
+
+# Scope: where the commercial levers apply. Filter: which rows the P&L reports (levers are unaffected).
+parse_scope = parse_filter = parse_selection
+in_scope = passes = matches
 
 
 def calc_row(row, lv, active, fixed_volume=False):
     """Metrics for one row. Commercial levers only apply when `active`;
     cost levers always apply. `fixed_volume` freezes units at baseline so the
-    rate effect can be separated from the volume response."""
-    chain = data.CHAIN_BY_ID[row["chain"]]
-    sku = data.SKU_BY_ID[row["sku"]]
-    state = data.STATE_BY_ID[row["state"]]
+    rate effect can be separated from the volume response.
 
+    Row terms come from the data: list price, trade margin, current offer (promo_rate),
+    and other_rate, the calibrated gap between list invoice and what was actually billed."""
     price = lv.price_change_pct / 100 if active else 0.0
     promo_add = lv.promo_add_pp / 100 if active else 0.0
     trade_add = lv.trade_margin_add_pp / 100 if active else 0.0
     rebate_add = lv.rebate_add_pp / 100 if active else 0.0
 
-    mrp = sku["mrp"] * (1 + price)
-    trade = min(0.4, max(0.0, chain["trade_margin"] + trade_add))
-    promo_rate = max(0.0, chain["base_promo"] + promo_add)
-    rebate_rate = max(0.0, chain["rebate"] + rebate_add)
+    mrp = row["mrp_x"] * (1 + price)
+    trade = min(0.4, max(0.0, row["trade"] + trade_add))
+    promo_rate = max(0.0, row["promo_rate"] + promo_add)
+    rebate_rate = max(-0.5, row["other_rate"] + rebate_add)
     invoice = mrp * (1 - trade)
 
     units = row["units"]
     if active and not fixed_volume:
-        promo_delta = promo_rate - chain["base_promo"]
-        promo_ratio = 1 - lv.promo_pass_through_pct / 100 * promo_delta * (1 - chain["trade_margin"])
-        e = sku["elasticity"] * lv.elasticity_scale
+        promo_delta = promo_rate - row["promo_rate"]
+        promo_ratio = 1 - lv.promo_pass_through_pct / 100 * promo_delta * (1 - row["trade"])
+        e = row["e"] * lv.elasticity_scale
         # Shoppers react harder to a temporary promo than to a permanent price change.
         mult = (1 + price) ** e * promo_ratio ** (e * PROMO_RESPONSE_BOOST)
-        mult *= 1 + PUSH_PER_PP_TRADE * (trade - chain["trade_margin"]) * 100
-        mult *= 1 + PUSH_PER_PP_REBATE * (rebate_rate - chain["rebate"]) * 100
+        mult *= 1 + PUSH_PER_PP_TRADE * (trade - row["trade"]) * 100
+        mult *= 1 + PUSH_PER_PP_REBATE * (rebate_rate - row["other_rate"]) * 100
         mult *= 1 + lv.manual_uplift_pct / 100
         units = units * max(0.0, mult)
 
@@ -120,15 +120,19 @@ def calc_row(row, lv, active, fixed_volume=False):
     promo = gross * promo_rate
     rebates = gross * rebate_rate
     net = gross - promo - rebates
-    cogs = units * sku["cogs"] * (1 + sku["milk_share"] * lv.milk_cost_change_pct / 100)
+    def cost(line):  # attributed MIS cost: per pack, or % of net revenue, depending on data/attribution.csv
+        return units * row[line] if data.BASIS[line] == "volume" else net * row[line]
+
+    cogs = cost("cogs") * (1 + row["milk_share"] * lv.milk_cost_change_pct / 100)
     gm = net - cogs
-    logistics = (units * sku["freight"] * state["freight_factor"]
-                 * (1 + lv.freight_change_pct / 100))
-    sd = net * SD_PCT
-    cm = gm - logistics - sd
+    logistics = cost("sd") * (1 + lv.freight_change_pct / 100)
+    cm = gm - logistics
+    pa, interest, ou, mktg = cost("pa"), cost("interest"), cost("ou"), cost("mktg")
+    nm = cm - pa - interest - ou - mktg
     return {"units": units, "mrp_value": mrp_value, "trade_margin": trade_margin,
             "gross": gross, "promo": promo, "rebates": rebates, "net": net,
-            "cogs": cogs, "gm": gm, "logistics": logistics, "sd": sd, "cm": cm}
+            "cogs": cogs, "gm": gm, "logistics": logistics, "cm": cm,
+            "pa": pa, "interest": interest, "ou": ou, "mktg": mktg, "nm": nm}
 
 
 def total(items):
@@ -144,11 +148,21 @@ def derive(m):
     out = dict(m)
     out["gm_pct"] = m["gm"] / m["net"] if m["net"] else 0.0
     out["cm_pct"] = m["cm"] / m["net"] if m["net"] else 0.0
+    out["nm_pct"] = m["nm"] / m["net"] if m["net"] else 0.0
     out["net_per_unit"] = m["net"] / m["units"] if m["units"] else 0.0
     return out
 
 
-BASE_METRICS = [calc_row(r, DEFAULT_LEVERS, False) for r in data.ROWS]
+BASE_METRICS = []
+
+
+def refresh():
+    """Recompute the baseline. Call after data.reload()."""
+    global BASE_METRICS
+    BASE_METRICS = [calc_row(r, DEFAULT_LEVERS, False) for r in data.ROWS]
+
+
+refresh()
 
 
 def scenario_metrics(lv, scope):
@@ -192,13 +206,12 @@ def bridge(lv, scope):
     return steps
 
 
-DIM_LABELS = {
-    "chain": lambda k: data.CHAIN_BY_ID[k]["name"],
-    "state": lambda k: data.STATE_BY_ID[k]["name"],
-    "so": lambda k: data.SO_BY_ID[k]["name"],
-    "sku": lambda k: data.SKU_BY_ID[k]["name"],
-}
-DIMS = tuple(DIM_LABELS)
+def DIM_LABEL(dim, key):
+    return data.LABEL[dim].get(key, key)
+
+
+DIMS = data.DIM_IDS
+BREAKDOWN_DIMS = ("chain", "state", "family", "sku")
 
 
 def _group(items, dim):
@@ -211,7 +224,7 @@ def _group(items, dim):
 def breakdown(items, dim):
     out = []
     for key, grp in _group(items, dim).items():
-        out.append({"id": key, "label": DIM_LABELS[dim](key),
+        out.append({"id": key, "label": DIM_LABEL(dim, key),
                     "base": derive(total(g["base"] for g in grp)),
                     "sim": derive(total(g["sim"] for g in grp))})
     out.sort(key=lambda n: n["sim"]["net"], reverse=True)
@@ -223,7 +236,7 @@ def _tree(items, dims, level, path):
     nodes = []
     for key, grp in _group(items, dim).items():
         node_id = f"{path}/{dim}:{key}"
-        node = {"id": node_id, "dim": dim, "label": DIM_LABELS[dim](key),
+        node = {"id": node_id, "dim": dim, "label": DIM_LABEL(dim, key),
                 "base": derive(total(g["base"] for g in grp)),
                 "sim": derive(total(g["sim"] for g in grp))}
         if level + 1 < len(dims):
@@ -233,10 +246,11 @@ def _tree(items, dims, level, path):
     return nodes
 
 
-def _items(lv, scope):
+def _items(lv, scope, flt=None):
     sims = scenario_metrics(lv, scope)
     return [{"row": r, "base": b, "sim": s}
-            for r, b, s in zip(data.ROWS, BASE_METRICS, sims)]
+            for r, b, s in zip(data.ROWS, BASE_METRICS, sims)
+            if flt is None or passes(r, flt)]
 
 
 def simulate(levers_raw, scope_raw):
@@ -246,19 +260,22 @@ def simulate(levers_raw, scope_raw):
         "base": derive(total(i["base"] for i in items)),
         "sim": derive(total(i["sim"] for i in items)),
         "bridge": bridge(lv, scope),
-        "breakdown": {d: breakdown(items, d) for d in ("chain", "state", "sku")},
+        "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
         "rows_in_scope": sum(1 for r in data.ROWS if in_scope(r, scope)),
         "rows_total": len(data.ROWS),
     }
 
 
-def pnl(levers_raw, scope_raw, dims):
+def pnl(levers_raw, scope_raw, dims, filter_raw=None):
     lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
+    flt = parse_filter(filter_raw)
     dims = [d for d in (dims or []) if d in DIMS]
     dims = list(dict.fromkeys(dims)) or ["chain", "state", "sku"]
-    items = _items(lv, scope)
+    items = _items(lv, scope, flt)
     return {
         "dims": dims,
+        "rows_shown": len(items),
+        "rows_total": len(data.ROWS),
         "total": {"base": derive(total(i["base"] for i in items)),
                   "sim": derive(total(i["sim"] for i in items))},
         "tree": _tree(items, dims, 0, ""),

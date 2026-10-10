@@ -4,7 +4,7 @@
 <header class="page-head">
   <div>
     <h1>P&amp;L statement</h1>
-    <p class="lede">Gross to net to contribution, cut by chain, state, sales office and SKU. Open any row to go one level deeper.</p>
+    <p class="lede">Gross to net to contribution, cut by chain, state, city, sales office, product category and SKU. Use the filters to focus on part of the business. Open any row to go one level deeper.</p>
   </div>
   <div class="head-actions">
     <a class="btn" href="/">Edit scenario</a>
@@ -14,12 +14,15 @@
 
 <div class="banner" id="banner" role="status"></div>
 
+<div class="filterbar" id="filterbar" aria-label="Filters">
+  <span class="filterbar-title">Filter</span>
+  <div class="filters" id="filters"></div>
+  <button type="button" class="link-btn" id="filterClear" hidden>Clear filters</button>
+  <span class="filter-count" id="filterCount" role="status"></span>
+</div>
+
 <div class="toolbar">
-  <div class="field-row" role="group" aria-label="Group rows by">
-    <div class="field"><label for="dim0">Group by</label><select id="dim0" class="select"></select></div>
-    <div class="field"><label for="dim1">Then by</label><select id="dim1" class="select"></select></div>
-    <div class="field"><label for="dim2">Then by</label><select id="dim2" class="select"></select></div>
-  </div>
+  <div class="field-row" id="dimRow" role="group" aria-label="Group rows by"></div>
   <div class="toolbar-right">
     <div class="seg" role="radiogroup" aria-label="Show">
       <button type="button" role="radio" data-mode="base" aria-checked="false">Baseline</button>
