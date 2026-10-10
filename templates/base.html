@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}HeritageEdge{% endblock %}</title>
+  <script>try{if(localStorage.getItem('heritageedge:sidebar')==='collapsed')document.documentElement.classList.add('side-collapsed')}catch(e){}</script>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,7 +13,10 @@
 </head>
 <body>
 <div class="shell">
-  <aside class="side">
+  <aside class="side" id="side">
+    <button type="button" class="side-toggle" id="sideToggle" aria-controls="side" aria-expanded="true" aria-label="Collapse sidebar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>
+    </button>
     <a class="brand" href="/">
       <img class="brand-logo" src="{{ url_for('static', filename='img/heritage-logo.png') }}" alt="Heritage Foods">
       <span class="brand-text"><strong>HeritageEdge</strong><small>MRF studio</small></span>
@@ -20,11 +24,11 @@
     <nav class="nav" aria-label="Main">
       <a href="/" class="{{ 'is-active' if active == 'simulator' }}"{% if active == 'simulator' %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
-        Promo simulator
+        <span class="nav-label">Promo simulator</span>
       </a>
       <a href="/pnl" class="{{ 'is-active' if active == 'pnl' }}"{% if active == 'pnl' %} aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 10v10"/></svg>
-        P&amp;L statement
+        <span class="nav-label">P&amp;L statement</span>
       </a>
     </nav>
     <div class="side-card">

@@ -169,4 +169,33 @@
     postJson, inr, inrSigned, lakh, lakhSigned, thousands, pct, pp, rel, relText, tone, esc,
     leverText, changedLevers, MINUS,
   };
+
+  /* ---------- collapsible sidebar ---------- */
+  (function () {
+    const btn = document.getElementById('sideToggle');
+    if (!btn) return;
+    const root = document.documentElement;
+    const links = document.querySelectorAll('.nav a');
+
+    function apply(collapsed, save) {
+      root.classList.toggle('side-collapsed', collapsed);
+      btn.setAttribute('aria-expanded', String(!collapsed));
+      const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      btn.setAttribute('aria-label', label);
+      btn.title = label;
+      // Icon-only rail needs tooltips on the links.
+      links.forEach((a) => {
+        const text = a.querySelector('.nav-label').textContent.trim();
+        if (collapsed) a.title = text; else a.removeAttribute('title');
+      });
+      if (save) {
+        try { localStorage.setItem('heritageedge:sidebar', collapsed ? 'collapsed' : 'open'); } catch (e) { /* storage unavailable */ }
+        // Let charts redraw at the new width once the layout has settled.
+        setTimeout(() => window.dispatchEvent(new Event('resize')), 220);
+      }
+    }
+
+    apply(root.classList.contains('side-collapsed'), false);
+    btn.addEventListener('click', () => apply(!root.classList.contains('side-collapsed'), true));
+  })();
 })();
