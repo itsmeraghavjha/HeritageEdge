@@ -18,10 +18,19 @@
       <span class="brand-text"><strong>HeritageEdge</strong><small>MRF studio</small></span>
     </a>
     <nav class="nav" aria-label="Main">
-      <a href="/" class="{{ 'is-active' if active == 'simulator' }}">Promo simulator</a>
-      <a href="/pnl" class="{{ 'is-active' if active == 'pnl' }}">P&amp;L statement</a>
+      <a href="/" class="{{ 'is-active' if active == 'simulator' }}"{% if active == 'simulator' %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        Promo simulator
+      </a>
+      <a href="/pnl" class="{{ 'is-active' if active == 'pnl' }}"{% if active == 'pnl' %} aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 10v10"/></svg>
+        P&amp;L statement
+      </a>
     </nav>
-    <p class="side-note">Sample data, monthly run-rate. Replace the loader in <code>engine/data.py</code> with actuals.</p>
+    <div class="side-card">
+      <strong>Sample data</strong>
+      <span>Figures are illustrative monthly run-rates, not actuals.</span>
+    </div>
   </aside>
   <main class="main">
     {% block content %}{% endblock %}
