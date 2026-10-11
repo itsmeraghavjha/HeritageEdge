@@ -40,6 +40,8 @@ After every build, read the quality report, **the reconciliation** and **the rev
 
 The revenue per pack check exists because COGS, S&D and over/under are taken from the MIS *per pack*, while revenue per pack comes from billing. If billing sells the same pack for more than the MIS shows, those costs look smaller as a share of revenue and the margin is overstated. The check compares the two for matching SKU, sales office and customer group, by group and family, lists the SKUs that differ most, and shows whether the gap is spread evenly (a definition difference, such as what the MIS deducts from revenue or how it counts packs) or sits on a few lines (a data problem on those SKUs or offices). It is written to `meta.json` as `price_check`.
 
+Two further checks sit under it. **Is it the customers?** The MIS price for a SKU, sales office and group averages every customer in that cell, while the model only holds customers in the offer file. The check compares the MIS with all billing in the same cells and splits it into offer-file customers and the rest, so a gap caused by who is in the cell shows up separately from a gap in how revenue is defined. **Packs billed against packs in the MIS** (same cells) shows whether both count packs the same way; a ratio far from 100% means a different unit. Costs are compared SKU by SKU, so choosing litres instead of packs would not change the result unless the counts themselves differ.
+
 The reconciliation:
 
 - **Reconciliation:** each cost line as a share of net revenue in the model, next to the same share in the MIS itself, for each customer group. Some gap is expected, because the MIS covers more customers and months than the offer file does. A large gap on one line shows where the attribution needs attention.

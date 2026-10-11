@@ -241,6 +241,39 @@ def price_check(rows, mis):
                               "diff_rev": float(r.diff)} for r in top.itertuples()]}
 
 
+def mix_check(everyone, mis):
+    """Is the revenue per pack gap about which customers are in the cell, or about how revenue is defined?
+
+    The MIS price for a SKU x sales office x customer group cell averages every customer in the cell, but the
+    model only holds customers that are in the offer file. If the offer-file customers pay more than the rest,
+    the model looks higher than the MIS even when billing and the MIS agree. This compares the MIS with all
+    billing in the same cells, then splits it into offer-file customers and the others.
+    `everyone` needs sku, SalesOfficeID, grp, packs, rev and in_offer (True for offer-file customers)."""
+    keys = ["sku", "SalesOfficeID", "grp"]
+    m = mis.groupby(keys)[["packs", "rev"]].sum().reset_index()
+    m = m[(m["packs"] > 0) & (m["rev"] > 0)]
+    m["mis_px"] = m["rev"] / m["packs"]
+    j = everyone.merge(m[keys + ["mis_px", "packs"]].rename(columns={"packs": "mis_packs"}), on=keys, how="inner")
+    j["theirs"] = j["packs"] * j["mis_px"]
+    cells = j.drop_duplicates(keys)
+    billing_packs, mis_packs = float(j["packs"].sum()), float(cells["mis_packs"].sum())
+
+    def summary(d):
+        ours, theirs = float(d["rev"].sum()), float(d["theirs"].sum())
+        return {"billing_rev": ours, "mis_rev": theirs, "gap_pct": ours / theirs - 1 if theirs else None}
+
+    total = float(j["rev"].sum())
+    others = j[~j["in_offer"]]
+    return {"all_customers": summary(j) if len(j) else None,
+            "offer_customers": summary(j[j["in_offer"]]) if j["in_offer"].any() else None,
+            "other_customers": summary(others) if len(others) else None,
+            "other_customers_share_pct": float(others["rev"].sum() / total) if total else 0.0,
+            # If billing and the MIS count packs the same way, these match when the months match. A different
+            # unit (cases, litres, pack equivalents) would show here as a ratio far from 1.
+            "packs": {"billing": billing_packs, "mis": mis_packs,
+                      "ratio": billing_packs / mis_packs if mis_packs else None}}
+
+
 # ---------- the build ----------
 
 def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None):
@@ -295,6 +328,10 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     b["cid"] = pd.to_numeric(b["cid"], errors="coerce")
     b["sku"] = pd.to_numeric(b["sku"], errors="coerce")
     b["so_num"] = pd.to_numeric(b["SalesOfficeID"], errors="coerce")
+    in_offer = pd.MultiIndex.from_frame(b[["cid", "sku"]]).isin(pd.MultiIndex.from_frame(terms[["cid", "sku"]]))
+    everyone = b.loc[b["grp"].astype(str).str.strip().isin(MIS_GROUPS), ["sku", "so_num", "grp", "packs", "rev"]].copy()
+    everyone["in_offer"] = in_offer[b["grp"].astype(str).str.strip().isin(MIS_GROUPS).to_numpy()]
+    everyone = everyone.rename(columns={"so_num": "SalesOfficeID"})
     b = b.merge(terms, on=["cid", "sku"], how="inner")      # offer-file scope only
     if b.empty:
         raise DataError("No billing lines match the offer file. Check that both cover the same customers and SKUs.")
@@ -354,6 +391,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
 
     rec = reconcile(final, mis, basis)
     check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
+    check["mix"] = mix_check(everyone, mis)
     meta = {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "base_months": base_months,

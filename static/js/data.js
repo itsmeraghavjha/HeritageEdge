@@ -176,6 +176,12 @@
     const line = (name, d) => `<tr><th scope="row">${HE.esc(name)}</th><td>${HE.inr(d.model_rev)}</td>
       <td>${HE.inr(d.mis_rev)}</td><td class="${cls(d.gap_pct)}">${sg(d.gap_pct)}</td></tr>`;
     const b = pc.revenue_by_gap_size;
+    const mx = pc.mix;
+    const mixRows = !mx ? '' : [['All billing in the same cells', mx.all_customers], ['Offer-file customers only', mx.offer_customers],
+      ['Customers not in the offer file', mx.other_customers]].filter(([, d]) => d)
+      .map(([n, d]) => `<tr><th scope="row">${HE.esc(n)}</th><td>${HE.inr(d.billing_rev)}</td><td>${HE.inr(d.mis_rev)}</td>
+      <td class="${cls(d.gap_pct)}">${sg(d.gap_pct)}</td></tr>`).join('');
+    const pk = mx && mx.packs && mx.packs.ratio ? `Packs billed against packs in the MIS, same cells: ${(mx.packs.ratio * 100).toFixed(1)}%. Close to 100% means both count packs the same way.` : '';
     const head = (t) => `<tr class="group"><th colspan="4" scope="colgroup">${t}</th></tr>`;
     const rows = line('All matched lines', pc.overall)
       + head('By customer group') + pc.by_group.map((g) => line(g.name, g)).join('')
@@ -185,9 +191,10 @@
     el.innerHTML = `<p class="sub pad">${(pc.matched_revenue_pct * 100).toFixed(1)}% of model revenue has a matching MIS line.
       Revenue by size of gap: within 1%, ${(b.within_1pct * 100).toFixed(0)}%. Between 1% and 5%, ${(b['1_to_5pct'] * 100).toFixed(0)}%.
       Over 5%, ${(b.over_5pct * 100).toFixed(0)}%. A gap that is similar everywhere points to a definition difference.
-      A gap on a few lines points to those SKUs or offices.</p>
+      A gap on a few lines points to those SKUs or offices. ${HE.esc(pk)}</p>
       <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Group</th><th scope="col">Revenue in HeritageEdge</th>
       <th scope="col">Same packs at MIS revenue per pack</th><th scope="col">Gap</th></tr></thead><tbody>${rows}
+      ${mixRows ? head('Is it the customers? Billing in the same cells, against the MIS') + mixRows : ''}
       <tr class="group"><th colspan="4" scope="colgroup">SKUs with the largest difference</th></tr>${top}</tbody></table></div>`;
   }
 

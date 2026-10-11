@@ -198,3 +198,39 @@ def test_build_writes_the_price_check(built):
     _, meta, _ = built
     assert meta["price_check"]["overall"] is not None
     assert json.dumps(meta)                                              # stays plain JSON
+
+
+def _mix_frames(other_px):
+    everyone = pd.DataFrame({"sku": [1, 1], "SalesOfficeID": [10, 10], "grp": ["Modern Formats"] * 2,
+                             "packs": [90.0, 10.0], "rev": [90 * 100.0, 10 * other_px], "in_offer": [True, False]})
+    mis = pd.DataFrame({"sku": [1], "SalesOfficeID": [10], "grp": ["Modern Formats"], "packs": [100.0],
+                        "rev": [90 * 100.0 + 10 * other_px]})
+    return everyone, mis
+
+
+def test_mix_check_finds_that_other_customers_pay_less():
+    everyone, mis = _mix_frames(60.0)            # the MIS averages in customers who pay 40% less
+    mx = prepare.mix_check(everyone, mis)
+    assert math.isclose(mx["all_customers"]["gap_pct"], 0.0, abs_tol=1e-12)     # billing and MIS agree
+    assert math.isclose(mx["offer_customers"]["gap_pct"], 100 / 96 - 1, rel_tol=1e-9)   # MIS price is 96, they pay 100
+    assert math.isclose(mx["other_customers_share_pct"], 600 / 9600, rel_tol=1e-9)
+
+
+def test_mix_check_shows_a_definition_gap_when_all_billing_differs():
+    everyone, mis = _mix_frames(100.0)
+    mis["rev"] = mis["rev"] * 0.97               # the MIS books 3% less revenue on the same packs
+    mx = prepare.mix_check(everyone, mis)
+    assert math.isclose(mx["all_customers"]["gap_pct"], 1 / 0.97 - 1, rel_tol=1e-9)
+    assert math.isclose(mx["offer_customers"]["gap_pct"], mx["other_customers"]["gap_pct"], rel_tol=1e-9)
+
+
+def test_build_writes_the_mix_check(built):
+    _, meta, _ = built
+    assert meta["price_check"]["mix"]["all_customers"] is not None
+
+
+def test_mix_check_compares_pack_counts():
+    everyone, mis = _mix_frames(100.0)
+    assert math.isclose(prepare.mix_check(everyone, mis)["packs"]["ratio"], 1.0)
+    mis["packs"] = mis["packs"] * 2                # the MIS counts in a different unit
+    assert math.isclose(prepare.mix_check(everyone, mis)["packs"]["ratio"], 0.5)
