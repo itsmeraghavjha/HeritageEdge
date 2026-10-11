@@ -248,10 +248,52 @@
       <tbody>${rows}</tbody>`;
   }
 
+  /* ---------- volume check: breakeven and low / base / high response ---------- */
+  function breakevenText(b) {
+    const scope = HE.thousands(b.units_in_scope);
+    if (b.status === 'neutral') return { tone: 'flat', head: 'Nothing to pay back', body: 'No lever here changes what a pack earns, so there is no volume to win back.' };
+    if (b.status === 'unreachable') return { tone: 'down', head: 'More volume will not pay this back', body: 'Contribution in scope is zero or negative at these terms, so selling more packs does not close the gap.' };
+    const packs = HE.thousands(Math.abs(b.extra_units));
+    if (b.status === 'ahead') {
+      return { tone: 'up', head: 'Already ahead at today’s volume',
+        body: `At today’s volume this scenario earns more contribution. Volume in scope could fall by ${HE.pct(-b.required)} (${packs} thousand packs a month) before it drops below today.` };
+    }
+    const verdict = b.covered
+      ? `The model assumes ${HE.relText(b.assumed)}, which covers it.`
+      : `The model assumes ${HE.relText(b.assumed)}, which falls short by ${HE.pct(-b.gap)}.`;
+    return { tone: b.covered ? 'up' : 'down', head: `Needs ${HE.pct(b.required)} more volume to match today`,
+      body: `That is ${packs} thousand more packs a month in scope. ${verdict}` };
+  }
+
+  function renderVolume(r) {
+    const el = $('volumeCheck');
+    const t = breakevenText(r.breakeven);
+    const cases = r.range.cases;
+    const improves = r.range.improves;
+    const rows = cases.map((c) => `<tr${c.key === 'base' ? ' class="is-base"' : ''}>
+      <th scope="row">${HE.esc(c.label)}</th>
+      <td>${HE.thousands(c.d_units, true)}</td>
+      <td><span class="chg ${HE.tone(c.d_cm, true, 5e3)}">${HE.lakhSigned(c.d_cm)}</span></td>
+      <td><span class="chg ${HE.tone(c.d_nm, true, 5e3)}">${HE.lakhSigned(c.d_nm)}</span></td></tr>`).join('');
+    let verdict = '';
+    if (r.breakeven.status !== 'neutral') {
+      verdict = improves.length === cases.length ? 'Contribution is higher than today in all three cases.'
+        : improves.length === 0 ? 'Contribution is lower than today in all three cases.'
+        : 'The answer depends on how shoppers react: contribution is higher than today only when response is ' +
+          improves.map((k) => cases.find((c) => c.key === k).label.toLowerCase()).join(' or ') + '.';
+    }
+    el.innerHTML = `<div class="vol-lead ${t.tone}"><strong>${HE.esc(t.head)}</strong><span>${HE.esc(t.body)}</span></div>
+      <table class="table vol-table"><thead><tr><th scope="col">If shoppers respond</th>
+        <th scope="col">Volume (thousand packs)</th><th scope="col">Contribution change (₹ L)</th><th scope="col">Net margin change (₹ L)</th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      ${verdict ? `<p class="chart-note">${HE.esc(verdict)}</p>` : ''}`;
+  }
+
   function render(r) {
     latest = r;
     if (!tabsBuilt) buildTabs(Object.keys(r.breakdown));
     renderKpis(r);
+    renderVolume(r);
     renderBridge(r.bridge);
     renderSummary(r);
     renderBreakdown(r);

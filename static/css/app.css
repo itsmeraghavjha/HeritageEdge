@@ -434,3 +434,17 @@ input[type="range"]::-moz-range-thumb {
 .login-card label { margin-top: 10px; font-size: 13px; color: var(--muted); }
 .login-card .btn { margin-top: 12px; }
 .error-text { color: var(--red); font-size: 13px; }
+
+/* volume check */
+.vol-body { padding: 4px 18px 14px; }
+.vol-lead { display: flex; flex-direction: column; gap: 2px; padding: 10px 14px; border-radius: 8px; margin: 8px 0 12px; font-size: 14px; }
+.vol-lead span { color: var(--muted); font-size: 13px; }
+.vol-lead.up { background: var(--green-tint); }
+.vol-lead.down { background: var(--red-tint); }
+.vol-lead.flat { background: #eef1ed; }
+.vol-table { width: 100%; }
+.vol-table th, .vol-table td { text-align: right; }
+.vol-table th:first-child { text-align: left; }
+.vol-table tr.is-base th, .vol-table tr.is-base td { font-weight: 600; }
+.vol-table .chg.up { color: var(--green-text); }
+.vol-table .chg.down { color: var(--red); }

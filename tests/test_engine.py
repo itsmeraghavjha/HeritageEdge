@@ -155,3 +155,115 @@ def test_old_style_plural_keys_are_ignored_not_misread():
     # an old client sending {"chains": [...]} must not silently filter on something else
     out = sim.simulate({"price_change_pct": 5}, {"chains": [first("chain")]})
     assert out["rows_in_scope"] == out["rows_total"]
+
+
+# ---------- breakeven and the response range ----------
+def base_cm():
+    return sum(m["cm"] for m in sim.BASE_METRICS)
+
+
+def cm_with_uplift(levers, scope, uplift):
+    """Contribution if every pack in scope rises by `uplift`, built row by row at the scenario's terms.
+    Independent of breakeven(): it only uses calc_row."""
+    lv, sc = sim.parse_levers(levers), sim.parse_scope(scope)
+    total = 0.0
+    for r in data.ROWS:
+        active = sim.in_scope(r, sc)
+        row = dict(r, units=r["units"] * (1 + uplift)) if active else r
+        total += sim.calc_row(row, lv, active, fixed_volume=True)["cm"]
+    return total
+
+
+def test_breakeven_is_neutral_when_nothing_changes():
+    b = sim.simulate({}, {})["breakeven"]
+    assert b["status"] == "neutral" and b["required"] is None
+
+
+def test_extra_visibility_alone_has_nothing_to_pay_back():
+    # it adds volume but changes no price, promo or cost, so breakeven has nothing to say
+    out = sim.simulate({"manual_uplift_pct": 6}, {})
+    assert out["breakeven"]["status"] == "neutral"
+    assert out["sim"]["units"] > out["base"]["units"]
+
+
+@pytest.mark.parametrize("levers", [
+    {"promo_add_pp": 5},
+    {"price_change_pct": 3},
+    {"milk_cost_change_pct": 5},
+    {"trade_margin_add_pp": 2, "rebate_add_pp": 1},
+    {"promo_add_pp": 3, "price_change_pct": 2, "freight_change_pct": 10},
+])
+@pytest.mark.parametrize("scope", [{}, "one chain"])
+def test_breakeven_volume_brings_contribution_back_to_baseline(levers, scope):
+    scope = {"chain": [first("chain")]} if scope == "one chain" else scope
+    b = sim.simulate(levers, scope)["breakeven"]
+    assert b["status"] in ("needs", "ahead")
+    assert close(cm_with_uplift(levers, scope, b["required"]), base_cm(), tol=1e-9)
+
+
+def test_a_promo_needs_extra_volume_and_the_model_may_not_supply_it():
+    b = sim.simulate({"promo_add_pp": 5}, {})["breakeven"]
+    assert b["status"] == "needs" and b["required"] > 0 and b["extra_units"] > 0
+    assert b["covered"] is False and b["gap"] < 0
+    assert close(b["gap"], b["assumed"] - b["required"])
+
+
+def test_a_price_rise_is_ahead_and_can_lose_volume():
+    b = sim.simulate({"price_change_pct": 3}, {})["breakeven"]
+    assert b["status"] == "ahead" and b["required"] < 0
+    assert b["assumed"] < 0 and b["covered"] is True
+
+
+def test_breakeven_is_unreachable_when_each_extra_pack_loses_money():
+    b = sim.simulate({"promo_add_pp": 20, "trade_margin_add_pp": 8, "rebate_add_pp": 6}, {})["breakeven"]
+    assert b["status"] == "unreachable" and b["required"] is None
+
+
+def test_breakeven_counts_only_the_lines_in_scope():
+    chain = first("chain")
+    b = sim.simulate({"promo_add_pp": 5}, {"chain": [chain]})["breakeven"]
+    in_scope_units = sum(r["units"] for r in data.ROWS if r["chain"] == chain)
+    all_units = sum(r["units"] for r in data.ROWS)
+    assert close(b["units_in_scope"], in_scope_units) and b["units_in_scope"] < all_units
+
+
+def test_breakeven_with_nothing_in_scope_is_neutral():
+    b = sim.simulate({"promo_add_pp": 5}, {"chain": ["no-such-chain"]})["breakeven"]
+    assert b["status"] == "neutral" and b["units_in_scope"] == 0
+
+
+def test_response_range_base_case_is_the_scenario():
+    out = sim.simulate({"promo_add_pp": 3, "price_change_pct": -1}, {})
+    base = [c for c in out["range"]["cases"] if c["key"] == "base"][0]
+    assert close(base["cm"], out["sim"]["cm"]) and close(base["units"], out["sim"]["units"])
+
+
+def test_response_range_scales_the_volume_change():
+    out = sim.simulate({"promo_add_pp": 3}, {})
+    by = {c["key"]: c for c in out["range"]["cases"]}
+    b0 = out["base"]["units"]
+    change = by["base"]["units"] - b0
+    assert change > 0
+    assert close(by["weak"]["units"] - b0, 0.5 * change) and close(by["strong"]["units"] - b0, 1.5 * change)
+
+
+def test_response_range_is_flat_when_nothing_changes():
+    rng = sim.simulate({}, {})["range"]
+    assert all(abs(c["d_cm"]) < 1e-6 and abs(c["d_units"]) < 1e-6 for c in rng["cases"])
+    assert rng["improves"] == []
+
+
+def test_response_range_says_which_cases_improve_contribution():
+    assert sim.simulate({"price_change_pct": 3}, {})["range"]["improves"] == ["weak", "base", "strong"]
+    assert sim.simulate({"promo_add_pp": 5}, {})["range"]["improves"] == []
+
+
+def test_cost_levers_do_not_depend_on_how_shoppers_react():
+    cms = {c["cm"] for c in sim.simulate({"milk_cost_change_pct": 5}, {})["range"]["cases"]}
+    assert len(cms) == 1
+
+
+def test_a_stronger_response_never_makes_volume_negative():
+    lv = sim.parse_levers({"price_change_pct": 15, "elasticity_scale": 3, "promo_add_pp": -5,
+                           "manual_uplift_pct": -30})
+    assert all(sim.calc_row(r, lv, True, response=1.5)["units"] >= 0 for r in data.ROWS)

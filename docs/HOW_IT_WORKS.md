@@ -76,6 +76,16 @@ Volume change for a row is the product of four effects:
 
 The constants are at the top of `engine/simulate.py`. **They are assumptions, not measurements.** See `DECISIONS.md`.
 
+## Volume check: breakeven and response range
+
+Volume response cannot be predicted reliably from our data: we have no competitor prices, seasonality or shelf data. So the simulator treats it as an assumption and shows two things that do not depend on trusting it.
+
+**Breakeven.** At the new terms, how much extra volume pays for the change? With terms fixed, every line scales with packs, so the answer is exact: `required = (baseline contribution - contribution outside scope) / contribution in scope at new terms - 1`. It needs no elasticity. The card compares it with what the model assumes. Statuses: *nothing to pay back* (no lever changes what a pack earns), *already ahead* (a negative requirement: how much volume can be lost), *needs more volume*, and *more volume will not pay it back* (contribution in scope is zero or negative). Only lines in scope can sell more, even for cost levers.
+
+**Low / base / high.** The same scenario with every volume change scaled to 0.5, 1.0 and 1.5 times (`RESPONSE_CASES` in `engine/simulate.py`). It shows whether the answer survives if shoppers react less or more than assumed. If contribution beats today in only some cases, the scenario depends on the assumption.
+
+There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
+
 ## The contribution bridge
 
 The chart on the simulator page answers "which of my changes is doing what?". It applies lever groups one at a time (price, then promo, then trade terms, then costs) **with volume held at baseline**, so each bar is a pure rate effect. Whatever remains is the **volume response**. The bars always add up exactly to the scenario contribution.
