@@ -69,6 +69,10 @@
     <p class="sub">Each attributed cost as a share of net revenue, next to the same share in the MIS. The MIS covers more customers and months than the offer file, so some gap is expected. A large gap on one line shows where to look.</p>
   </div>
   <div class="table-scroll"><table class="data" id="reconTable"></table></div>
+  <div class="panel-head"><h2>Revenue per pack against the MIS</h2>
+    <p class="sub">COGS, S&amp;D and over/under come from the MIS per pack, but revenue per pack comes from billing. If the two differ, those costs look smaller or larger as a share of revenue and the margin moves with them. A gap of +3% means billing sells the same packs for 3% more than the MIS shows.</p>
+  </div>
+  <div id="priceCheck"></div>
 </section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/data.js') }}"></script>{% endblock %}

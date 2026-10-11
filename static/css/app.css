@@ -448,3 +448,4 @@ input[type="range"]::-moz-range-thumb {
 .vol-table tr.is-base th, .vol-table tr.is-base td { font-weight: 600; }
 .vol-table .chg.up { color: var(--green-text); }
 .vol-table .chg.down { color: var(--red); }
+.sub.pad { padding: 4px 18px 10px; }

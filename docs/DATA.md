@@ -36,7 +36,11 @@ The simulator and P&L switch to the new data when the build finishes.
 
 ## Checking a build
 
-After every build, read the quality report and **the reconciliation** on the Data page before trusting the P&L:
+After every build, read the quality report, **the reconciliation** and **the revenue per pack check** on the Data page before trusting the P&L.
+
+The revenue per pack check exists because COGS, S&D and over/under are taken from the MIS *per pack*, while revenue per pack comes from billing. If billing sells the same pack for more than the MIS shows, those costs look smaller as a share of revenue and the margin is overstated. The check compares the two for matching SKU, sales office and customer group, by group and family, lists the SKUs that differ most, and shows whether the gap is spread evenly (a definition difference, such as what the MIS deducts from revenue or how it counts packs) or sits on a few lines (a data problem on those SKUs or offices). It is written to `meta.json` as `price_check`.
+
+The reconciliation:
 
 - **Reconciliation:** each cost line as a share of net revenue in the model, next to the same share in the MIS itself, for each customer group. Some gap is expected, because the MIS covers more customers and months than the offer file does. A large gap on one line shows where the attribution needs attention.
 - **Quality:** share of billing revenue with an unreadable pack size, how much of billing falls inside the offer-file scope, revenue whose price gap was capped as a probable data problem, and rows dropped.

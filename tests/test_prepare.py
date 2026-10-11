@@ -159,3 +159,42 @@ def test_default_base_months_skips_the_month_still_being_billed():
     assert prepare.default_base_months(months, today=date(2026, 10, 10)) == months[:3]
     assert prepare.default_base_months(months[:2], today=date(2026, 10, 10)) == months[:2]
     assert prepare.default_base_months([], today=date(2026, 10, 10)) == []
+
+
+def _price_frames(model_px, mis_px):
+    rows = pd.DataFrame({"sku": [1, 2], "SalesOfficeID": [10, 10], "grp": ["Modern Formats"] * 2,
+                         "family": ["Milk", "Curd"], "name": ["A", "B"], "units": [100.0, 100.0],
+                         "net_px": model_px})
+    mis = pd.DataFrame({"sku": [1, 2], "SalesOfficeID": [10, 10], "grp": ["Modern Formats"] * 2,
+                        "packs": [50.0, 50.0], "rev": [50.0 * p for p in mis_px]})
+    return rows, mis
+
+
+def test_price_check_measures_the_revenue_per_pack_gap():
+    rows, mis = _price_frames([103.0, 206.0], [100.0, 200.0])          # model sells 3% above the MIS everywhere
+    pc = prepare.price_check(rows, mis)
+    assert math.isclose(pc["overall"]["gap_pct"], 0.03, rel_tol=1e-9)
+    assert pc["matched_revenue_pct"] == 1.0
+    assert pc["revenue_by_gap_size"]["1_to_5pct"] == 1.0
+    assert {f["name"] for f in pc["by_family"]} == {"Milk", "Curd"}
+
+
+def test_price_check_points_at_the_sku_that_differs():
+    rows, mis = _price_frames([100.0, 220.0], [100.0, 200.0])          # only SKU 2 is 10% higher
+    pc = prepare.price_check(rows, mis)
+    assert pc["largest_gaps"][0]["sku"] == "2"
+    assert math.isclose(pc["largest_gaps"][0]["gap_pct"], 0.10, rel_tol=1e-9)
+    assert math.isclose(pc["largest_gaps"][0]["diff_rev"], 2000.0, rel_tol=1e-9)
+    assert math.isclose(pc["revenue_by_gap_size"]["over_5pct"], 22000 / 32000, rel_tol=1e-9)
+
+
+def test_price_check_ignores_lines_the_mis_does_not_have():
+    rows, mis = _price_frames([100.0, 100.0], [100.0, 100.0])
+    pc = prepare.price_check(rows, mis.iloc[:1])
+    assert pc["matched_revenue_pct"] == 0.5
+
+
+def test_build_writes_the_price_check(built):
+    _, meta, _ = built
+    assert meta["price_check"]["overall"] is not None
+    assert json.dumps(meta)                                              # stays plain JSON

@@ -163,8 +163,32 @@
         <tr class="strong"><th scope="row">Margin after these costs</th><td>${pct1(g.model_margin_pct)}</td><td>${pct1(g.mis_margin_pct)}</td>
         <td class="${Math.abs(mg) >= 1 ? 'flag' : ''}">${(mg > 0 ? '+' : mg < 0 ? HE.MINUS : '') + Math.abs(mg).toFixed(1)} pp</td></tr>`;
     }).join('');
+    renderPriceCheck(data.price_check);
     $('reconTable').innerHTML = `<thead><tr><th scope="col">Cost line</th><th scope="col">In HeritageEdge</th>
       <th scope="col">In the MIS</th><th scope="col">Gap</th></tr></thead><tbody>${rows}</tbody>`;
+  }
+
+  function renderPriceCheck(pc) {
+    const el = $('priceCheck');
+    if (!pc || !pc.overall) { el.innerHTML = '<p class="sub pad">Rebuild the dataset to see this check.</p>'; return; }
+    const sg = (v) => (v > 0 ? '+' : v < 0 ? HE.MINUS : '') + Math.abs(v * 100).toFixed(1) + '%';
+    const cls = (v) => (Math.abs(v) >= 0.02 ? 'flag' : '');
+    const line = (name, d) => `<tr><th scope="row">${HE.esc(name)}</th><td>${HE.inr(d.model_rev)}</td>
+      <td>${HE.inr(d.mis_rev)}</td><td class="${cls(d.gap_pct)}">${sg(d.gap_pct)}</td></tr>`;
+    const b = pc.revenue_by_gap_size;
+    const head = (t) => `<tr class="group"><th colspan="4" scope="colgroup">${t}</th></tr>`;
+    const rows = line('All matched lines', pc.overall)
+      + head('By customer group') + pc.by_group.map((g) => line(g.name, g)).join('')
+      + head('By product family') + pc.by_family.map((g) => line(g.name, g)).join('');
+    const top = pc.largest_gaps.map((s) => `<tr><th scope="row">${HE.esc(s.name)} (${HE.esc(s.sku)})</th>
+      <td colspan="2">${HE.inrSigned(s.diff_rev)} a month</td><td class="${cls(s.gap_pct)}">${sg(s.gap_pct)}</td></tr>`).join('');
+    el.innerHTML = `<p class="sub pad">${(pc.matched_revenue_pct * 100).toFixed(1)}% of model revenue has a matching MIS line.
+      Revenue by size of gap: within 1%, ${(b.within_1pct * 100).toFixed(0)}%. Between 1% and 5%, ${(b['1_to_5pct'] * 100).toFixed(0)}%.
+      Over 5%, ${(b.over_5pct * 100).toFixed(0)}%. A gap that is similar everywhere points to a definition difference.
+      A gap on a few lines points to those SKUs or offices.</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Group</th><th scope="col">Revenue in HeritageEdge</th>
+      <th scope="col">Same packs at MIS revenue per pack</th><th scope="col">Gap</th></tr></thead><tbody>${rows}
+      <tr class="group"><th colspan="4" scope="colgroup">SKUs with the largest difference</th></tr>${top}</tbody></table></div>`;
   }
 
   /* ---------- status polling ---------- */

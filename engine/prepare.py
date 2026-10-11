@@ -198,7 +198,51 @@ def reconcile(rows, mis, basis):
     return out
 
 
+def price_check(rows, mis):
+    """Does the model's revenue per pack agree with the MIS's revenue per pack for the same SKU, sales office
+    and customer group?
+
+    COGS, S&D and over/under are taken from the MIS per pack, but revenue per pack comes from billing. If the
+    two revenues differ, every per-pack cost looks smaller or larger as a share of revenue, and the margin
+    shifts with it. `rows` needs sku, SalesOfficeID, grp, family, name, units and net_px.
+
+    gap_pct is the model's revenue over the MIS's revenue for the same packs, minus 1: +3% means the model
+    sells the same packs for 3% more. The bands show whether that gap is spread evenly or sits on a few lines."""
+    keys = ["sku", "SalesOfficeID", "grp"]
+    m = mis.groupby(keys)[["packs", "rev"]].sum().reset_index()
+    m = m[(m["packs"] > 0) & (m["rev"] > 0)]
+    m["mis_px"] = m["rev"] / m["packs"]
+    j = rows.merge(m[keys + ["mis_px"]], on=keys, how="left")
+    j["ours"] = j["units"] * j["net_px"]
+    total = float(j["ours"].sum())
+    j = j[j["mis_px"].notna()].copy()
+    j["theirs"] = j["units"] * j["mis_px"]
+    j["gap"] = j["ours"] / j["theirs"] - 1
+
+    def summary(d):
+        ours, theirs = float(d["ours"].sum()), float(d["theirs"].sum())
+        return {"model_rev": ours, "mis_rev": theirs, "gap_pct": ours / theirs - 1 if theirs else None}
+
+    def grouped(col):
+        return [dict(name=str(k), **summary(d)) for k, d in j.groupby(col)]
+
+    ours = j["ours"].sum()
+    bands = {}
+    for label, lo, hi in (("within_1pct", 0, 0.01), ("1_to_5pct", 0.01, 0.05), ("over_5pct", 0.05, float("inf"))):
+        pick = (j["gap"].abs() >= lo) & (j["gap"].abs() < hi)
+        bands[label] = float(j.loc[pick, "ours"].sum() / ours) if ours else 0.0
+    by_sku = j.groupby(["sku", "name"]).agg(ours=("ours", "sum"), theirs=("theirs", "sum")).reset_index()
+    by_sku["diff"] = by_sku["ours"] - by_sku["theirs"]
+    by_sku["gap_pct"] = by_sku["ours"] / by_sku["theirs"] - 1
+    top = by_sku.reindex(by_sku["diff"].abs().sort_values(ascending=False).index).head(10)
+    return {"matched_revenue_pct": float(ours / total) if total else 0.0, "overall": summary(j) if len(j) else None,
+            "by_group": grouped("grp"), "by_family": grouped("family"), "revenue_by_gap_size": bands,
+            "largest_gaps": [{"sku": str(r.sku), "name": str(r.name), "gap_pct": float(r.gap_pct),
+                              "diff_rev": float(r.diff)} for r in top.itertuples()]}
+
+
 # ---------- the build ----------
+
 def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None):
     """Writes rows.csv and meta.json to out_dir (default: the data folder). Returns the meta dict."""
     say = _say(progress)
@@ -309,6 +353,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     final.to_csv(out_dir / "rows.csv", index=False)
 
     rec = reconcile(final, mis, basis)
+    check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
     meta = {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "base_months": base_months,
@@ -323,6 +368,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                     "rows_dropped_invalid_numbers": rows_invalid,
                     "cogs_source_share": cost_source},
         "reconciliation": rec,
+        "price_check": check,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     say("Done", 1.0)
