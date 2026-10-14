@@ -316,3 +316,13 @@ def test_month_key_places_a_fiscal_year_month_in_the_right_calendar_year():
     assert prepare.month_key("Jul", 2026) == "2026-07-01"
     assert prepare.month_key("Jul") == "????-07-01"
     assert prepare.month_key("Jul", "later") is None
+
+
+def test_price_check_lists_a_sku_once_even_if_its_name_is_spelt_two_ways():
+    rows = pd.DataFrame({"sku": [1, 1], "SalesOfficeID": [10, 11], "grp": ["Modern Formats"] * 2,
+                         "family": ["Milk"] * 2, "name": ["MILK 450 (9.9 Ltrs)", "MILK 450 (9.9"],
+                         "units": [100.0, 100.0], "net_px": [110.0, 100.0]})
+    mis = pd.DataFrame({"sku": [1, 1], "SalesOfficeID": [10, 11], "grp": ["Modern Formats"] * 2,
+                        "packs": [50.0, 50.0], "rev": [5000.0, 5000.0]})
+    top = prepare.price_check(rows, mis)["largest_gaps"]
+    assert len(top) == 1 and math.isclose(top[0]["diff_rev"], 1000.0)

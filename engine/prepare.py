@@ -361,7 +361,8 @@ def price_check(rows, mis):
     for label, lo, hi in (("within_1pct", 0, 0.01), ("1_to_5pct", 0.01, 0.05), ("over_5pct", 0.05, float("inf"))):
         pick = (j["gap"].abs() >= lo) & (j["gap"].abs() < hi)
         bands[label] = float(j.loc[pick, "ours"].sum() / ours) if ours else 0.0
-    by_sku = j.groupby(["sku", "name"]).agg(ours=("ours", "sum"), theirs=("theirs", "sum")).reset_index()
+    # one row per SKU code: the same code can carry two spellings of its name in the offer file
+    by_sku = j.groupby("sku").agg(name=("name", "first"), ours=("ours", "sum"), theirs=("theirs", "sum")).reset_index()
     by_sku["diff"] = by_sku["ours"] - by_sku["theirs"]
     by_sku["gap_pct"] = by_sku["ours"] / by_sku["theirs"] - 1
     top = by_sku.reindex(by_sku["diff"].abs().sort_values(ascending=False).index).head(10)
@@ -499,7 +500,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     g["other_rate"] = raw_other.clip(-0.5, 0.9)
     # A billed price far from the list price usually means a unit or price problem in the data, not a real discount.
     far = (raw_promo < 0) | (raw_promo > 0.6) | (raw_other < -0.5) | (raw_other > 0.9)
-    clipped_pct = float(g.loc[far, "rev"].sum() / g["rev"].sum()) if g["rev"].sum() else 0.0
+    clipped_pct = float(g.loc[far, "rev"].abs().sum() / g["rev"].sum()) if g["rev"].sum() else 0.0
 
     say("Reading the MIS workbook. This takes a few minutes", 0.2)
     mis_all = load_mis(mis_path, progress)
