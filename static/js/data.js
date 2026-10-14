@@ -148,6 +148,13 @@
     if (src['sku x office'] !== undefined) {
       facts.push(['COGS found for the exact SKU and sales office', `${(src['sku x office'] * 100).toFixed(1)}% of lines`, '']);
     }
+    const mm = data.mis_months;
+    if (mm && mm.used) {
+      const label = (k) => (k.startsWith('????') ? new Date(2000, Number(k.slice(5, 7)) - 1, 1) : new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)) - 1, 1))
+        .toLocaleString('en-GB', k.startsWith('????') ? { month: 'short' } : { month: 'short', year: 'numeric' });
+      facts.push(['MIS months used for costs', mm.used.map(label).join(', '), '']);
+      if (!mm.year_known) facts.push(['MIS month has no year', 'Matched by month name only', 'is-warn']);
+    }
     $('facts').innerHTML = facts.map(([label, value, cls]) =>
       `<div class="fact ${cls}"><dt>${HE.esc(label)}</dt><dd>${HE.esc(value)}</dd></div>`).join('');
 

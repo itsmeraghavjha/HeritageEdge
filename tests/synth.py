@@ -77,34 +77,41 @@ def make_billing(path, **kw):
 
 MIS_HEADERS = ["Row", "Row2", "Customer Group", "Actual data SKU Qty", "Actual data Revenue", "Actual data COGS",
                "Actual data S&D Costs", "Actual data P&A Cost", "Actual data Interest", "Actual data O/U Abs",
-               "Mktg Cost", "ProdHier01-1", "PCCODE", "filler1", "filler2", "filler3", "filler4", "filler5",
+               "Mktg Cost", "ProdHier01-1", "PCCODE", "Month", "Year", "filler3", "filler4", "filler5",
                "filler6", "SKU WITHOUT A USABLE HEADER", "filler7", "filler8"]
 MIS_COGS_PER_PACK, MIS_SD_PER_PACK, MIS_OU_PER_PACK = 20.0, 1.0, 0.4
 MIS_PA_PCT, MIS_INTEREST_PCT, MIS_MKTG_PCT = 0.03, 0.005, 0.003
 
 
-def make_mis(path, sheet="SAP_MIS_DATABASE", drop_column=None):
+# April is a trap: its COGS per pack is double. A build that does not keep to the base months picks it up.
+MIS_MONTHS = (("Apr", 2.0), ("Jul", 1.0), ("Aug", 1.0), ("Sep", 1.0))
+
+
+def make_mis(path, sheet="SAP_MIS_DATABASE", drop_column=None, months=MIS_MONTHS, month_style="name"):
     wb = Workbook()
     ws = wb.active
     ws.title = sheet
     headers = [h for h in MIS_HEADERS if h != drop_column]
     ws.append(headers)
     idx = {h: i for i, h in enumerate(headers)}
-    for grp in ("Modern Formats", "E-Commerce", "Institutions"):
-        for so in OFFICES:
-            for sku in SKUS:
-                qty = 10000.0
-                rev = qty * 30.0
-                row = [None] * len(headers)
-                row[0], row[1] = "x", "y"
-                values = {"Customer Group": grp, "Actual data SKU Qty": qty, "Actual data Revenue": rev,
-                          "Actual data COGS": qty * MIS_COGS_PER_PACK, "Actual data S&D Costs": qty * MIS_SD_PER_PACK,
-                          "Actual data P&A Cost": rev * MIS_PA_PCT, "Actual data Interest": rev * MIS_INTEREST_PCT,
-                          "Actual data O/U Abs": qty * MIS_OU_PER_PACK, "Mktg Cost": rev * MIS_MKTG_PCT,
-                          "ProdHier01-1": sku[2], "PCCODE": so}
-                for k, v in values.items():
-                    if k in idx:
-                        row[idx[k]] = v
-                row[19 if len(headers) > 19 else -1] = sku[0]
-                ws.append(row)
+    for month, cogs_factor in months:
+        label = {"name": month, "dated": f"{month}-26", "number": {"Apr": 4, "Jul": 7, "Aug": 8, "Sep": 9}[month]}[month_style]
+        for grp in ("Modern Formats", "E-Commerce", "Institutions"):
+            for so in OFFICES:
+                for sku in SKUS:
+                    qty = 10000.0
+                    rev = qty * 30.0
+                    row = [None] * len(headers)
+                    row[0], row[1] = "x", "y"
+                    values = {"Customer Group": grp, "Actual data SKU Qty": qty, "Actual data Revenue": rev,
+                              "Actual data COGS": qty * MIS_COGS_PER_PACK * cogs_factor,
+                              "Actual data S&D Costs": qty * MIS_SD_PER_PACK,
+                              "Actual data P&A Cost": rev * MIS_PA_PCT, "Actual data Interest": rev * MIS_INTEREST_PCT,
+                              "Actual data O/U Abs": qty * MIS_OU_PER_PACK, "Mktg Cost": rev * MIS_MKTG_PCT,
+                              "ProdHier01-1": sku[2], "PCCODE": so, "Month": label, "Year": 2026}
+                    for k, v in values.items():
+                        if k in idx:
+                            row[idx[k]] = v
+                    row[19 if len(headers) > 19 else -1] = sku[0]
+                    ws.append(row)
     wb.save(path)

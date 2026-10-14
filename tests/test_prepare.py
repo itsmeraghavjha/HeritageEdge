@@ -1,6 +1,6 @@
 import json
 import math
-from datetime import date
+from datetime import date, datetime
 
 import pandas as pd
 import pytest
@@ -234,3 +234,85 @@ def test_mix_check_compares_pack_counts():
     assert math.isclose(prepare.mix_check(everyone, mis)["packs"]["ratio"], 1.0)
     mis["packs"] = mis["packs"] * 2                # the MIS counts in a different unit
     assert math.isclose(prepare.mix_check(everyone, mis)["packs"]["ratio"], 0.5)
+
+
+# ---------- the MIS is cut to the base months ----------
+def _build_with_mis(tmp_path, **mis_kw):
+    synth.make_offer(tmp_path / "offer.xlsx")
+    synth.make_billing(tmp_path / "billing.csv")
+    synth.make_mis(tmp_path / "mis.xlsx", **mis_kw)
+    return prepare.build_dataset(tmp_path / "offer.xlsx", tmp_path / "mis.xlsx", tmp_path / "billing.csv",
+                                 synth.MONTHS, out_dir=tmp_path / "out"), pd.read_csv(tmp_path / "out" / "rows.csv")
+
+
+def test_costs_ignore_mis_months_outside_the_base_months(built):
+    rows, meta, _ = built
+    assert math.isclose(rows["cogs"].iloc[0], synth.MIS_COGS_PER_PACK, rel_tol=1e-6)   # April's double COGS is not in it
+    assert meta["mis_months"]["used"] == synth.MONTHS
+    assert "2026-04-01" in meta["mis_months"]["available"]
+    assert meta["mis_months"]["year_known"] is True
+    assert meta["mis_months"]["month_column"] == "Month"
+
+
+def test_reconciliation_compares_with_the_same_months(built):
+    _, meta, _ = built
+    cogs = next(l for l in meta["reconciliation"][0]["lines"] if l["line"] == "cogs")
+    assert math.isclose(cogs["mis_pct"], synth.MIS_COGS_PER_PACK / 30.0, rel_tol=1e-6)   # not pulled up by April
+
+
+def test_a_base_month_the_mis_does_not_have_stops_the_build(tmp_path):
+    with pytest.raises(prepare.DataError, match=r"Sep 2026.*It has: Jul 2026, Aug 2026"):
+        _build_with_mis(tmp_path, months=(("Jul", 1.0), ("Aug", 1.0)))
+
+
+def test_mis_months_given_as_dates_or_numbers_are_read(tmp_path):
+    for style in ("dated", "number"):
+        folder = tmp_path / style
+        folder.mkdir()
+        meta, rows = _build_with_mis(folder, month_style=style)
+        assert meta["mis_months"]["used"] == synth.MONTHS
+
+
+def test_a_mis_without_a_year_is_matched_by_month_name(tmp_path):
+    meta, rows = _build_with_mis(tmp_path, drop_column="Year")
+    assert meta["mis_months"]["year_known"] is False
+    assert math.isclose(rows["cogs"].iloc[0], synth.MIS_COGS_PER_PACK, rel_tol=1e-6)
+
+
+def test_a_mis_with_no_month_column_says_what_columns_it_has(tmp_path):
+    synth.make_mis(tmp_path / "mis.xlsx", drop_column="Month")
+    with pytest.raises(prepare.DataError, match=r"MIS_MONTH_COLUMN.*Customer Group"):
+        prepare.load_mis(tmp_path / "mis.xlsx")
+
+
+def test_the_month_column_can_be_named_in_the_environment(tmp_path, monkeypatch):
+    synth.make_mis(tmp_path / "mis.xlsx", drop_column="Month")
+    monkeypatch.setenv("MIS_MONTH_COLUMN", "filler3")
+    with pytest.raises(prepare.DataError, match="could not be read"):          # found, but its cells are empty
+        prepare.load_mis(tmp_path / "mis.xlsx")
+    monkeypatch.setenv("MIS_MONTH_COLUMN", "No such column")
+    with pytest.raises(prepare.DataError, match="no column called 'No such column'"):
+        prepare.load_mis(tmp_path / "mis.xlsx")
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("Jul", (None, 7)), ("July", (None, 7)), ("Sept", (None, 9)), ("Jul-26", (2026, 7)), ("Jul'26", (2026, 7)),
+    ("July 2026", (2026, 7)), ("2026-07", (2026, 7)), ("2026-07-01", (2026, 7)), (202607, (2026, 7)),
+    (7, (None, 7)), (datetime(2026, 7, 1), (2026, 7)), ("Marketing", None), ("", None), (None, None), (13, None)])
+def test_parse_month(value, expected):
+    assert prepare.parse_month(value) == expected
+
+
+@pytest.mark.parametrize("value,expected", [
+    (2026, ("cal", 2026)), ("2026", ("cal", 2026)), ("2026-27", ("fy", 2026)), ("FY26-27", ("fy", 2026)),
+    ("FY 2026-27", ("fy", 2026)), ("soon", None), (12, None)])
+def test_parse_year(value, expected):
+    assert prepare.parse_year(value) == expected
+
+
+def test_month_key_places_a_fiscal_year_month_in_the_right_calendar_year():
+    assert prepare.month_key("Jul", "2026-27") == "2026-07-01"
+    assert prepare.month_key("Feb", "2026-27") == "2027-02-01"
+    assert prepare.month_key("Jul", 2026) == "2026-07-01"
+    assert prepare.month_key("Jul") == "????-07-01"
+    assert prepare.month_key("Jul", "later") is None

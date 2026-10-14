@@ -11,6 +11,8 @@ Cost attribution (config/attribution.csv): "volume" gives every chain the same c
 "revenue" gives every chain the same share of its net revenue. This is an allocation, not a measured cost to serve.
 """
 import json
+import math
+import os
 import re
 from datetime import date, datetime
 from pathlib import Path
@@ -29,6 +31,18 @@ MIS_RENAME = {"Actual data SKU Qty": "packs", "Actual data Revenue": "rev", "Act
               "Actual data S&D Costs": "sd", "Actual data P&A Cost": "pa", "Actual data Interest": "interest",
               "Actual data O/U Abs": "ou", "Mktg Cost": "mktg", "ProdHier01-1": "family",
               "Customer Group": "grp", "PCCODE": "SalesOfficeID"}
+
+# The month (and optionally year) columns of the MIS sheet are found by name. If the names differ, set
+# MIS_MONTH_COLUMN / MIS_YEAR_COLUMN in .env to the exact header text.
+MONTH_HEADERS = {"month", "month name", "mth", "mnth", "period", "bill month", "billing month", "month year"}
+YEAR_HEADERS = {"year", "fiscal year", "financial year", "fin year", "fy", "calendar year"}
+_MONTH_WORDS = {}
+for _i, (_abbr, _full) in enumerate(zip("jan feb mar apr may jun jul aug sep oct nov dec".split(),
+                                        "january february march april may june july august september october "
+                                        "november december".split()), 1):
+    _MONTH_WORDS.update({_abbr: _i, _full: _i})
+_MONTH_WORDS["sept"] = 9
+UNKNOWN_YEAR = "????"
 
 OFFER_REQUIRED = ["Customer", "Sku Code", "Cluster", "Material", "New MRP", "TOT Margin on Invoice",
                   "On Invoice offer", "Off Invoice Offer in Value", "GST%"]
@@ -101,6 +115,106 @@ def load_offer(path):
     return off
 
 
+# ---------- MIS months ----------
+def _norm_header(h):
+    return re.sub(r"[\s_]+", " ", str(h).strip().lower())
+
+
+def find_header(hdr, wanted, override, what):
+    """The header text of the month or year column: the .env override if set, else the one header whose
+    name is in `wanted`. Returns None if there is none; raises if the choice is ambiguous or the override is wrong."""
+    names = [h for h in hdr if h]
+    if override:
+        hit = [h for h in names if _norm_header(h) == _norm_header(override)]
+        if not hit:
+            raise DataError(f"The MIS has no column called '{override}' (set in .env for the {what}). "
+                            f"Columns found: {', '.join(names[:80])}.")
+        return hit[0]
+    hits = [h for h in names if _norm_header(h) in wanted]
+    if len(hits) > 1:
+        raise DataError(f"The MIS has more than one column that could hold the {what}: {', '.join(hits)}. "
+                        f"Set MIS_{what.upper()}_COLUMN in .env to the one to use.")
+    return hits[0] if hits else None
+
+
+def parse_month(value):
+    """(year or None, month number) from a MIS month cell, or None if it cannot be read.
+
+    Reads real dates, 202607, '2026-07', 'Jul-26', "Jul'26", 'July 2026', and plain 'Jul' (month only)."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    if isinstance(value, (datetime, date)):
+        return value.year, value.month
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        n = int(value)
+        if value != n:
+            return None
+        if 190001 <= n <= 209912 and 1 <= n % 100 <= 12:
+            return n // 100, n % 100
+        return (None, n) if 1 <= n <= 12 else None
+    s = str(value).strip()
+    m = re.fullmatch(r"(\d{4})[-/.](\d{1,2})(?:[-/.]\d{1,2})?(?:[ T].*)?", s)
+    if m:
+        return (int(m[1]), int(m[2])) if 1 <= int(m[2]) <= 12 else None
+    m = re.fullmatch(r"([A-Za-z]+)[\s'\-/.,]*(\d{2}|\d{4})", s)
+    if m and m[1].lower() in _MONTH_WORDS:
+        year = int(m[2])
+        return (year + 2000 if year < 100 else year), _MONTH_WORDS[m[1].lower()]
+    if s.lower() in _MONTH_WORDS:
+        return None, _MONTH_WORDS[s.lower()]
+    if re.fullmatch(r"\d{1,2}", s) and 1 <= int(s) <= 12:
+        return None, int(s)
+    return None
+
+
+def parse_year(value):
+    """('cal', year) for 2026, ('fy', start year) for '2026-27' or 'FY26-27' (April to March), else None."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return ("cal", int(value)) if value == int(value) and 1990 <= value <= 2100 else None
+    s = str(value).strip()
+    m = re.fullmatch(r"(?:FY\s*)?(\d{4})\s*[-/]\s*(\d{2}|\d{4})", s, re.I)
+    if m:
+        return "fy", int(m[1])
+    m = re.fullmatch(r"FY\s*(\d{2})\s*[-/]\s*(\d{2})", s, re.I)
+    if m:
+        return "fy", 2000 + int(m[1])
+    return ("cal", int(s)) if re.fullmatch(r"\d{4}", s) and 1990 <= int(s) <= 2100 else None
+
+
+def month_key(month_value, year_value=None):
+    """'YYYY-MM-01' for a MIS row, or '????-MM-01' when the MIS gives the month but no year. None if unreadable."""
+    parsed = parse_month(month_value)
+    if parsed is None:
+        return None
+    year, month = parsed
+    if year is None and year_value is not None:
+        py = parse_year(year_value)
+        if py is None:
+            return None
+        year = py[1] if py[0] == "cal" else (py[1] if month >= 4 else py[1] + 1)
+    return f"{year:04d}-{month:02d}-01" if year else f"{UNKNOWN_YEAR}-{month:02d}-01"
+
+
+def month_text(key):
+    if key.startswith(UNKNOWN_YEAR):
+        return date(2000, int(key[5:7]), 1).strftime("%b")
+    return date(int(key[:4]), int(key[5:7]), 1).strftime("%b %Y")
+
+
+def pick_mis_months(mis, base_months):
+    """Keeps only the MIS rows for the base months, so costs and billing describe the same period.
+
+    Returns (rows, months the MIS has, whether the MIS says which year). Stops if a base month is missing."""
+    have = sorted(mis["month"].unique())
+    wanted = set(base_months) | {f"{UNKNOWN_YEAR}-{b[5:7]}-01" for b in base_months}
+    missing = [b for b in base_months if b not in have and f"{UNKNOWN_YEAR}-{b[5:7]}-01" not in have]
+    if missing:
+        raise DataError("The MIS has no Modern Formats or E-Commerce rows for " + ", ".join(month_text(b) for b in missing)
+                        + ". It has: " + (", ".join(month_text(k) for k in have) or "no readable months")
+                        + ". Untick those months, or upload a newer MIS.")
+    return mis[mis["month"].isin(wanted)].copy(), have, not any(k.startswith(UNKNOWN_YEAR) for k in have)
+
+
 def load_mis(path, progress=None):
     from openpyxl import load_workbook
     say = _say(progress)
@@ -126,14 +240,30 @@ def load_mis(path, progress=None):
     wb.close()
     m = pd.DataFrame(rows, columns=hdr)
     _need(m, list(MIS_RENAME), "MIS sheet")
-    m = m[m["Customer Group"].isin(MIS_GROUPS)].rename(columns=MIS_RENAME)
+    month_col = find_header(hdr, MONTH_HEADERS, os.environ.get("MIS_MONTH_COLUMN"), "month column")
+    year_col = find_header(hdr, YEAR_HEADERS, os.environ.get("MIS_YEAR_COLUMN"), "year column")
+    if month_col is None:
+        raise DataError("The MIS has no month column that the app can recognise, so it cannot use only the months "
+                        "you chose. Set MIS_MONTH_COLUMN in .env to the header of the month column. Columns found: "
+                        + ", ".join(h for h in hdr if h)[:1500] + ".")
+    m = m[m["Customer Group"].isin(MIS_GROUPS)].copy()
+    pairs = m[[month_col] + ([year_col] if year_col else [])].drop_duplicates()
+    keys = {tuple(p): month_key(p[0], p[1] if year_col else None) for p in pairs.itertuples(index=False, name=None)}
+    bad = [k for k, v in keys.items() if v is None]
+    if bad:
+        raise DataError(f"The month in the MIS column '{month_col}' could not be read. Examples: "
+                        + "; ".join(" / ".join(str(x) for x in b) for b in bad[:5]) + ".")
+    m["month"] = [keys[tuple(p)] for p in m[[month_col] + ([year_col] if year_col else [])].itertuples(index=False, name=None)]
+    m = m.rename(columns=MIS_RENAME)
     m["sku"] = pd.to_numeric(m["sku"], errors="coerce")
     m["SalesOfficeID"] = pd.to_numeric(m["SalesOfficeID"], errors="coerce")
     for c in ["packs", "rev"] + LINES:
         m[c] = pd.to_numeric(m[c], errors="coerce").fillna(0.0)
     if m.empty:
         raise DataError("The MIS sheet has no Modern Formats or E-Commerce rows.")
-    return m[["sku", "SalesOfficeID", "family", "grp", "packs", "rev"] + LINES]
+    out = m[["month", "sku", "SalesOfficeID", "family", "grp", "packs", "rev"] + LINES]
+    out.attrs.update(month_column=month_col, year_column=year_col)
+    return out
 
 
 # ---------- cost attribution ----------
@@ -372,7 +502,9 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     clipped_pct = float(g.loc[far, "rev"].sum() / g["rev"].sum()) if g["rev"].sum() else 0.0
 
     say("Reading the MIS workbook. This takes a few minutes", 0.2)
-    mis = load_mis(mis_path, progress)
+    mis_all = load_mis(mis_path, progress)
+    mis_cols = dict(mis_all.attrs)
+    mis, mis_have, year_known = pick_mis_months(mis_all, base_months)
     say("Attributing MIS costs to chains", 0.8)
     g["SalesOfficeID"] = g["so_num"]
     g, cost_source = attribute_costs(g, mis, basis)
@@ -405,6 +537,8 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                     "offer_lines_dropped_missing_terms": terms_dropped,
                     "rows_dropped_invalid_numbers": rows_invalid,
                     "cogs_source_share": cost_source},
+        "mis_months": {"used": base_months, "available": mis_have, "year_known": year_known,
+                       "month_column": mis_cols.get("month_column"), "year_column": mis_cols.get("year_column")},
         "reconciliation": rec,
         "price_check": check,
     }

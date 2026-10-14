@@ -12,6 +12,8 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **Promo response is stronger than price response.** Shoppers react harder to a temporary promo than to a permanent price change, so promo uses `elasticity x PROMO_RESPONSE_BOOST`. Without this, promos looked unrealistically useless in the simulator.
 
+**Costs and billing use the same months.** The MIS is cut to the base months. Earlier builds averaged MIS costs over every month in the sheet against Jul-Sep billing, and the model showed 3.6% net margin against 0.4% in the MIS. Aligning the months removed most of that gap. The remaining gap, if any, is shown by the revenue per pack check on the Data page.
+
 **Volume is not predicted; it is an assumption with a range.** Real volume depends on competition, seasonality, distribution and shelf visibility, none of which we hold. A fitted elasticity from billing alone would look precise and be wrong. So the simulator shows a breakeven (extra volume needed to match today's contribution, no elasticity involved) and a low / base / high range (0.5x, 1x, 1.5x of the modelled response). Calibration against history, if done, is only a sanity check on the assumptions where the history is clean (see `ROADMAP.md`).
 
 **The contribution bridge holds volume at baseline for the rate steps.** This keeps each bar a clean, explainable effect (what the price change does to margin on today's volume) and shows the volume response separately.

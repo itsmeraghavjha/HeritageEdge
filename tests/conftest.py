@@ -13,6 +13,6 @@ sys.path.insert(0, ROOT)
 
 os.environ["HERITAGEEDGE_DATA_DIR"] = tempfile.mkdtemp(prefix="heritageedge-test-")
 os.environ["HERITAGEEDGE_USE_SAMPLE"] = "1"
-for key in ("APP_PASSWORD", "SECRET_KEY", "SQL_SERVER", "SQL_PORT", "SQL_DATABASE", "SQL_USER", "SQL_PASSWORD",
+for key in ("APP_PASSWORD", "SECRET_KEY", "SQL_SERVER", "SQL_PORT", "SQL_DATABASE", "MIS_MONTH_COLUMN", "MIS_YEAR_COLUMN", "SQL_USER", "SQL_PASSWORD",
             "SQL_DRIVER", "SQL_TRUST_CERT", "SQL_QUERY_FILE", "HOST", "PORT", "FLASK_DEBUG"):
     os.environ[key] = ""

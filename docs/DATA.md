@@ -36,6 +36,12 @@ The simulator and P&L switch to the new data when the build finishes.
 
 ## Checking a build
 
+### The MIS is cut to the base months
+
+Billing and the MIS must describe the same period. The build keeps only the MIS rows for the base months you tick, and stops with a message if the MIS has no rows for one of them (it lists the months it does have). Without this, per-pack costs were averaged over every month in the MIS sheet while revenue came from the chosen billing months, which overstated margin when prices or costs moved between months. The Data page shows "MIS months used for costs" after a build.
+
+The month column is found by its header (Month, Period and similar) and an optional Year column (Year, FY and similar). Months can be dates, `202607`, `2026-07`, `Jul-26`, `July 2026`, or just `Jul`. A year is read as a calendar year (`2026`) or a financial year from April (`2026-27`). If the MIS gives no year, months are matched by name only and the page says so. If the headers are different, set `MIS_MONTH_COLUMN` and `MIS_YEAR_COLUMN` in `.env` to the exact header text; the error message lists the columns found. A single base month is allowed and avoids blending prices from different months, but one month can be unrepresentative (festivals, stock pushes), so choose what suits the question.
+
 After every build, read the quality report, **the reconciliation** and **the revenue per pack check** on the Data page before trusting the P&L.
 
 The revenue per pack check exists because COGS, S&D and over/under are taken from the MIS *per pack*, while revenue per pack comes from billing. If billing sells the same pack for more than the MIS shows, those costs look smaller as a share of revenue and the margin is overstated. The check compares the two for matching SKU, sales office and customer group, by group and family, lists the SKUs that differ most, and shows whether the gap is spread evenly (a definition difference, such as what the MIS deducts from revenue or how it counts packs) or sits on a few lines (a data problem on those SKUs or offices). It is written to `meta.json` as `price_check`.
