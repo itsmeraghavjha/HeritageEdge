@@ -4,7 +4,7 @@ Roughly in order of value. Move items to "Done" with a date when finished.
 
 ## Next
 
-1. **Settle the open questions** in `DECISIONS.md`: trade margin definition, whether offer values include GST, and whether contribution should follow the MIS (gross margin less over/under, FOC and S&D). The net margin reconciliation against the MIS is done for Aug 2026.
+1. **Settle the open questions** in `DECISIONS.md`: trade margin definition, whether offer values include GST. The net margin reconciliation against the MIS is done for Aug 2026.
 2. **Record promo outcomes.** When the team runs a promo, save the planned terms, the breakeven shown, and the volume actually billed. Over time this is the only honest evidence for what uplift to expect, and it lets the breakeven be judged against real results.
 3. **Sanity-check the elasticities against history, only where it is clean.** The offer file goes back to April 2025; with at least 24 months of billing, compare modelled response with what happened for chains and SKUs with no competing change. Use it to adjust assumptions in `config/assumptions.csv`, not to forecast.
 4. **Share scenarios.** Saved scenarios live in each person's browser today. Store them on the server so the team can open, compare and comment on each other's work.

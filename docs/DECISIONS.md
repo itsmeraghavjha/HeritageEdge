@@ -30,13 +30,12 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **Net revenue always ties to billing.** The "rebates and other" line is the balancing item between list invoice and billed price. It keeps the baseline exact, at the cost of mixing fees with credit notes and mix effects.
 
-**Contribution is gross margin less S&D.** Net margin is the new bottom line, after P&A, interest, over/under and marketing.
+**Contribution is gross margin less over/under and S&D, as in the MIS.** In the MIS, gross margin less over/under and FOC is "GM-R", and less S&D again is "MC" (contribution). The model follows that and leaves out FOC, which was near zero. Net margin is contribution less P&A, interest and marketing, and does not depend on where over/under sits. An earlier version took over/under after contribution, which made contribution about 1.5 points higher than the MIS.
 
 ## Open questions (please confirm)
 
 - **Trade margin definition.** The model treats it as a share of MRP, and rebates and promo as shares of invoice value. Confirm this matches how the chains' terms are actually written.
 - **Net margin against finance (resolved for Aug 2026).** With costs and billing both on August, the model matches the MIS: net margin 2.3% against 2.2%, COGS 87.0% against 87.0%, revenue per pack within 0.1%. The earlier 3.6% against 0.4% came from mixing months. Re-check this after each new build, and before sharing the bottom line. Original note: In a first trial build the model's net margin came out several times higher than the MIS's own net margin for the same customer groups. Part of the gap is the window and scope, but it needs explaining. The first trial showed the gap sitting in the per-pack costs (COGS, S&D, over/under) while the revenue-based lines matched, which points to revenue per pack differing between billing and the MIS. Use the revenue per pack check on the Data page to confirm, and agree the result with finance before the bottom line is shown to anyone.
 - **Is the offer value GST-inclusive?** The build treats offers on the same basis as MRP (including GST) and converts them to the ex-GST invoice. If offers are already ex-GST, promo is understated and "rebates and other" is overstated by the same amount. Net revenue is unaffected.
-- **Contribution definition.** Currently gross margin less S&D. Confirm that matches how the MRF team and finance define it.
 - **Cost allocation.** Volume-based allocation gives every chain the same cost per pack. Decide whether S&D or others should use another driver (for example drop count), which would need route-level data.
 - **Elasticities and response constants** are assumptions. See `DATA.md`, section 4.

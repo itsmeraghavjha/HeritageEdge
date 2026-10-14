@@ -34,8 +34,33 @@ def test_pnl_lines_add_up():
     assert close(m["gross"], m["mrp_value"] - m["trade_margin"])
     assert close(m["net"], m["gross"] - m["promo"] - m["rebates"])
     assert close(m["gm"], m["net"] - m["cogs"])
-    assert close(m["cm"], m["gm"] - m["logistics"])
-    assert close(m["nm"], m["cm"] - m["pa"] - m["interest"] - m["ou"] - m["mktg"])
+    assert close(m["cm"], m["gm"] - m["ou"] - m["logistics"])          # the MIS definition of contribution
+    assert close(m["nm"], m["cm"] - m["pa"] - m["interest"] - m["mktg"])
+
+
+def test_over_under_sits_above_contribution_and_net_margin_is_unchanged():
+    m = sim.simulate({}, {})["base"]
+    assert m["cm"] < m["gm"] - m["logistics"]                           # over/under now reduces contribution
+    old_nm = (m["gm"] - m["logistics"]) - m["pa"] - m["interest"] - m["ou"] - m["mktg"]
+    assert close(m["nm"], old_nm)                                       # the bottom line does not move
+
+
+def test_every_row_of_the_pnl_follows_the_same_definition():
+    out = sim.pnl({"promo_add_pp": 3}, {}, ["chain", "state"], {})
+    seen = 0
+
+    def walk(nodes):
+        nonlocal seen
+        for n in nodes:
+            for side in ("base", "sim"):
+                m = n[side]
+                assert close(m["cm"], m["gm"] - m["ou"] - m["logistics"])
+                assert close(m["nm"], m["cm"] - m["pa"] - m["interest"] - m["mktg"])
+                seen += 1
+            walk(n.get("children") or [])
+
+    walk(out["tree"])
+    assert seen > 4
 
 
 def test_price_rise_cuts_volume_raises_realisation():

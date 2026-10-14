@@ -135,9 +135,10 @@ def calc_row(row, lv, active, fixed_volume=False, response=1.0):
     cogs = cost("cogs") * (1 + row["milk_share"] * lv.milk_cost_change_pct / 100)
     gm = net - cogs
     logistics = cost("sd") * (1 + lv.freight_change_pct / 100)
-    cm = gm - logistics
-    pa, interest, ou, mktg = cost("pa"), cost("interest"), cost("ou"), cost("mktg")
-    nm = cm - pa - interest - ou - mktg
+    ou = cost("ou")
+    cm = gm - ou - logistics          # the MIS definition: over/under is taken off before contribution
+    pa, interest, mktg = cost("pa"), cost("interest"), cost("mktg")
+    nm = cm - pa - interest - mktg
     return {"units": units, "mrp_value": mrp_value, "trade_margin": trade_margin,
             "gross": gross, "promo": promo, "rebates": rebates, "net": net,
             "cogs": cogs, "gm": gm, "logistics": logistics, "cm": cm,

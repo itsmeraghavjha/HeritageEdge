@@ -22,10 +22,13 @@ Calculated for every row of data (one chain and customer group, in one sales off
 | **= Net revenue** | what was billed. Ties back to the billing data |
 | minus COGS | attributed from the MIS. The milk-linked part moves with the milk cost lever |
 | **= Gross margin** | |
+| minus Over/under | attributed from the MIS |
 | minus S&D / freight | attributed from the MIS |
-| **= Contribution** | gross margin less S&D / freight |
-| minus P&A, Interest, Over/under, Marketing | attributed from the MIS |
+| **= Contribution** | gross margin less over/under and S&D / freight. This is the MIS definition (its "MC") |
+| minus P&A, Interest, Marketing | attributed from the MIS |
 | **= Net margin** | the bottom line |
+
+The MIS also has FOC, notional and OI lines. They were zero or close to zero in the months checked, so the model leaves them out. If they become material, add them as cost lines (`config/attribution.csv`, `engine/data.py`).
 
 ### Where each row's terms come from
 
