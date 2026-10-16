@@ -183,7 +183,7 @@
     ['Volume (’000 units)', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
-    ['Rebates', 'rebates', 'l', false],
+    ['Other deductions', 'rebates', 'l', false],
     ['Net revenue', 'net', 'l', true, 'strong'],
     ['COGS', 'cogs', 'l', false],
     ['Gross margin', 'gm', 'l', true, 'strong'],

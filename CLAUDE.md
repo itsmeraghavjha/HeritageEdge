@@ -59,7 +59,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - The MIS is cut to the base months in `prepare.py` (`pick_mis_months`). Never average MIS costs over months that billing does not cover; that once overstated net margin by about 3 points. The month column is found by header, or set `MIS_MONTH_COLUMN` in `.env`.
 - Adding a lever means editing the engine, `common.js`, `export.py`, the tests and the docs. See `CONTRIBUTING.md`.
 - The contribution bridge holds volume at baseline for its rate steps; the volume response is the remainder. Keep it reconciling to the scenario total (a test checks this).
-- "Rebates and display fees" moves the gap between list invoice and billed price (credit notes, mix, other schemes), not only fees. See `docs/HOW_IT_WORKS.md`.
+- "Other deductions and display fees" moves the gap between list invoice and billed price (credit notes, mix, other schemes), not only fees. See `docs/HOW_IT_WORKS.md`.
 - Scenarios are saved in browser `localStorage`, not on the server, so they are not shared between users.
 - The billing query's pack-size parsing misses formats like `700+700 ML`; `prepare.py` recomputes packs in Python for those lines.
 - Google Fonts load from a CDN. The app falls back to system fonts without network access.

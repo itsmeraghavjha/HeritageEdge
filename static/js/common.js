@@ -30,8 +30,8 @@
       levers: [
         { key: 'trade_margin_add_pp', label: 'Trade margin change', min: -3, max: 5, step: 0.25, unit: ' pp', signed: true,
           hint: 'Chain margin as a share of MRP. More margin pushes more volume.' },
-        { key: 'rebate_add_pp', label: 'Rebates and display fees', min: -2, max: 4, step: 0.25, unit: ' pp', signed: true,
-          hint: 'As a share of invoice value. Buys visibility on shelf.' },
+        { key: 'rebate_add_pp', label: 'Other deductions and display fees', min: -2, max: 4, step: 0.25, unit: ' pp', signed: true,
+          hint: 'The gap between list invoice and billed price (credit notes, fees, other schemes), as a share of invoice value. Some of it buys visibility.' },
       ],
     },
     {

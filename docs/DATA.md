@@ -28,7 +28,7 @@ The computer running the app must be able to reach the SQL Server (company netwo
 1. Keeps the billing months you ticked as the baseline (default: the last three complete months). **Units** are the average monthly packs over them.
 2. Keeps only customer x SKU lines that exist in the offer file. That is the scope of the tool.
 3. Takes MRP, trade margin, offer and GST from the offer file, weighted by packs.
-4. Works out the promo rate from the offer, and a "rebates and other" rate from the gap between list invoice and billed price, so net revenue ties to billing.
+4. Works out the promo rate from the offer, and an "other deductions" rate from the gap between list invoice and billed price, so net revenue ties to billing.
 5. Spreads the MIS costs to each row using the rules in `config/attribution.csv` (see `HOW_IT_WORKS.md`).
 6. Writes `data/rows.csv` and `data/meta.json`.
 

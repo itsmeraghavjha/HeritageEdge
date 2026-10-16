@@ -24,7 +24,7 @@
     ['Volume', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
-    ['Rebates', 'rebates', 'l', false],
+    ['Other deductions', 'rebates', 'l', false],
     ['Net revenue', 'net', 'l', true],
     ['COGS', 'cogs', 'l', false],
     ['Gross margin', 'gm', 'l', true],

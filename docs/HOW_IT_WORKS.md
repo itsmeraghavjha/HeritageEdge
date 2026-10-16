@@ -18,7 +18,7 @@ Calculated for every row of data (one chain and customer group, in one sales off
 | minus Trade margin | the chain's share of MRP, from the offer file |
 | **= Gross sales** | list invoice value |
 | minus Promo | the current offer from the offer file, as a share of list invoice |
-| minus Rebates and other | the gap between list invoice and what was actually billed (credit notes, mix, other schemes) |
+| minus Other deductions | the gap between list invoice and what was actually billed (credit notes, mix, other schemes) |
 | **= Net revenue** | what was billed. Ties back to the billing data |
 | minus COGS | attributed from the MIS. The milk-linked part moves with the milk cost lever |
 | **= Gross margin** | |
@@ -34,7 +34,7 @@ The MIS also has FOC, notional and OI lines. They were zero or close to zero in 
 
 - **Units:** average monthly packs billed over the base months you ticked on the Data page.
 - **MRP, trade margin, offer, GST:** the offer file, averaged over the districts a customer buys in.
-- **Net price:** billed invoice value divided by packs. Because "Rebates and other" is the difference between list and billed price, net revenue always ties to billing.
+- **Net price:** billed invoice value divided by packs. Because "Other deductions" is the difference between list and billed price, net revenue always ties to billing.
 - **Costs:** the MIS, spread to chains. See the next section.
 
 ## How MIS costs reach each chain
@@ -58,7 +58,7 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 | Extra promo discount (pp) | Added to each row's current promo rate | Selected scope |
 | Promo passed to shelf price (%) | How much of the promo reaches shoppers and so drives volume | Selected scope |
 | Trade margin change (pp) | Chain margin as a share of MRP | Selected scope |
-| Rebates and display fees (pp) | Moves the "Rebates and other" line. See the note below | Selected scope |
+| Other deductions and display fees (pp) | Moves the "Other deductions" line. See the note below | Selected scope |
 | Price sensitivity (x) | Scales every product family's elasticity. 1x uses `config/assumptions.csv` | Selected scope |
 | Extra volume from visibility (%) | Volume you expect from display or activation, on top of price effects | Selected scope |
 | Milk procurement cost (%) | COGS, in proportion to each family's milk share | **Everything** |
@@ -66,7 +66,7 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 
 "Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. The two cost levers always apply to everything, because a milk price rise does not skip a chain.
 
-**Note on "Rebates and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
+**Note on "Other deductions and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
 
 ## How volume responds
 
