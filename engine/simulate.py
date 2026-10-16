@@ -10,9 +10,10 @@ Per row (chain x sales office x SKU), monthly run-rate:
     = Net revenue
     - COGS               per-unit cost, milk-linked share moves with milk cost
     = Gross margin
-    - Sales and distribution   percent of net revenue
-    = Contribution
-    - P&A, interest, over/under, marketing   attributed from the MIS
+    - Over/under         per pack, from the MIS
+    - Sales and distribution   per pack, from the MIS
+    = Contribution       the MIS definition (MC)
+    - P&A, interest, marketing   percent of net revenue, from the MIS
     = Net margin
 """
 from dataclasses import dataclass, fields
