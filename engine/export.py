@@ -74,6 +74,56 @@ def _basis_text():
     return "Monthly run-rate. Sample data, not actuals."
 
 
+PIVOT_SHEET = "Data for pivot"
+PIVOT_STEPS = [
+    "To build a PivotTable like the MIS one:",
+    "1. Click any cell in the table on the left.",
+    "2. Insert > PivotTable > OK.",
+    "3. Drag Chain, State, City, Product category, SKU (or any you like) into Rows, in the order you want.",
+    "4. Drag the amounts you want into Values (for example Scenario Net revenue, Scenario Contribution). Choose Sum.",
+    "5. For a percentage, use PivotTable Analyze > Fields, Items & Sets > Calculated Field.",
+    "   Example, name CM %: = 'Scenario Contribution' / 'Scenario Net revenue'. Format it as a percentage.",
+    "Amounts are Rs lakh a month, volume is thousand units. Baseline columns have no levers applied.",
+]
+
+
+def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw):
+    """A flat sheet, one line per dataset row, that a PivotTable can be built on in a few clicks."""
+    from openpyxl.worksheet.table import Table, TableStyleInfo
+    from . import data
+
+    items = sim.pnl_items(levers_raw, scope_raw, filter_raw)
+    ws = wb.create_sheet(PIVOT_SHEET)
+    metric_cols = [c for c in COLUMNS if not c[1].endswith("_pct")]
+    header = [title for _, title in data.DIM_DEFS]
+    header += [f"{side} {name}" for side in ("Baseline", "Scenario") for name, _, _, _ in metric_cols]
+    ws.append(header)
+    for it in items:
+        row = [data.LABEL[d].get(it["row"][d], it["row"][d]) for d, _ in data.DIM_DEFS]
+        for side in ("base", "sim"):
+            row += [it[side][k] / scale for _, k, scale, _ in metric_cols]
+        ws.append(row)
+    n_dims = len(data.DIM_DEFS)
+    for r in range(2, ws.max_row + 1):
+        for c in range(n_dims + 1, len(header) + 1):
+            ws.cell(row=r, column=c).number_format = AMOUNT
+    if ws.max_row > 1:
+        last = f"{get_column_letter(len(header))}{ws.max_row}"
+        table = Table(displayName="PnlRows", ref=f"A1:{last}")
+        table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True)
+        ws.add_table(table)
+    for i in range(1, n_dims + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 22
+    for i in range(n_dims + 1, len(header) + 1):
+        ws.column_dimensions[get_column_letter(i)].width = 17
+    ws.freeze_panes = "A2"
+    note_col = len(header) + 2
+    for k, line in enumerate(PIVOT_STEPS, start=1):
+        cell = ws.cell(row=k, column=note_col, value=line)
+        cell.font = TOTAL_FONT if k == 1 else Font()
+    ws.column_dimensions[get_column_letter(note_col)].width = 70
+
+
 def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
     res = sim.pnl(levers_raw, scope_raw, dims, filter_raw)
     lv = sim.parse_levers(levers_raw)
@@ -111,6 +161,8 @@ def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
             ws.column_dimensions[get_column_letter(i)].width = 15
         ws.row_dimensions[2].height = 32
         ws.freeze_panes = "B3"
+
+    _pivot_sheet(wb, levers_raw, scope_raw, filter_raw)
 
     ws = wb.create_sheet("Scenario levers")
     ws.append(["Lever", "Value", "Unit"])

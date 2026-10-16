@@ -102,7 +102,7 @@ engine/sql_source.py    Pulls billing from SQL Server
 engine/prepare.py       Builds the dataset from billing + offer file + MIS
 engine/datastore.py     Uploads and background jobs for the Data page
 engine/simulate.py      P&L maths, levers, bridge, grouping
-engine/export.py        Excel export (grouped rows you can collapse, negatives in red)
+engine/export.py        Excel export (grouped rows you can collapse, negatives in red, flat sheet for a PivotTable)
 config/                 Elasticity, milk share, cost attribution rules
 sample_data/            Synthetic dataset (in git)
 data/                   Real data (ignored by git)

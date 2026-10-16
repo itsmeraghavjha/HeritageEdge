@@ -342,6 +342,12 @@ def simulate(levers_raw, scope_raw):
     }
 
 
+def pnl_items(levers_raw, scope_raw, filter_raw=None):
+    """One entry per dataset row that passes the filters: {"row", "base", "sim"}. Used by the Excel export."""
+    lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
+    return _items(lv, scope, parse_filter(filter_raw))
+
+
 def pnl(levers_raw, scope_raw, dims, filter_raw=None):
     lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
     flt = parse_filter(filter_raw)

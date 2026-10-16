@@ -313,3 +313,26 @@ def test_excel_export_has_collapsible_rows_and_red_negatives():
         # negatives are red, amounts and percentages alike
         assert "[Red]" in ws.cell(row=3, column=2).number_format
         assert "[Red]" in ws.cell(row=3, column=ws.max_column).number_format
+
+
+def test_excel_export_has_a_flat_sheet_that_adds_up_to_the_total_row():
+    import openpyxl
+    from engine import export
+    levers = {"promo_add_pp": 3}
+    flt = {"chain": [first("chain")]}
+    wb = openpyxl.load_workbook(export.build_workbook(levers, {}, ["chain", "state"], flt))
+    ws = wb[export.PIVOT_SHEET]
+    head = [c.value for c in ws[1]][:len(data.DIM_DEFS) + 2 * 14]
+    assert head[:len(data.DIM_DEFS)] == [t for _, t in data.DIM_DEFS]
+    assert len(ws.tables) == 1
+    assert len(set(head)) == len(head)                      # a table needs unique header names
+    i_net = head.index("Scenario Net revenue") + 1
+    i_base = head.index("Baseline Net revenue") + 1
+    flat_sim = sum(ws.cell(row=r, column=i_net).value for r in range(2, ws.max_row + 1)
+                   if ws.cell(row=r, column=1).value is not None)
+    flat_base = sum(ws.cell(row=r, column=i_base).value for r in range(2, ws.max_row + 1)
+                    if ws.cell(row=r, column=1).value is not None)
+    total = sim.pnl(levers, {}, ["chain"], flt)["total"]
+    assert flat_sim == pytest.approx(total["sim"]["net"] / 1e5)
+    assert flat_base == pytest.approx(total["base"]["net"] / 1e5)
+    assert ws.max_row - 1 == sim.pnl(levers, {}, ["chain"], flt)["rows_shown"]
