@@ -292,3 +292,24 @@ def test_a_stronger_response_never_makes_volume_negative():
     lv = sim.parse_levers({"price_change_pct": 15, "elasticity_scale": 3, "promo_add_pp": -5,
                            "manual_uplift_pct": -30})
     assert all(sim.calc_row(r, lv, True, response=1.5)["units"] >= 0 for r in data.ROWS)
+
+
+def test_excel_export_has_collapsible_rows_and_red_negatives():
+    import openpyxl
+    from engine import export
+    buf = export.build_workbook({"promo_add_pp": 3}, {}, ["chain", "state", "city"], {})
+    wb = openpyxl.load_workbook(buf)
+    for name in ("Scenario P&L", "Baseline P&L"):
+        ws = wb[name]
+        assert ws.sheet_properties.outlinePr.summaryBelow is False
+        levels = {}
+        for r in range(3, ws.max_row + 1):
+            label = ws.cell(row=r, column=1).value
+            depth = (len(label) - len(label.lstrip())) // 4
+            levels.setdefault(depth, set()).add(ws.row_dimensions[r].outlineLevel)
+        # every row's outline level equals its indent, so Excel can collapse each level
+        assert all(v == {d} for d, v in levels.items())
+        assert max(levels) == 2
+        # negatives are red, amounts and percentages alike
+        assert "[Red]" in ws.cell(row=3, column=2).number_format
+        assert "[Red]" in ws.cell(row=3, column=ws.max_column).number_format

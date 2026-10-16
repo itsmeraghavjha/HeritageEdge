@@ -23,25 +23,29 @@ HEADER_FILL = PatternFill("solid", fgColor="123524")
 HEADER_FONT = Font(bold=True, color="FFFFFF")
 TOTAL_FONT = Font(bold=True)
 
+# Negative numbers show in red with a minus sign.
+AMOUNT = "#,##0.0;[Red]-#,##0.0"
+PERCENT = "0.0;[Red]-0.0"
+
 # (header, metric key, scale, number format)
 COLUMNS = [
-    ("Volume ('000 units)", "units", 1e3, "#,##0.0"),
-    ("Gross sales", "gross", 1e5, "#,##0.0"),
-    ("Promo", "promo", 1e5, "#,##0.0"),
-    ("Rebates", "rebates", 1e5, "#,##0.0"),
-    ("Net revenue", "net", 1e5, "#,##0.0"),
-    ("COGS", "cogs", 1e5, "#,##0.0"),
-    ("Gross margin", "gm", 1e5, "#,##0.0"),
-    ("Over/under", "ou", 1e5, "#,##0.0"),
-    ("S&D / freight", "logistics", 1e5, "#,##0.0"),
-    ("Contribution", "cm", 1e5, "#,##0.0"),
-    ("P&A", "pa", 1e5, "#,##0.0"),
-    ("Interest", "interest", 1e5, "#,##0.0"),
-    ("Marketing", "mktg", 1e5, "#,##0.0"),
-    ("Net margin", "nm", 1e5, "#,##0.0"),
-    ("GM %", "gm_pct", 0.01, "0.0"),
-    ("CM %", "cm_pct", 0.01, "0.0"),
-    ("NM %", "nm_pct", 0.01, "0.0"),
+    ("Volume ('000 units)", "units", 1e3, AMOUNT),
+    ("Gross sales", "gross", 1e5, AMOUNT),
+    ("Promo", "promo", 1e5, AMOUNT),
+    ("Rebates", "rebates", 1e5, AMOUNT),
+    ("Net revenue", "net", 1e5, AMOUNT),
+    ("COGS", "cogs", 1e5, AMOUNT),
+    ("Gross margin", "gm", 1e5, AMOUNT),
+    ("Over/under", "ou", 1e5, AMOUNT),
+    ("S&D / freight", "logistics", 1e5, AMOUNT),
+    ("Contribution", "cm", 1e5, AMOUNT),
+    ("P&A", "pa", 1e5, AMOUNT),
+    ("Interest", "interest", 1e5, AMOUNT),
+    ("Marketing", "mktg", 1e5, AMOUNT),
+    ("Net margin", "nm", 1e5, AMOUNT),
+    ("GM %", "gm_pct", 0.01, PERCENT),
+    ("CM %", "cm_pct", 0.01, PERCENT),
+    ("NM %", "nm_pct", 0.01, PERCENT),
 ]
 
 
@@ -94,13 +98,18 @@ def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
             if bold:
                 for cell in ws[row]:
                     cell.font = TOTAL_FONT
+            # Excel's own grouping: the + / - buttons and the 1, 2, 3 level buttons at the top left.
+            # The Total row and the first level stay at outline level 0.
+            ws.row_dimensions[row].outlineLevel = depth
 
         emit("Total", res["total"][side], 0, bold=True)
         for depth, node in _flatten(res["tree"]):
             emit(node["label"], node[side], depth, bold=depth == 0)
-        ws.column_dimensions["A"].width = 38
+        ws.sheet_properties.outlinePr.summaryBelow = False   # the + / - button sits on the parent row, above its children
+        ws.column_dimensions["A"].width = 44
         for i in range(2, len(COLUMNS) + 2):
-            ws.column_dimensions[get_column_letter(i)].width = 14
+            ws.column_dimensions[get_column_letter(i)].width = 15
+        ws.row_dimensions[2].height = 32
         ws.freeze_panes = "B3"
 
     ws = wb.create_sheet("Scenario levers")
