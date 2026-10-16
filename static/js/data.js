@@ -171,6 +171,7 @@
         <td class="${Math.abs(mg) >= 1 ? 'flag' : ''}">${(mg > 0 ? '+' : mg < 0 ? HE.MINUS : '') + Math.abs(mg).toFixed(1)} pp</td></tr>`;
     }).join('');
     renderPriceCheck(data.price_check);
+    renderOfferCheck(data.offer_price_check);
     $('reconTable').innerHTML = `<thead><tr><th scope="col">Cost line</th><th scope="col">In HeritageEdge</th>
       <th scope="col">In the MIS</th><th scope="col">Gap</th></tr></thead><tbody>${rows}</tbody>`;
   }
@@ -203,6 +204,22 @@
       <th scope="col">Same packs at MIS revenue per pack</th><th scope="col">Gap</th></tr></thead><tbody>${rows}
       ${mixRows ? head('Is it the customers? Billing in the same cells, against the MIS') + mixRows : ''}
       <tr class="group"><th colspan="4" scope="colgroup">SKUs with the largest difference</th></tr>${top}</tbody></table></div>`;
+  }
+
+  function renderOfferCheck(oc) {
+    const el = $('offerCheck');
+    if (!oc) { el.innerHTML = '<p class="sub pad">Rebuild the dataset to see this check.</p>'; return; }
+    const sg = (v) => (v > 0 ? '+' : v < 0 ? HE.MINUS : '') + Math.abs(v * 100).toFixed(1) + '%';
+    const cls = (v) => (Math.abs(v) >= 0.02 ? 'flag' : '');
+    const b = oc.revenue_by_gap;
+    const pc = (v) => (v * 100).toFixed(0) + '%';
+    const top = oc.largest_gaps.map((s) => `<tr><th scope="row">${HE.esc(s.chain)}, ${HE.esc(s.name)} (${HE.esc(s.sku)})</th>
+      <td>${HE.inrSigned(s.diff_rev)} a month</td><td class="${cls(s.gap_pct)}">${sg(s.gap_pct)}</td></tr>`).join('');
+    el.innerHTML = `<p class="sub pad">Overall, billing is ${sg(oc.gap_pct)} against the offer file.
+      Revenue billed at the offer-file price: ${pc(b.matches)}. Below it by up to 10%: ${pc(b.below_up_to_10pct)}.
+      Below it by more than 10%: ${pc(b.below_over_10pct)}. Above it: ${pc(b.above)}.</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Chain and SKU with the largest difference</th>
+      <th scope="col">Billed less offer-file price</th><th scope="col">Gap</th></tr></thead><tbody>${top}</tbody></table></div>`;
   }
 
   /* ---------- status polling ---------- */

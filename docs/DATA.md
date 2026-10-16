@@ -66,3 +66,7 @@ Global constants for the volume response are at the top of `engine/simulate.py`.
 ## Refreshing
 
 When new billing months arrive: *Refresh from SQL*, tick the months you want as the baseline, and rebuild. When the offer file changes: upload it again and rebuild.
+
+## Billed price against the offer file
+
+The Data page also compares, for each chain and SKU, the price the offer file implies, `(MRP x (1 - trade) - offer) / (1 + GST)`, with the price billing charged. It shows the share of revenue billed at the offer-file price, below it and above it, and the ten chain and SKU pairs with the largest rupee difference. Net revenue follows billing, so the gap does not move margin. It moves money between promo and "other deductions". Typical causes are an offer that changed during the month, several offer rows for one customer and SKU (the build averages them), and a scheme that the offer file does not hold.

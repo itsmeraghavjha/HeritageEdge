@@ -372,6 +372,45 @@ def price_check(rows, mis):
                               "diff_rev": float(r.diff)} for r in top.itertuples()]}
 
 
+def offer_price_check(g, tol=0.005):
+    """Does billing charge the price the offer file implies?
+
+    The offer file says what a chain should pay per pack: MRP less trade margin, less the offer, all converted to
+    ex-GST. `g` has one line per chain x office x SKU with `packs`, `net_px` (billed price per pack), `mrp`, `trade`,
+    `offer_rs`, `gst`, `chain` and `name`. gap_pct is billed over expected, minus 1: -3% means billing charged 3%
+    less than the offer file says. A gap on a few chains usually means an offer that changed during the month, several
+    offer rows for one customer and SKU, or a scheme the offer file does not hold. Net revenue is not affected, since
+    it comes from billing. The gap is what ends up in "other deductions"."""
+    j = g[g["packs"] > 0].copy()
+    j["expected_px"] = (j["mrp"] * (1 - j["trade"]) - j["offer_rs"]) / (1 + j["gst"])
+    j = j[j["expected_px"] > 0].copy()
+    if j.empty:
+        return None
+    j["billed"] = j["net_px"] * j["packs"]
+    j["expected"] = j["expected_px"] * j["packs"]
+    j["diff"] = j["billed"] - j["expected"]
+    j["gap"] = j["net_px"] / j["expected_px"] - 1
+    total = float(j["billed"].sum())
+
+    def share(pick):
+        return float(j.loc[pick, "billed"].sum() / total) if total else 0.0
+
+    bands = {"matches": share(j["gap"].abs() <= tol),
+             "below_up_to_10pct": share((j["gap"] < -tol) & (j["gap"] >= -0.10)),
+             "below_over_10pct": share(j["gap"] < -0.10),
+             "above": share(j["gap"] > tol)}
+    by = j.groupby(["chain", "sku"]).agg(name=("name", "first"), billed=("billed", "sum"),
+                                         expected=("expected", "sum")).reset_index()
+    by["diff"] = by["billed"] - by["expected"]
+    by["gap_pct"] = by["billed"] / by["expected"] - 1
+    top = by.reindex(by["diff"].abs().sort_values(ascending=False).index).head(10)
+    return {"billed_rev": float(j["billed"].sum()), "expected_rev": float(j["expected"].sum()),
+            "gap_pct": float(j["billed"].sum() / j["expected"].sum() - 1),
+            "revenue_by_gap": bands,
+            "largest_gaps": [{"chain": str(r.chain), "sku": str(r.sku), "name": str(r.name),
+                              "gap_pct": float(r.gap_pct), "diff_rev": float(r.diff)} for r in top.itertuples()]}
+
+
 def mix_check(everyone, mis):
     """Is the revenue per pack gap about which customers are in the cell, or about how revenue is defined?
 
@@ -525,6 +564,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     rec = reconcile(final, mis, basis)
     check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
     check["mix"] = mix_check(everyone, mis)
+    offer_check = offer_price_check(g.loc[final.index])
     meta = {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "base_months": base_months,
@@ -542,6 +582,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                        "month_column": mis_cols.get("month_column"), "year_column": mis_cols.get("year_column")},
         "reconciliation": rec,
         "price_check": check,
+        "offer_price_check": offer_check,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     say("Done", 1.0)

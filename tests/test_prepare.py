@@ -326,3 +326,26 @@ def test_price_check_lists_a_sku_once_even_if_its_name_is_spelt_two_ways():
                         "packs": [50.0, 50.0], "rev": [5000.0, 5000.0]})
     top = prepare.price_check(rows, mis)["largest_gaps"]
     assert len(top) == 1 and math.isclose(top[0]["diff_rev"], 1000.0)
+
+
+def test_offer_price_check_finds_chains_billed_away_from_the_offer_file():
+    import pandas as pd
+    # expected price = (100 x (1 - 0.2) - 5) / 1.05 = 71.43 a pack
+    base = dict(sku="1", name="Ghee", mrp=100.0, trade=0.2, offer_rs=5.0, gst=0.05, packs=1000.0)
+    exact = (100 * 0.8 - 5) / 1.05
+    g = pd.DataFrame([dict(base, chain="A", net_px=exact),            # billed exactly as the file says
+                      dict(base, chain="B", net_px=exact * 0.95),     # 5% below: an extra scheme
+                      dict(base, chain="C", net_px=exact * 1.02)])    # 2% above: an offer not applied
+    out = prepare.offer_price_check(g)
+    assert out["gap_pct"] == pytest.approx((1 + 0.95 + 1.02) / 3 - 1)
+    bands = out["revenue_by_gap"]
+    assert bands["matches"] == pytest.approx(1 / 3 * exact / ((exact * (1 + 0.95 + 1.02)) / 3), rel=1e-6)
+    assert bands["below_up_to_10pct"] > 0 and bands["above"] > 0 and bands["below_over_10pct"] == 0
+    assert out["largest_gaps"][0]["chain"] == "B"                     # the biggest rupee difference first
+    assert out["largest_gaps"][0]["diff_rev"] == pytest.approx(-0.05 * exact * 1000)
+
+
+def test_the_build_records_the_offer_price_check(tmp_path):
+    meta, _ = _build_with_mis(tmp_path)
+    oc = meta["offer_price_check"]
+    assert oc is None or {"gap_pct", "revenue_by_gap", "largest_gaps"} <= set(oc)
