@@ -48,7 +48,7 @@ Details: [docs/DATA.md](docs/DATA.md).
 ```
 app.py                 Flask routes and optional login
 engine/                maths, data loading, SQL pull, dataset build, Excel export
-config/                elasticities, milk share, cost attribution rules (safe to share)
+config/                elasticities, cost attribution rules (safe to share)
 sample_data/           synthetic dataset used when no real data is built
 templates/ static/     pages, scripts and styles
 tests/                 tests, including a synthetic data generator

@@ -17,7 +17,7 @@ Everything is a monthly run-rate in rupees. With no real data built, the app run
 The real dataset holds chain-wise prices, offers and costs. It must never reach git.
 
 - Ignored by git: `data/` (built dataset, uploads, cached SQL pull), `.env` (SQL host, port, user, password, app password), `*.xlsb`, `*.xlsx`.
-- Safe in git: `sample_data/`, `config/` (elasticities, milk share, cost attribution rules), `engine/sql/billing.sql` (the shared billing query: table names only, never a login).
+- Safe in git: `sample_data/`, `config/` (elasticities, cost attribution rules), `engine/sql/billing.sql` (the shared billing query: table names only, never a login).
 - Never put real chain names, prices, volumes or costs in code, tests, docs, commit messages or screenshots. Tests use `tests/synth.py`.
 - Never print or log `SQL_PASSWORD`. `sql_source._clean()` scrubs it from errors.
 - `app.py` refuses to listen beyond this computer unless `APP_PASSWORD` is set.
@@ -41,7 +41,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - `engine/simulate.py`: all the maths. `calc_row` computes one row's P&L; `simulate`, `pnl` and `bridge` aggregate. Levers are a frozen dataclass; `LIMITS` clamps API input.
 - `engine/export.py`: Excel export (openpyxl).
 - `app.py`: thin routes and the optional login. Keep logic in `engine/`.
-- `config/assumptions.csv`: elasticity and milk share per product family. `config/attribution.csv`: whether each MIS cost is spread per pack (`volume`) or as a % of net revenue (`revenue`).
+- `config/assumptions.csv`: elasticity per product family. `config/attribution.csv`: whether each MIS cost is spread per pack (`volume`) or as a % of net revenue (`revenue`).
 - `static/js/common.js` defines lever definitions (`GROUPS`), defaults, presets, selectors and number formatting, shared through `window.HE`.
 - No build step and no front-end framework. Plain JS, one CSS file.
 
@@ -50,7 +50,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - Plain, specific UI copy in sentence case. No all-caps labels, no arrows on buttons.
 - Money is shown in Indian units: crore (Cr) and lakh (L). Tables use rupees lakh.
 - Colour carries meaning: green is good for profit, red is bad. For cost lines (COGS, promo, rebates, S&D, P&A, interest, over/under, marketing) an increase is bad, so those use inverted colouring (see the `goodUp` flag in `simulator.js` and `pnl.js`).
-- Cost levers (milk, S&D / freight) apply to every row. All other levers respect the scope.
+- Cost levers (COGS change, S&D / freight) apply to every row. All other levers respect the scope.
 - Contribution is gross margin less over/under and S&D (the MIS definition of MC). Net margin is contribution less P&A, interest and marketing.
 - Every maths change needs a test in `tests/test_engine.py` (or `test_prepare.py` for the build) and an update to `docs/HOW_IT_WORKS.md`.
 

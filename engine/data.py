@@ -6,7 +6,7 @@ Sample data   sample_data/rows.csv  synthetic, in git. Used whenever no real dat
 
 Grain: one row per chain x customer group x sales office x SKU, with the baseline monthly packs and
 the commercial terms and attributed costs behind them. Team inputs that are safe to share live in
-config/ (elasticity and milk share per product family, and how each MIS cost is attributed).
+config/ (elasticity per product family, and how each MIS cost is attributed).
 """
 import csv
 import json
@@ -22,7 +22,7 @@ CONFIG_DIR = ROOT / "config"
 
 LINES = ("cogs", "sd", "pa", "interest", "ou", "mktg")
 NUM = ("units", "mrp_x", "trade", "promo_rate", "other_rate", "net_px") + LINES
-DEFAULT_ASSUMPTION = (-1.0, 0.6)
+DEFAULT_ELASTICITY = -1.0
 NOT_RECORDED = "(not recorded)"
 
 # id, label. The id is also the key used in API requests (scope, filters, dims) and in each row.
@@ -109,15 +109,14 @@ def reload():
     use_real = real.exists() and os.environ.get("HERITAGEEDGE_USE_SAMPLE") != "1"
     path = real if use_real else SAMPLE_DIR / "rows.csv"
 
-    assume = {r["family"]: (float(r["elasticity"]), float(r["milk_share"]))
-              for r in _read(CONFIG_DIR / "assumptions.csv")}
+    elasticity = {r["family"]: float(r["elasticity"]) for r in _read(CONFIG_DIR / "assumptions.csv")}
     basis = {r["line"]: r["basis"] for r in _read(CONFIG_DIR / "attribution.csv")}
 
     rows = []
     for r in _read(path):
         for k in NUM:
             r[k] = float(r[k])
-        r["e"], r["milk_share"] = assume.get(r["family"], DEFAULT_ASSUMPTION)
+        r["e"] = elasticity.get(r["family"], DEFAULT_ELASTICITY)
         r["so_name"] = r.get("so_name") or r["so"]
         r["name"] = r.get("name") or r["sku"]
         r["city"] = r.get("city") or _city(r["so_name"])

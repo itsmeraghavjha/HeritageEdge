@@ -9,7 +9,7 @@
     rebate_add_pp: 0,
     elasticity_scale: 1,
     manual_uplift_pct: 0,
-    milk_cost_change_pct: 0,
+    cogs_change_pct: 0,
     freight_change_pct: 0,
   };
 
@@ -47,8 +47,8 @@
       title: 'Costs',
       note: 'Costs apply to every chain, state and SKU.',
       levers: [
-        { key: 'milk_cost_change_pct', label: 'Milk procurement cost', min: -10, max: 15, step: 0.5, unit: '%', signed: true,
-          hint: 'Flows into COGS by each product family’s milk share (data/assumptions.csv).' },
+        { key: 'cogs_change_pct', label: 'COGS change', min: -10, max: 15, step: 0.5, unit: '%', signed: true,
+          hint: 'Moves the whole COGS line from the MIS, for example a milk, packing or other input cost change.' },
         { key: 'freight_change_pct', label: 'S&D / freight cost', min: -10, max: 20, step: 0.5, unit: '%', signed: true,
           hint: 'Scales the whole sales, distribution and freight line from the MIS.' },
       ],
@@ -60,9 +60,9 @@
     { id: 'festive', name: 'Festive display push',
       levers: { promo_add_pp: 4, promo_pass_through_pct: 80, rebate_add_pp: 1, manual_uplift_pct: 6 } },
     { id: 'price3', name: 'Price increase of 3%', levers: { price_change_pct: 3 } },
-    { id: 'milk5', name: 'Milk cost up 5%', levers: { milk_cost_change_pct: 5 } },
-    { id: 'milk5price2', name: 'Milk cost up 5%, price up 2%',
-      levers: { milk_cost_change_pct: 5, price_change_pct: 2 } },
+    { id: 'cogs5', name: 'COGS up 5%', levers: { cogs_change_pct: 5 } },
+    { id: 'cogs5price2', name: 'COGS up 5%, price up 2%',
+      levers: { cogs_change_pct: 5, price_change_pct: 2 } },
     { id: 'margin1', name: 'Give chains 1 pp more margin', levers: { trade_margin_add_pp: 1 } },
   ];
 

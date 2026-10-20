@@ -15,7 +15,7 @@ LEVER_LABELS = {
     "rebate_add_pp": ("Other deductions and display fees", "pp of invoice"),
     "elasticity_scale": ("Price sensitivity multiplier", "x"),
     "manual_uplift_pct": ("Extra volume from visibility", "%"),
-    "milk_cost_change_pct": ("Milk procurement cost", "%"),
+    "cogs_change_pct": ("COGS change", "%"),
     "freight_change_pct": ("S&D / freight cost", "%"),
 }
 

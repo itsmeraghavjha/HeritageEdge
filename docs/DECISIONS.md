@@ -8,7 +8,7 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **One engine, two screens.** The simulator and the P&L page both call the same engine in `engine/simulate.py`, so they can never disagree.
 
-**Levers can be limited to chains, states and SKUs; costs cannot.** Price, promo and chain terms are commercial decisions made per chain or SKU. A milk price rise or freight rise hits every line, so those levers always apply to everything.
+**Levers can be limited to chains, states and SKUs; costs cannot.** Price, promo and chain terms are commercial decisions made per chain or SKU. A COGS or freight rise hits every line, so those levers always apply to everything.
 
 **Promo response is stronger than price response.** Shoppers react harder to a temporary promo than to a permanent price change, so promo uses `elasticity x PROMO_RESPONSE_BOOST`. Without this, promos looked unrealistically useless in the simulator.
 
@@ -40,3 +40,4 @@ Why things are the way they are. Add to this file when you change direction, so 
 - **Cost allocation.** Volume-based allocation gives every chain the same cost per pack. Decide whether S&D or others should use another driver (for example drop count), which would need route-level data.
 - **Elasticities and response constants** are assumptions. See `DATA.md`, section 4.
 - **What "other deductions" holds.** Checked on one SKU in August: 54% of litres were billed exactly at the offer-file price. The rest came from offers that changed mid-month (the file shows the latest offer, billing used the older one early in the month), several offer rows for one customer and SKU that the build averages, offers billing did not follow, and a few month-end low-price lines. Net revenue and margins are unaffected, but the split between promo and other deductions is approximate. Next step: read the base month's offer from the offer file's monthly remark and flag the largest price gaps on the Data page.
+- **COGS lever replaced the milk lever.** The MIS gives one COGS number with no split between milk, packing and conversion, so a "milk share" per family was an invented assumption. The simulator now has one lever, COGS change %, which scales the whole line. To model a milk price move, work out what share of COGS it is and enter the resulting percentage. Scenarios saved earlier with the milk lever ignore it and need that value re-entered.

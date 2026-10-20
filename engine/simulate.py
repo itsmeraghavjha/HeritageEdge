@@ -8,7 +8,7 @@ Per row (chain x sales office x SKU), monthly run-rate:
     - promo              scheme / discount on invoice value
     - rebates            display, listing and other fees on invoice value
     = Net revenue
-    - COGS               per-unit cost, milk-linked share moves with milk cost
+    - COGS               per-pack cost from the MIS, scaled by the COGS change lever
     = Gross margin
     - Over/under         per pack, from the MIS
     - Sales and distribution   per pack, from the MIS
@@ -43,7 +43,7 @@ LIMITS = {
     "rebate_add_pp": (-3.0, 6.0),
     "elasticity_scale": (0.25, 3.0),
     "manual_uplift_pct": (-30.0, 50.0),
-    "milk_cost_change_pct": (-20.0, 30.0),
+    "cogs_change_pct": (-20.0, 30.0),
     "freight_change_pct": (-20.0, 40.0),
 }
 
@@ -57,7 +57,7 @@ class Levers:
     rebate_add_pp: float = 0.0
     elasticity_scale: float = 1.0
     manual_uplift_pct: float = 0.0
-    milk_cost_change_pct: float = 0.0
+    cogs_change_pct: float = 0.0
     freight_change_pct: float = 0.0
 
 
@@ -133,7 +133,7 @@ def calc_row(row, lv, active, fixed_volume=False, response=1.0):
     def cost(line):  # attributed MIS cost: per pack, or % of net revenue, depending on data/attribution.csv
         return units * row[line] if data.BASIS[line] == "volume" else net * row[line]
 
-    cogs = cost("cogs") * (1 + row["milk_share"] * lv.milk_cost_change_pct / 100)
+    cogs = cost("cogs") * (1 + lv.cogs_change_pct / 100)
     gm = net - cogs
     logistics = cost("sd") * (1 + lv.freight_change_pct / 100)
     ou = cost("ou")
@@ -198,7 +198,7 @@ def bridge(lv, scope, sims=None):
         ("promo", "Promo", {"promo_add_pp": lv.promo_add_pp}),
         ("trade", "Trade terms", {"trade_margin_add_pp": lv.trade_margin_add_pp,
                                   "rebate_add_pp": lv.rebate_add_pp}),
-        ("cost", "Costs", {"milk_cost_change_pct": lv.milk_cost_change_pct,
+        ("cost", "Costs", {"cogs_change_pct": lv.cogs_change_pct,
                            "freight_change_pct": lv.freight_change_pct}),
     ]
     base_cm = sum(m["cm"] for m in BASE_METRICS)

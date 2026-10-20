@@ -58,7 +58,7 @@ The reconciliation:
 
 | File | Contents |
 |---|---|
-| `assumptions.csv` | Elasticity and milk share per product family. Edit and restart. A build never overwrites it |
+| `assumptions.csv` | Elasticity per product family. Edit and restart. A build never overwrites it |
 | `attribution.csv` | For each MIS cost line, `volume` (per pack) or `revenue` (% of net revenue). Change it, then rebuild |
 
 Global constants for the volume response are at the top of `engine/simulate.py`. Treat the volume response as indicative until the elasticities are calibrated from past promo and price-change history.

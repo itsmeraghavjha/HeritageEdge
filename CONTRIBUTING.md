@@ -36,7 +36,7 @@ git push -u origin my-change     # then open a pull request on GitHub
 ## Rules of thumb
 
 - **Run `pytest` before pushing.** The tests check that the P&L adds up and the bridge reconciles.
-- **Change numbers in one place.** Assumptions live in `config/` (elasticity, milk share, cost attribution) and the constants at the top of `engine/simulate.py`. Do not hard-code figures in the pages.
+- **Change numbers in one place.** Assumptions live in `config/` (elasticity, cost attribution) and the constants at the top of `engine/simulate.py`. Do not hard-code figures in the pages.
 - **Update the docs when behaviour changes.** If you change a formula, update `docs/HOW_IT_WORKS.md`. If you make a choice someone could question, add it to `docs/DECISIONS.md`.
 - **Keep real data out of git.** No real chain names, prices, volumes or costs in code, tests, docs or screenshots. Use `tests/synth.py` for test data.
 

@@ -91,11 +91,12 @@ def test_attributed_costs_follow_their_basis():
     assert close(after["ou"] / after["units"], before["ou"] / before["units"])
 
 
-def test_milk_cost_hits_cogs_everywhere_even_with_scope():
-    out = sim.simulate({"milk_cost_change_pct": 10}, {"chain": [first("chain")]})
+def test_cogs_change_hits_cogs_everywhere_even_with_scope():
+    out = sim.simulate({"cogs_change_pct": 10}, {"chain": [first("chain")]})
     other = [c for c in out["breakdown"]["chain"] if c["id"] == last("chain")][0]
     assert out["sim"]["cogs"] > out["base"]["cogs"]
     assert other["sim"]["cogs"] > other["base"]["cogs"]
+    assert out["sim"]["cogs"] == pytest.approx(out["base"]["cogs"] * 1.10)      # exactly +10%, no hidden share
 
 
 def test_scope_limits_commercial_levers():
@@ -124,7 +125,7 @@ def test_unknown_scope_id_changes_nothing():
 
 def test_bridge_sums_to_scenario():
     out = sim.simulate({"price_change_pct": 3, "promo_add_pp": 4,
-                        "trade_margin_add_pp": 1, "milk_cost_change_pct": 5}, {})
+                        "trade_margin_add_pp": 1, "cogs_change_pct": 5}, {})
     steps = out["bridge"]
     assert close(steps[0]["value"] + sum(s["value"] for s in steps[1:-1]), steps[-1]["value"])
     assert close(steps[-1]["value"], out["sim"]["cm"])
@@ -148,9 +149,9 @@ def test_every_dimension_can_group_the_pnl():
 
 
 def test_inputs_are_clamped():
-    lv = sim.parse_levers({"price_change_pct": 999, "milk_cost_change_pct": "abc"})
+    lv = sim.parse_levers({"price_change_pct": 999, "cogs_change_pct": "abc"})
     assert lv.price_change_pct == sim.LIMITS["price_change_pct"][1]
-    assert lv.milk_cost_change_pct == 0.0
+    assert lv.cogs_change_pct == 0.0
 
 
 def test_pnl_filter_limits_rows_and_totals():
@@ -214,7 +215,7 @@ def test_extra_visibility_alone_has_nothing_to_pay_back():
 @pytest.mark.parametrize("levers", [
     {"promo_add_pp": 5},
     {"price_change_pct": 3},
-    {"milk_cost_change_pct": 5},
+    {"cogs_change_pct": 5},
     {"trade_margin_add_pp": 2, "rebate_add_pp": 1},
     {"promo_add_pp": 3, "price_change_pct": 2, "freight_change_pct": 10},
 ])
@@ -284,7 +285,7 @@ def test_response_range_says_which_cases_improve_contribution():
 
 
 def test_cost_levers_do_not_depend_on_how_shoppers_react():
-    cms = {c["cm"] for c in sim.simulate({"milk_cost_change_pct": 5}, {})["range"]["cases"]}
+    cms = {c["cm"] for c in sim.simulate({"cogs_change_pct": 5}, {})["range"]["cases"]}
     assert len(cms) == 1
 
 

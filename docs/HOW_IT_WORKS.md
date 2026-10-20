@@ -20,7 +20,7 @@ Calculated for every row of data (one chain and customer group, in one sales off
 | minus Promo | the current offer from the offer file, as a share of list invoice |
 | minus Other deductions | the gap between list invoice and what was actually billed (credit notes, mix, other schemes) |
 | **= Net revenue** | what was billed. Ties back to the billing data |
-| minus COGS | attributed from the MIS. The milk-linked part moves with the milk cost lever |
+| minus COGS | attributed from the MIS. The COGS change lever scales the whole line |
 | **= Gross margin** | |
 | minus Over/under | attributed from the MIS |
 | minus S&D / freight | attributed from the MIS |
@@ -61,10 +61,10 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 | Other deductions and display fees (pp) | Moves the "Other deductions" line. See the note below | Selected scope |
 | Price sensitivity (x) | Scales every product family's elasticity. 1x uses `config/assumptions.csv` | Selected scope |
 | Extra volume from visibility (%) | Volume you expect from display or activation, on top of price effects | Selected scope |
-| Milk procurement cost (%) | COGS, in proportion to each family's milk share | **Everything** |
+| COGS change (%) | The whole COGS line, from the MIS. Use it for a milk, packing or other input cost change | **Everything** |
 | S&D / freight cost (%) | The S&D line | **Everything** |
 
-"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. The two cost levers always apply to everything, because a milk price rise does not skip a chain.
+"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. The two cost levers always apply to everything, because an input cost rise does not skip a chain.
 
 **Note on "Other deductions and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
 
@@ -103,7 +103,7 @@ engine/prepare.py       Builds the dataset from billing + offer file + MIS
 engine/datastore.py     Uploads and background jobs for the Data page
 engine/simulate.py      P&L maths, levers, bridge, grouping
 engine/export.py        Excel export (grouped rows you can collapse, negatives in red, flat sheet for a PivotTable)
-config/                 Elasticity, milk share, cost attribution rules
+config/                 Elasticity and cost attribution rules
 sample_data/            Synthetic dataset (in git)
 data/                   Real data (ignored by git)
 templates/, static/     Pages, scripts, styles
