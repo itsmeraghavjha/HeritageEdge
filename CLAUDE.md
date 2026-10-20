@@ -6,7 +6,7 @@ AI coding assistants such as Claude Code read this file automatically. Humans: s
 
 A Flask app for the MRF (Heritage Foods, dairy FMCG) team. Three screens:
 
-- `/` Promo simulator: levers for price, promo, chain terms, demand response and costs, with KPIs, a contribution bridge and breakdowns. The "apply to" scope can be limited on any dimension.
+- `/` Promo simulator: levers for price, promo, chain terms, costs and the volume you expect, with KPIs, a breakeven and a volume ladder, a contribution bridge and breakdowns. The "apply to" scope can be limited on any dimension.
 - `/pnl` P&L statement: net revenue down to net margin, grouped in any order by chain, customer group, state, city, sales office, product category, variant, pack size and SKU, with filters, drill-down, baseline / scenario / change views and Excel export.
 - `/data` Data: pulls monthly volumes from SQL Server, takes the offer file and MIS workbook as uploads, and builds the dataset the other two screens run on.
 
@@ -41,7 +41,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - `engine/simulate.py`: all the maths. `calc_row` computes one row's P&L; `simulate`, `pnl` and `bridge` aggregate. Levers are a frozen dataclass; `LIMITS` clamps API input.
 - `engine/export.py`: Excel export (openpyxl).
 - `app.py`: thin routes and the optional login. Keep logic in `engine/`.
-- `config/assumptions.csv`: elasticity per product family. `config/attribution.csv`: whether each MIS cost is spread per pack (`volume`) or as a % of net revenue (`revenue`).
+- `config/assumptions.csv`: elasticity per product family (feeds only the volume suggestion; volume itself is a user input). `config/attribution.csv`: whether each MIS cost is spread per pack (`volume`) or as a % of net revenue (`revenue`).
 - `static/js/common.js` defines lever definitions (`GROUPS`), defaults, presets, selectors and number formatting, shared through `window.HE`.
 - No build step and no front-end framework. Plain JS, one CSS file.
 
@@ -58,7 +58,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 
 - The MIS is cut to the base months in `prepare.py` (`pick_mis_months`). Never average MIS costs over months that billing does not cover; that once overstated net margin by about 3 points. The month column is found by header, or set `MIS_MONTH_COLUMN` in `.env`.
 - Adding a lever means editing the engine, `common.js`, `export.py`, the tests and the docs. See `CONTRIBUTING.md`.
-- The contribution bridge holds volume at baseline for its rate steps; the volume response is the remainder. Keep it reconciling to the scenario total (a test checks this).
+- The contribution bridge holds volume at baseline for its rate steps; the volume you entered is the remainder. Keep it reconciling to the scenario total (a test checks this).
 - "Other deductions and display fees" moves the gap between list invoice and billed price (credit notes, mix, other schemes), not only fees. See `docs/HOW_IT_WORKS.md`.
 - Scenarios are saved in browser `localStorage`, not on the server, so they are not shared between users.
 - The billing query's pack-size parsing misses formats like `700+700 ML`; `prepare.py` recomputes packs in Python for those lines.

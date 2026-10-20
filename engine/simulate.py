@@ -16,19 +16,19 @@ Per row (chain x sales office x SKU), monthly run-rate:
     - P&A, interest, marketing   percent of net revenue, from the MIS
     = Net margin
 """
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 
 from . import data
 
+# Volume is something the user enters (volume_change_pct). The three constants below only feed the hint
+# the screen shows next to it ("the model suggests about +X%"); they never change the numbers on their own.
 PROMO_RESPONSE_BOOST = 3.0  # promo elasticity as a multiple of everyday price elasticity
+PROMO_PASS_THROUGH = 0.7    # the part of a promo that reaches the shelf price
 PUSH_PER_PP_TRADE = 0.008   # volume lift per +1 pp trade margin (shelf push)
 PUSH_PER_PP_REBATE = 0.004  # volume lift per +1 pp rebate / display fees
 
-# How much shoppers react, compared with the model: the volume change of every line is scaled by this factor.
-# (key, label, factor). The base case is the model as it stands.
-RESPONSE_CASES = (("weak", "Half as strong", 0.5),
-                  ("base", "As modelled", 1.0),
-                  ("strong", "1.5 times as strong", 1.5))
+# Volume changes shown in the table next to the breakeven. The volume the user entered is added to it.
+VOLUME_LADDER = (-10.0, 0.0, 10.0, 20.0, 30.0)
 NEUTRAL_RUPEES = 0.5        # a scenario that moves contribution by less than this at today's volume is "neutral"
 
 METRICS = ("units", "mrp_value", "trade_margin", "gross", "promo", "rebates", "net", "cogs", "gm",
@@ -38,11 +38,9 @@ METRICS = ("units", "mrp_value", "trade_margin", "gross", "promo", "rebates", "n
 LIMITS = {
     "price_change_pct": (-15.0, 15.0),
     "promo_add_pp": (-5.0, 20.0),
-    "promo_pass_through_pct": (0.0, 100.0),
     "trade_margin_add_pp": (-5.0, 8.0),
     "rebate_add_pp": (-3.0, 6.0),
-    "elasticity_scale": (0.25, 3.0),
-    "manual_uplift_pct": (-30.0, 50.0),
+    "volume_change_pct": (-50.0, 100.0),
     "cogs_change_pct": (-20.0, 30.0),
     "freight_change_pct": (-20.0, 40.0),
 }
@@ -52,11 +50,9 @@ LIMITS = {
 class Levers:
     price_change_pct: float = 0.0
     promo_add_pp: float = 0.0
-    promo_pass_through_pct: float = 70.0
     trade_margin_add_pp: float = 0.0
     rebate_add_pp: float = 0.0
-    elasticity_scale: float = 1.0
-    manual_uplift_pct: float = 0.0
+    volume_change_pct: float = 0.0
     cogs_change_pct: float = 0.0
     freight_change_pct: float = 0.0
 
@@ -92,11 +88,10 @@ parse_scope = parse_filter = parse_selection
 in_scope = passes = matches
 
 
-def calc_row(row, lv, active, fixed_volume=False, response=1.0):
-    """Metrics for one row. Commercial levers only apply when `active`;
-    cost levers always apply. `fixed_volume` freezes units at baseline so the
-    rate effect can be separated from the volume response. `response` scales how far volume moves from
-    baseline (1 = the model, 0.5 = half as far, 1.5 = half as far again).
+def calc_row(row, lv, active, fixed_volume=False):
+    """Metrics for one row. Commercial levers only apply when `active`; cost levers always apply.
+    `fixed_volume` freezes units at baseline so the rate effect can be separated from the volume change.
+    Volume moves only by the volume the user entered (`volume_change_pct`), on rows in scope.
 
     Row terms come from the data: list price, trade margin, current offer (promo_rate),
     and other_rate, the calibrated gap between list invoice and what was actually billed."""
@@ -113,16 +108,7 @@ def calc_row(row, lv, active, fixed_volume=False, response=1.0):
 
     units = row["units"]
     if active and not fixed_volume:
-        promo_delta = promo_rate - row["promo_rate"]
-        promo_ratio = 1 - lv.promo_pass_through_pct / 100 * promo_delta * (1 - row["trade"])
-        e = row["e"] * lv.elasticity_scale
-        # Shoppers react harder to a temporary promo than to a permanent price change.
-        mult = (1 + price) ** e * promo_ratio ** (e * PROMO_RESPONSE_BOOST)
-        mult *= 1 + PUSH_PER_PP_TRADE * (trade - row["trade"]) * 100
-        mult *= 1 + PUSH_PER_PP_REBATE * (rebate_rate - row["other_rate"]) * 100
-        mult *= 1 + lv.manual_uplift_pct / 100
-        mult = 1 + response * (mult - 1)
-        units = units * max(0.0, mult)
+        units = units * max(0.0, 1 + lv.volume_change_pct / 100)
 
     mrp_value = units * mrp
     trade_margin = mrp_value * trade
@@ -184,12 +170,10 @@ def bridge(lv, scope, sims=None):
     """Contribution bridge from baseline to scenario.
 
     Levers are layered on one group at a time with volume held at baseline,
-    so each step is a pure rate effect; whatever is left is the volume response.
+    so each step is a pure rate effect; whatever is left is the volume you entered.
     """
     def cm_for(partial):
-        cand = Levers(**{**DEFAULT_LEVERS.__dict__,
-                         "promo_pass_through_pct": lv.promo_pass_through_pct,
-                         "elasticity_scale": lv.elasticity_scale, **partial})
+        cand = Levers(**{**DEFAULT_LEVERS.__dict__, **partial})
         return sum(calc_row(r, cand, in_scope(r, scope), fixed_volume=True)["cm"]
                    for r in data.ROWS)
 
@@ -211,7 +195,7 @@ def bridge(lv, scope, sims=None):
         cur = cm_for(applied)
         steps.append({"key": key, "label": label, "kind": "delta", "value": cur - prev})
         prev = cur
-    steps.append({"key": "volume", "label": "Volume response", "kind": "delta",
+    steps.append({"key": "volume", "label": "Volume you expect", "kind": "delta",
                   "value": full_cm - prev})
     steps.append({"key": "scenario", "label": "Scenario", "kind": "total", "value": full_cm})
     return steps
@@ -222,7 +206,7 @@ def breakeven(lv, scope, sims=None):
 
     The levers change what each pack earns. This asks: at the new terms, how many more packs (the same
     percentage in every line the commercial levers apply to) would pay for that? It needs no elasticity, so
-    it does not depend on the volume-response assumptions. Cost levers hit every line, but only the lines
+    it does not depend on any volume assumption. Cost levers hit every line, but only the lines
     in scope can sell more.
 
     status  neutral      nothing to pay back (no lever changes what a pack earns)
@@ -255,28 +239,51 @@ def breakeven(lv, scope, sims=None):
     return out
 
 
-def response_range(lv, scope, sims=None):
-    """The same scenario if shoppers react more weakly or more strongly than the model assumes.
+def suggested_volume_change(lv, scope):
+    """What the model's elasticities say the volume change would be for the price, promo and chain-term levers.
 
-    Every case is measured against the baseline. `improves` lists the cases where contribution ends up
-    higher than today, which says how fragile the answer is."""
+    This is a hint, shown next to the volume the user enters. It is an assumption (elasticities by product family,
+    a promo boost, shelf-push constants), not a forecast, and it never feeds the numbers unless the user adopts it.
+    Returns the units-weighted change over the rows in scope, as a fraction (0.05 = +5%)."""
+    price = lv.price_change_pct / 100
+    promo_add, trade_add, rebate_add = lv.promo_add_pp / 100, lv.trade_margin_add_pp / 100, lv.rebate_add_pp / 100
+    num = den = 0.0
+    for r in data.ROWS:
+        if not in_scope(r, scope):
+            continue
+        trade = min(0.4, max(0.0, r["trade"] + trade_add))
+        promo_delta = max(0.0, r["promo_rate"] + promo_add) - r["promo_rate"]
+        promo_ratio = 1 - PROMO_PASS_THROUGH * promo_delta * (1 - r["trade"])
+        e = r["e"]
+        mult = (1 + price) ** e * promo_ratio ** (e * PROMO_RESPONSE_BOOST)
+        mult *= 1 + PUSH_PER_PP_TRADE * (trade - r["trade"]) * 100
+        mult *= 1 + PUSH_PER_PP_REBATE * (max(-0.5, r["other_rate"] + rebate_add) - r["other_rate"]) * 100
+        num += r["units"] * max(0.0, mult)
+        den += r["units"]
+    return num / den - 1 if den else 0.0
+
+
+def volume_ladder(lv, scope, sims=None):
+    """The same scenario at a range of volume changes, against today's baseline.
+
+    One row per step in VOLUME_LADDER, plus the volume the user entered (marked). This shows how much the answer
+    depends on the volume, which is the number the user has to judge."""
     rows = data.ROWS
     inside = [in_scope(r, scope) for r in rows]
     base = total(BASE_METRICS)
-    cases, improves = [], []
-    for key, label, factor in RESPONSE_CASES:
-        if factor == 1.0 and sims is not None:
+    steps = sorted(set(VOLUME_LADDER) | {lv.volume_change_pct})
+    cases = []
+    for v in steps:
+        if v == lv.volume_change_pct and sims is not None:
             ms = sims
         else:
-            ms = [calc_row(r, lv, a, response=factor) for r, a in zip(rows, inside)]
+            cand = replace(lv, volume_change_pct=v)
+            ms = [calc_row(r, cand, a) for r, a in zip(rows, inside)]
         t = total(ms)
-        case = {"key": key, "label": label, "response": factor, "units": t["units"], "net": t["net"],
-                "cm": t["cm"], "nm": t["nm"], "d_units": t["units"] - base["units"],
-                "d_cm": t["cm"] - base["cm"], "d_nm": t["nm"] - base["nm"]}
-        cases.append(case)
-        if case["d_cm"] > NEUTRAL_RUPEES:
-            improves.append(key)
-    return {"cases": cases, "improves": improves}
+        cases.append({"volume_pct": v, "entered": v == lv.volume_change_pct, "units": t["units"], "net": t["net"],
+                      "cm": t["cm"], "nm": t["nm"], "d_units": t["units"] - base["units"],
+                      "d_cm": t["cm"] - base["cm"], "d_nm": t["nm"] - base["nm"]})
+    return {"cases": cases}
 
 
 def DIM_LABEL(dim, key):
@@ -335,7 +342,8 @@ def simulate(levers_raw, scope_raw):
         "sim": derive(total(i["sim"] for i in items)),
         "bridge": bridge(lv, scope, sims),
         "breakeven": breakeven(lv, scope, sims),
-        "range": response_range(lv, scope, sims),
+        "ladder": volume_ladder(lv, scope, sims),
+        "suggested_volume": suggested_volume_change(lv, scope),
         "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
         "rows_in_scope": sum(1 for r in data.ROWS if in_scope(r, scope)),
         "rows_total": len(data.ROWS),

@@ -56,11 +56,9 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 |---|---|---|
 | MRP change (%) | Shelf price and invoice price together | Selected scope |
 | Extra promo discount (pp) | Added to each row's current promo rate | Selected scope |
-| Promo passed to shelf price (%) | How much of the promo reaches shoppers and so drives volume | Selected scope |
 | Trade margin change (pp) | Chain margin as a share of MRP | Selected scope |
 | Other deductions and display fees (pp) | Moves the "Other deductions" line. See the note below | Selected scope |
-| Price sensitivity (x) | Scales every product family's elasticity. 1x uses `config/assumptions.csv` | Selected scope |
-| Extra volume from visibility (%) | Volume you expect from display or activation, on top of price effects | Selected scope |
+| Volume change you expect (%) | Your own view of how many more or fewer packs the levers will sell. Default 0 | Selected scope |
 | COGS change (%) | The whole COGS line, from the MIS. Use it for a milk, packing or other input cost change | **Everything** |
 | S&D / freight cost (%) | The S&D line | **Everything** |
 
@@ -68,30 +66,21 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 
 **Note on "Other deductions and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
 
-## How volume responds
+## Volume: your input, the model's hint, and the volume check
 
-Volume change for a row is the product of four effects:
+Volume is the one number the data cannot give us: we hold no competitor prices, seasonality or shelf data. So the levers change only what each pack earns, and **volume is an input you enter** ("Volume change you expect", default 0, limited to -50% to +100%). It scales the packs of every row in scope: `units = baseline units x (1 + volume change)`. Every line then follows the packs, as in the P&L maths above. Rows outside the scope keep their baseline volume.
 
-1. **Price:** `(1 + price change) ^ elasticity`. Elasticity comes from `config/assumptions.csv` by product family, for example milk about -0.4 and cheese about -1.5.
-2. **Promo:** the shelf-price drop from the promo, raised to `elasticity x PROMO_RESPONSE_BOOST` (currently 3). Shoppers react harder to a temporary promo than to a permanent price change.
-3. **Chain terms:** more trade margin or extra deductions push extra volume (0.8% per +1 pp trade margin, 0.4% per +1 pp rebate).
-4. **Visibility:** the "extra volume" lever, applied directly.
+**Model suggestion (a hint only).** For the price, promo and chain-term levers the model estimates the volume change from the elasticities in `config/assumptions.csv`, which the card shows with a "Use" button. Per row: `(1 + price change) ^ elasticity x promo ratio ^ (elasticity x PROMO_RESPONSE_BOOST) x trade and deduction push`, where the promo ratio is `1 - PROMO_PASS_THROUGH x promo drop x (1 - trade margin)`, then weighted by baseline packs over the rows in scope. The constants are at the top of `engine/simulate.py`. They are assumptions, not measurements, and the suggestion never changes any number unless you adopt it.
 
-The constants are at the top of `engine/simulate.py`. **They are assumptions, not measurements.** See `DECISIONS.md`.
+**Breakeven.** At the new terms, how much extra volume pays for the change? With terms fixed, every line scales with packs, so the answer is exact: `required = (baseline contribution - contribution outside scope) / contribution in scope at new terms - 1`. It needs no elasticity. The card compares it with the volume you entered. Statuses: *nothing to pay back* (no lever changes what a pack earns), *already ahead* (a negative requirement: how much volume can be lost), *needs more volume*, and *more volume will not pay it back* (contribution in scope is zero or negative). Only lines in scope can sell more, even for cost levers.
 
-## Volume check: breakeven and response range
-
-Volume response cannot be predicted reliably from our data: we have no competitor prices, seasonality or shelf data. So the simulator treats it as an assumption and shows two things that do not depend on trusting it.
-
-**Breakeven.** At the new terms, how much extra volume pays for the change? With terms fixed, every line scales with packs, so the answer is exact: `required = (baseline contribution - contribution outside scope) / contribution in scope at new terms - 1`. It needs no elasticity. The card compares it with what the model assumes. Statuses: *nothing to pay back* (no lever changes what a pack earns), *already ahead* (a negative requirement: how much volume can be lost), *needs more volume*, and *more volume will not pay it back* (contribution in scope is zero or negative). Only lines in scope can sell more, even for cost levers.
-
-**Low / base / high.** The same scenario with every volume change scaled to 0.5, 1.0 and 1.5 times (`RESPONSE_CASES` in `engine/simulate.py`). It shows whether the answer survives if shoppers react less or more than assumed. If contribution beats today in only some cases, the scenario depends on the assumption.
+**Volume ladder.** The same scenario at volume changes of -10%, 0, +10%, +20% and +30% (`VOLUME_LADDER`), plus the value you entered, which is marked. Each row shows packs, contribution and net margin against today. It shows how much the answer depends on the volume you expect.
 
 There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
 
 ## The contribution bridge
 
-The chart on the simulator page answers "which of my changes is doing what?". It applies lever groups one at a time (price, then promo, then trade terms, then costs) **with volume held at baseline**, so each bar is a pure rate effect. Whatever remains is the **volume response**. The bars always add up exactly to the scenario contribution.
+The chart on the simulator page answers "which of my changes is doing what?". It applies lever groups one at a time (price, then promo, then trade terms, then costs) **with volume held at baseline**, so each bar is a pure rate effect. Whatever remains is the **volume you expect**. The bars always add up exactly to the scenario contribution.
 
 ## Where things live
 
@@ -117,5 +106,5 @@ API (all JSON): `/api/meta`, `/api/simulate`, `/api/pnl`, `/api/export`, and for
 - Scenarios you save are stored **in your own browser**, so they are not shared with the team yet.
 - Login is a single shared password (`APP_PASSWORD`), not per-user.
 - `python app.py` runs Flask's development server. Do not use it as a shared production deployment.
-- Elasticities and the response constants are assumptions. The rate effects are exact arithmetic on the inputs; the volume response is indicative.
+- Volume is your input. The elasticities and response constants only feed the suggestion. The rate effects are exact arithmetic on the inputs.
 - Scope is the customers and SKUs present in the offer file, within Modern Formats and E-Commerce.

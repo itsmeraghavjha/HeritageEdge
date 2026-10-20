@@ -248,7 +248,7 @@
       <tbody>${rows}</tbody>`;
   }
 
-  /* ---------- volume check: breakeven and low / base / high response ---------- */
+  /* ---------- volume check: the volume you expect, what the model suggests, and the breakeven ---------- */
   function breakevenText(b) {
     const scope = HE.thousands(b.units_in_scope);
     if (b.status === 'neutral') return { tone: 'flat', head: 'Nothing to pay back', body: 'No lever here changes what a pack earns, so there is no volume to win back.' };
@@ -258,35 +258,39 @@
       return { tone: 'up', head: 'Already ahead at today’s volume',
         body: `At today’s volume this scenario earns more contribution. Volume in scope could fall by ${HE.pct(-b.required)} (${packs} thousand packs a month) before it drops below today.` };
     }
-    const verdict = b.covered
-      ? `The model assumes ${HE.relText(b.assumed)}, which covers it.`
-      : `The model assumes ${HE.relText(b.assumed)}, which falls short by ${HE.pct(-b.gap)}.`;
-    return { tone: b.covered ? 'up' : 'down', head: `Needs ${HE.pct(b.required)} more volume to match today`,
+    let verdict;
+    if (Math.abs(b.assumed) < 1e-9) verdict = 'You have not entered an expected volume change yet. Set one under “Volume you expect”.';
+    else if (b.covered) verdict = `You expect ${HE.relText(b.assumed)}, which covers it.`;
+    else verdict = `You expect ${HE.relText(b.assumed)}, which falls short by ${HE.pct(-b.gap)}.`;
+    return { tone: Math.abs(b.assumed) < 1e-9 ? 'flat' : (b.covered ? 'up' : 'down'),
+      head: `Needs ${HE.pct(b.required)} more volume to match today`,
       body: `That is ${packs} thousand more packs a month in scope. ${verdict}` };
   }
 
   function renderVolume(r) {
     const el = $('volumeCheck');
     const t = breakevenText(r.breakeven);
-    const cases = r.range.cases;
-    const improves = r.range.improves;
-    const rows = cases.map((c) => `<tr${c.key === 'base' ? ' class="is-base"' : ''}>
-      <th scope="row">${HE.esc(c.label)}</th>
+    const sg = (v) => (v > 0 ? '+' : v < 0 ? HE.MINUS : '') + Math.abs(v).toFixed(1) + '%';
+    const rows = r.ladder.cases.map((c) => `<tr${c.entered ? ' class="is-base"' : ''}>
+      <th scope="row">${sg(c.volume_pct)}${c.entered ? ' (your input)' : ''}</th>
       <td>${HE.thousands(c.d_units, true)}</td>
       <td><span class="chg ${HE.tone(c.d_cm, true, 5e3)}">${HE.lakhSigned(c.d_cm)}</span></td>
       <td><span class="chg ${HE.tone(c.d_nm, true, 5e3)}">${HE.lakhSigned(c.d_nm)}</span></td></tr>`).join('');
-    let verdict = '';
-    if (r.breakeven.status !== 'neutral') {
-      verdict = improves.length === cases.length ? 'Contribution is higher than today in all three cases.'
-        : improves.length === 0 ? 'Contribution is lower than today in all three cases.'
-        : 'The answer depends on how shoppers react: contribution is higher than today only when response is ' +
-          improves.map((k) => cases.find((c) => c.key === k).label.toLowerCase()).join(' or ') + '.';
-    }
+    const sug = Math.round(r.suggested_volume * 1000) / 10;
+    const hint = Math.abs(sug) < 0.05 ? ''
+      : `<p class="chart-note">For these levers the model suggests about ${sg(sug)} volume. That is an assumption from past
+        price elasticities, not a forecast. <button type="button" class="link-btn" id="useSuggested">Use ${sg(sug)}</button></p>`;
     el.innerHTML = `<div class="vol-lead ${t.tone}"><strong>${HE.esc(t.head)}</strong><span>${HE.esc(t.body)}</span></div>
-      <table class="table vol-table"><thead><tr><th scope="col">If shoppers respond</th>
+      <table class="table vol-table"><thead><tr><th scope="col">If volume in scope changes by</th>
         <th scope="col">Volume (thousand packs)</th><th scope="col">Contribution change (₹ L)</th><th scope="col">Net margin change (₹ L)</th></tr></thead>
-        <tbody>${rows}</tbody></table>
-      ${verdict ? `<p class="chart-note">${HE.esc(verdict)}</p>` : ''}`;
+        <tbody>${rows}</tbody></table>${hint}`;
+    const btn = $('useSuggested');
+    if (btn) btn.addEventListener('click', () => {
+      const l = HE.FLAT.find((x) => x.key === 'volume_change_pct');
+      state.levers.volume_change_pct = Math.min(l.max, Math.max(l.min, sug));
+      syncLever(l);
+      changed();
+    });
   }
 
   function render(r) {

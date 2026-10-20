@@ -63,14 +63,16 @@ def test_every_row_of_the_pnl_follows_the_same_definition():
     assert seen > 4
 
 
-def test_price_rise_cuts_volume_raises_realisation():
+def test_price_rise_raises_realisation_and_leaves_volume_to_you():
     out = sim.simulate({"price_change_pct": 5}, {})
-    assert out["sim"]["units"] < out["base"]["units"]
+    assert close(out["sim"]["units"], out["base"]["units"])      # volume only moves when you enter a change
     assert out["sim"]["net_per_unit"] > out["base"]["net_per_unit"]
+    lower = sim.simulate({"price_change_pct": 5, "volume_change_pct": -4}, {})
+    assert lower["sim"]["units"] < lower["base"]["units"]
 
 
-def test_promo_adds_volume_but_costs_margin_rate():
-    out = sim.simulate({"promo_add_pp": 5}, {})
+def test_promo_costs_margin_rate_and_adds_volume_when_you_expect_it():
+    out = sim.simulate({"promo_add_pp": 5, "volume_change_pct": 8}, {})
     assert out["sim"]["units"] > out["base"]["units"]
     assert out["sim"]["promo"] > out["base"]["promo"]
     assert out["sim"]["gm_pct"] < out["base"]["gm_pct"]
@@ -81,7 +83,7 @@ def test_attributed_costs_follow_their_basis():
     # (Across many lines the ratios also shift with mix, so this is checked line by line.)
     row = max(data.ROWS, key=lambda r: r["units"])
     before = sim.calc_row(row, sim.DEFAULT_LEVERS, False)
-    after = sim.calc_row(row, sim.parse_levers({"price_change_pct": 5}), True)
+    after = sim.calc_row(row, sim.parse_levers({"price_change_pct": 5, "volume_change_pct": 5}), True)
     assert after["units"] != before["units"]
     for line in ("cogs", "sd", "ou"):
         assert data.BASIS[line] == "volume"
@@ -109,11 +111,10 @@ def test_scope_limits_commercial_levers():
 
 @pytest.mark.parametrize("dim", data.DIM_IDS)
 def test_scope_works_on_every_dimension(dim):
-    out = sim.simulate({"price_change_pct": 4}, {dim: [first(dim)]})
+    out = sim.simulate({"price_change_pct": 4, "volume_change_pct": 5}, {dim: [first(dim)]})
     assert 0 < out["rows_in_scope"] <= out["rows_total"]
     if len(data.OPTIONS[dim]) > 1:
         assert out["rows_in_scope"] < out["rows_total"]
-        # packs sold always change with price. (Net revenue need not: at an elasticity of exactly -1 it is unchanged.)
         assert not close(out["sim"]["units"], out["base"]["units"])
 
 
@@ -183,7 +184,7 @@ def test_old_style_plural_keys_are_ignored_not_misread():
     assert out["rows_in_scope"] == out["rows_total"]
 
 
-# ---------- breakeven and the response range ----------
+# ---------- breakeven and the volume ladder ----------
 def base_cm():
     return sum(m["cm"] for m in sim.BASE_METRICS)
 
@@ -205,9 +206,9 @@ def test_breakeven_is_neutral_when_nothing_changes():
     assert b["status"] == "neutral" and b["required"] is None
 
 
-def test_extra_visibility_alone_has_nothing_to_pay_back():
+def test_extra_volume_alone_has_nothing_to_pay_back():
     # it adds volume but changes no price, promo or cost, so breakeven has nothing to say
-    out = sim.simulate({"manual_uplift_pct": 6}, {})
+    out = sim.simulate({"volume_change_pct": 6}, {})
     assert out["breakeven"]["status"] == "neutral"
     assert out["sim"]["units"] > out["base"]["units"]
 
@@ -227,7 +228,7 @@ def test_breakeven_volume_brings_contribution_back_to_baseline(levers, scope):
     assert close(cm_with_uplift(levers, scope, b["required"]), base_cm(), tol=1e-9)
 
 
-def test_a_promo_needs_extra_volume_and_the_model_may_not_supply_it():
+def test_a_promo_needs_extra_volume_and_you_may_not_expect_enough():
     b = sim.simulate({"promo_add_pp": 5}, {})["breakeven"]
     assert b["status"] == "needs" and b["required"] > 0 and b["extra_units"] > 0
     assert b["covered"] is False and b["gap"] < 0
@@ -235,9 +236,9 @@ def test_a_promo_needs_extra_volume_and_the_model_may_not_supply_it():
 
 
 def test_a_price_rise_is_ahead_and_can_lose_volume():
-    b = sim.simulate({"price_change_pct": 3}, {})["breakeven"]
+    b = sim.simulate({"price_change_pct": 3, "volume_change_pct": -2}, {})["breakeven"]
     assert b["status"] == "ahead" and b["required"] < 0
-    assert b["assumed"] < 0 and b["covered"] is True
+    assert close(b["assumed"], -0.02) and b["covered"] is True
 
 
 def test_breakeven_is_unreachable_when_each_extra_pack_loses_money():
@@ -258,41 +259,87 @@ def test_breakeven_with_nothing_in_scope_is_neutral():
     assert b["status"] == "neutral" and b["units_in_scope"] == 0
 
 
-def test_response_range_base_case_is_the_scenario():
-    out = sim.simulate({"promo_add_pp": 3, "price_change_pct": -1}, {})
-    base = [c for c in out["range"]["cases"] if c["key"] == "base"][0]
-    assert close(base["cm"], out["sim"]["cm"]) and close(base["units"], out["sim"]["units"])
+def test_the_volume_you_enter_scales_units_in_scope_only():
+    chain = first("chain")
+    out = sim.simulate({"volume_change_pct": 10}, {"chain": [chain]})
+    inside = sum(r["units"] for r in data.ROWS if r["chain"] == chain)
+    assert close(out["sim"]["units"] - out["base"]["units"], 0.10 * inside)
+    assert close(out["breakeven"]["assumed"], 0.10)
 
 
-def test_response_range_scales_the_volume_change():
-    out = sim.simulate({"promo_add_pp": 3}, {})
-    by = {c["key"]: c for c in out["range"]["cases"]}
-    b0 = out["base"]["units"]
-    change = by["base"]["units"] - b0
-    assert change > 0
-    assert close(by["weak"]["units"] - b0, 0.5 * change) and close(by["strong"]["units"] - b0, 1.5 * change)
+def test_volume_alone_changes_no_rate():
+    out = sim.simulate({"volume_change_pct": 10}, {})
+    assert close(out["sim"]["units"], 1.10 * out["base"]["units"])
+    assert close(out["sim"]["net"], 1.10 * out["base"]["net"])
+    assert close(out["sim"]["gross"] / out["sim"]["units"], out["base"]["gross"] / out["base"]["units"])
 
 
-def test_response_range_is_flat_when_nothing_changes():
-    rng = sim.simulate({}, {})["range"]
-    assert all(abs(c["d_cm"]) < 1e-6 and abs(c["d_units"]) < 1e-6 for c in rng["cases"])
-    assert rng["improves"] == []
+def test_default_volume_is_zero_so_levers_alone_do_not_move_volume():
+    out = sim.simulate({"promo_add_pp": 5, "price_change_pct": -3}, {})
+    assert close(out["sim"]["units"], out["base"]["units"])
 
 
-def test_response_range_says_which_cases_improve_contribution():
-    assert sim.simulate({"price_change_pct": 3}, {})["range"]["improves"] == ["weak", "base", "strong"]
-    assert sim.simulate({"promo_add_pp": 5}, {})["range"]["improves"] == []
+def test_the_ladder_marks_the_entered_volume_and_matches_the_scenario():
+    out = sim.simulate({"promo_add_pp": 3, "volume_change_pct": 7}, {})
+    cases = out["ladder"]["cases"]
+    entered = [c for c in cases if c["entered"]]
+    assert len(entered) == 1 and entered[0]["volume_pct"] == 7
+    assert close(entered[0]["cm"], out["sim"]["cm"]) and close(entered[0]["units"], out["sim"]["units"])
+    assert [c["volume_pct"] for c in cases] == sorted({-10, 0, 10, 20, 30, 7})
 
 
-def test_cost_levers_do_not_depend_on_how_shoppers_react():
-    cms = {c["cm"] for c in sim.simulate({"cogs_change_pct": 5}, {})["range"]["cases"]}
-    assert len(cms) == 1
+def test_the_ladder_has_no_duplicate_when_the_entry_is_a_step():
+    cases = sim.simulate({"promo_add_pp": 3, "volume_change_pct": 10}, {})["ladder"]["cases"]
+    assert [c["volume_pct"] for c in cases] == [-10, 0, 10, 20, 30]
+    assert sum(c["entered"] for c in cases) == 1
 
 
-def test_a_stronger_response_never_makes_volume_negative():
-    lv = sim.parse_levers({"price_change_pct": 15, "elasticity_scale": 3, "promo_add_pp": -5,
-                           "manual_uplift_pct": -30})
-    assert all(sim.calc_row(r, lv, True, response=1.5)["units"] >= 0 for r in data.ROWS)
+def test_the_ladder_crosses_zero_at_the_breakeven_volume():
+    levers = {"promo_add_pp": 2}
+    out = sim.simulate(levers, {})
+    required = out["breakeven"]["required"] * 100
+    at = sim.simulate({**levers, "volume_change_pct": required}, {})
+    assert close(at["sim"]["cm"], at["base"]["cm"], tol=1e-9)
+
+
+def test_ladder_contribution_rises_with_volume_when_a_pack_earns_money():
+    cms = [c["cm"] for c in sim.simulate({"promo_add_pp": 2}, {})["ladder"]["cases"]]
+    assert cms == sorted(cms)
+
+
+def test_the_model_suggests_nothing_when_no_lever_is_pulled():
+    assert abs(sim.simulate({}, {})["suggested_volume"]) < 1e-12
+
+
+def test_the_suggestion_follows_the_direction_of_the_levers():
+    assert sim.simulate({"promo_add_pp": 4}, {})["suggested_volume"] > 0
+    assert sim.simulate({"price_change_pct": 4}, {})["suggested_volume"] < 0
+
+
+def test_the_suggestion_never_changes_the_numbers():
+    a = sim.simulate({"promo_add_pp": 4}, {})
+    assert a["suggested_volume"] != 0 and close(a["sim"]["units"], a["base"]["units"])
+
+
+def test_cost_levers_do_not_depend_on_the_scope_of_volume():
+    chain = first("chain")
+    whole = sim.simulate({"cogs_change_pct": 5}, {})
+    scoped = sim.simulate({"cogs_change_pct": 5}, {"chain": [chain]})
+    assert close(whole["sim"]["cogs"], scoped["sim"]["cogs"])
+
+
+def test_a_large_fall_never_makes_volume_negative():
+    lv = sim.parse_levers({"volume_change_pct": -1000})
+    assert lv.volume_change_pct == sim.LIMITS["volume_change_pct"][0]
+    assert all(sim.calc_row(r, lv, True)["units"] >= 0 for r in data.ROWS)
+
+
+def test_the_bridge_volume_step_is_the_volume_you_entered():
+    out = sim.simulate({"promo_add_pp": 3, "volume_change_pct": 8}, {})
+    steps = {s["key"]: s for s in out["bridge"]}
+    assert steps["volume"]["label"] == "Volume you expect"
+    assert steps["volume"]["value"] > 0
+    assert close(out["bridge"][0]["value"] + sum(s["value"] for s in out["bridge"][1:-1]), out["sim"]["cm"])
 
 
 def test_excel_export_has_collapsible_rows_and_red_negatives():

@@ -10,11 +10,9 @@ from . import simulate as sim
 LEVER_LABELS = {
     "price_change_pct": ("Price (MRP) change", "%"),
     "promo_add_pp": ("Extra promo discount", "pp of invoice"),
-    "promo_pass_through_pct": ("Promo passed to shelf price", "%"),
     "trade_margin_add_pp": ("Trade margin change", "pp of MRP"),
     "rebate_add_pp": ("Other deductions and display fees", "pp of invoice"),
-    "elasticity_scale": ("Price sensitivity multiplier", "x"),
-    "manual_uplift_pct": ("Extra volume from visibility", "%"),
+    "volume_change_pct": ("Volume change you expect", "%"),
     "cogs_change_pct": ("COGS change", "%"),
     "freight_change_pct": ("S&D / freight cost", "%"),
 }

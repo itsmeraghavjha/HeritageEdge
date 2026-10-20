@@ -61,7 +61,7 @@ The reconciliation:
 | `assumptions.csv` | Elasticity per product family. Edit and restart. A build never overwrites it |
 | `attribution.csv` | For each MIS cost line, `volume` (per pack) or `revenue` (% of net revenue). Change it, then rebuild |
 
-Global constants for the volume response are at the top of `engine/simulate.py`. Treat the volume response as indicative until the elasticities are calibrated from past promo and price-change history.
+Global constants for the volume suggestion are at the top of `engine/simulate.py`. They only feed the hint shown next to the volume input, which users set themselves. Treat the suggestion as indicative until the elasticities are calibrated from past promo and price-change history.
 
 ## Refreshing
 

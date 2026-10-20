@@ -24,4 +24,5 @@ Roughly in order of value. Move items to "Done" with a date when finished.
 
 - 2026-10-10: First version of the simulator and P&L, sample data, Excel export, Heritage branding, collapsible sidebar.
 - 2026-10-11: Breakeven view and low / base / high volume response on the simulator.
+- 2026-10-20: Volume is now an input the user enters, with breakeven and a volume ladder; the model's elasticity estimate is only a suggestion.
 - 2026-10-11: Real data pipeline (SQL volumes, offer file, MIS), net margin P&L, filters and extra dimensions, Data page, optional login.

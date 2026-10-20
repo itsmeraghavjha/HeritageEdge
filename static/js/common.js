@@ -4,11 +4,9 @@
   const DEFAULTS = {
     price_change_pct: 0,
     promo_add_pp: 0,
-    promo_pass_through_pct: 70,
     trade_margin_add_pp: 0,
     rebate_add_pp: 0,
-    elasticity_scale: 1,
-    manual_uplift_pct: 0,
+    volume_change_pct: 0,
     cogs_change_pct: 0,
     freight_change_pct: 0,
   };
@@ -21,8 +19,6 @@
           hint: 'Moves shelf price and invoice price together.' },
         { key: 'promo_add_pp', label: 'Extra promo discount', min: -5, max: 15, step: 0.5, unit: ' pp', signed: true,
           hint: 'Added to each chain’s current promo, as a share of invoice value.' },
-        { key: 'promo_pass_through_pct', label: 'Promo passed to shelf price', min: 0, max: 100, step: 5, unit: '%',
-          hint: 'The part of the promo that shoppers see and that drives volume.' },
       ],
     },
     {
@@ -35,12 +31,11 @@
       ],
     },
     {
-      title: 'Demand response',
+      title: 'Volume you expect',
+      note: 'Your own view of how much more or less these levers will sell. Applies to the chains, states and SKUs in scope.',
       levers: [
-        { key: 'elasticity_scale', label: 'Price sensitivity', min: 0.5, max: 2, step: 0.1, unit: '×', signed: false,
-          hint: '1× uses each SKU’s own elasticity. Raise it if shoppers react more.' },
-        { key: 'manual_uplift_pct', label: 'Extra volume from visibility', min: -10, max: 30, step: 1, unit: '%', signed: true,
-          hint: 'Volume you expect from display or activation, on top of price effects.' },
+        { key: 'volume_change_pct', label: 'Volume change', min: -20, max: 50, step: 1, unit: '%', signed: true,
+          hint: 'The change in packs sold that you expect from the levers above. The Volume check shows what the model suggests and what volume you need to break even.' },
       ],
     },
     {
@@ -58,7 +53,7 @@
 
   const PRESETS = [
     { id: 'festive', name: 'Festive display push',
-      levers: { promo_add_pp: 4, promo_pass_through_pct: 80, rebate_add_pp: 1, manual_uplift_pct: 6 } },
+      levers: { promo_add_pp: 4, rebate_add_pp: 1, volume_change_pct: 6 } },
     { id: 'price3', name: 'Price increase of 3%', levers: { price_change_pct: 3 } },
     { id: 'cogs5', name: 'COGS up 5%', levers: { cogs_change_pct: 5 } },
     { id: 'cogs5price2', name: 'COGS up 5%, price up 2%',
