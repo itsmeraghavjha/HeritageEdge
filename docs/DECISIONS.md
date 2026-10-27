@@ -8,7 +8,7 @@ Why things are the way they are. Add to this file when you change direction, so 
 
 **One engine, two screens.** The simulator and the P&L page both call the same engine in `engine/simulate.py`, so they can never disagree.
 
-**Levers can be limited to chains, states and SKUs; costs cannot.** Price, promo and chain terms are commercial decisions made per chain or SKU. A COGS or freight rise hits every line, so those levers always apply to everything.
+**The simulator reports what you select.** People pick a chain, state or SKU and expect every number on the screen to be about that selection, so the cards, volume check, bridge and breakdowns cover the selected rows only, and all levers apply to them. Earlier the cards always showed the whole business, so a narrow selection barely moved them. The P&L page still shows every row, with the cost levers applied to everything.
 
 **Promo response is stronger than price response.** Shoppers react harder to a temporary promo than to a permanent price change, so promo uses `elasticity x PROMO_RESPONSE_BOOST`. Without this, promos looked unrealistically useless in the simulator.
 

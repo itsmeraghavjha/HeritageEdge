@@ -59,16 +59,16 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 | Trade margin change (pp) | Chain margin as a share of MRP | Selected scope |
 | Other deductions and display fees (pp) | Moves the "Other deductions" line. See the note below | Selected scope |
 | Volume change you expect (%) | Your own view of how many more or fewer packs the levers will sell. Default 0 | Selected scope |
-| COGS change (%) | The whole COGS line, from the MIS. Use it for a milk, packing or other input cost change | **Everything** |
-| S&D / freight cost (%) | The S&D line | **Everything** |
+| COGS change (%) | The whole COGS line, from the MIS. Use it for a milk, packing or other input cost change | Selected scope |
+| S&D / freight cost (%) | The S&D line | Selected scope |
 
-"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. The two cost levers always apply to everything, because an input cost rise does not skip a chain.
+"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. **The simulator screen shows the selection only:** the cards, volume check, bridge and breakdowns are for the selected rows (the whole business when nothing is selected), and every lever, including the two cost levers, applies to those rows. The P&L page still shows every row: there the commercial levers apply to the selection, and the cost levers apply to everything.
 
 **Note on "Other deductions and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
 
 ## Volume: your input, the model's hint, and the volume check
 
-Volume is the one number the data cannot give us: we hold no competitor prices, seasonality or shelf data. So the levers change only what each pack earns, and **volume is an input you enter** ("Volume change you expect", default 0, limited to -50% to +100%). It scales the packs of every row in scope: `units = baseline units x (1 + volume change)`. Every line then follows the packs, as in the P&L maths above. Rows outside the scope keep their baseline volume.
+Volume is the one number the data cannot give us: we hold no competitor prices, seasonality or shelf data. So the levers change only what each pack earns, and **volume is an input you enter** ("Volume change you expect", default 0, limited to -50% to +100%). It scales the packs of every row in scope: `units = baseline units x (1 + volume change)`. Every line then follows the packs, as in the P&L maths above. On the P&L page, rows outside the scope keep their baseline volume.
 
 **Model suggestion (a hint only).** For the price, promo and chain-term levers the model estimates the volume change from the elasticities in `config/assumptions.csv`, which the card shows with a "Use" button. Per row: `(1 + price change) ^ elasticity x promo ratio ^ (elasticity x PROMO_RESPONSE_BOOST) x trade and deduction push`, where the promo ratio is `1 - PROMO_PASS_THROUGH x promo drop x (1 - trade margin)`, then weighted by baseline packs over the rows in scope. The constants are at the top of `engine/simulate.py`. They are assumptions, not measurements, and the suggestion never changes any number unless you adopt it.
 

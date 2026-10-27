@@ -162,20 +162,30 @@ def refresh():
 refresh()
 
 
-def scenario_metrics(lv, scope):
-    return [calc_row(r, lv, in_scope(r, scope)) for r in data.ROWS]
+def view_rows(scope):
+    """The rows the simulator screen reports: the ones inside the selection (all rows when nothing is selected).
+    Returns (rows, baseline metrics for those rows)."""
+    keep = [i for i, r in enumerate(data.ROWS) if in_scope(r, scope)]
+    return [data.ROWS[i] for i in keep], [BASE_METRICS[i] for i in keep]
 
 
-def bridge(lv, scope, sims=None):
+def scenario_metrics(lv, scope, rows=None):
+    return [calc_row(r, lv, in_scope(r, scope)) for r in (data.ROWS if rows is None else rows)]
+
+
+def bridge(lv, scope, sims=None, rows=None, base=None):
     """Contribution bridge from baseline to scenario.
 
     Levers are layered on one group at a time with volume held at baseline,
     so each step is a pure rate effect; whatever is left is the volume you entered.
     """
+    rows = data.ROWS if rows is None else rows
+    base = BASE_METRICS if base is None else base
+
     def cm_for(partial):
         cand = Levers(**{**DEFAULT_LEVERS.__dict__, **partial})
         return sum(calc_row(r, cand, in_scope(r, scope), fixed_volume=True)["cm"]
-                   for r in data.ROWS)
+                   for r in rows)
 
     groups = [
         ("price", "Price", {"price_change_pct": lv.price_change_pct}),
@@ -185,8 +195,8 @@ def bridge(lv, scope, sims=None):
         ("cost", "Costs", {"cogs_change_pct": lv.cogs_change_pct,
                            "freight_change_pct": lv.freight_change_pct}),
     ]
-    base_cm = sum(m["cm"] for m in BASE_METRICS)
-    full_cm = sum(m["cm"] for m in (sims if sims is not None else scenario_metrics(lv, scope)))
+    base_cm = sum(m["cm"] for m in base)
+    full_cm = sum(m["cm"] for m in (sims if sims is not None else scenario_metrics(lv, scope, rows)))
 
     steps = [{"key": "baseline", "label": "Baseline", "kind": "total", "value": base_cm}]
     applied, prev = {}, base_cm
@@ -201,7 +211,7 @@ def bridge(lv, scope, sims=None):
     return steps
 
 
-def breakeven(lv, scope, sims=None):
+def breakeven(lv, scope, sims=None, rows=None, base=None):
     """How much extra volume the scenario needs to match today's contribution.
 
     The levers change what each pack earns. This asks: at the new terms, how many more packs (the same
@@ -214,11 +224,12 @@ def breakeven(lv, scope, sims=None):
             needs        `required` more volume is needed
             unreachable  contribution in scope is zero or negative, so more packs never pay it back
     """
-    rows = data.ROWS
+    rows = data.ROWS if rows is None else rows
+    base = BASE_METRICS if base is None else base
     inside = [in_scope(r, scope) for r in rows]
-    sims = sims if sims is not None else scenario_metrics(lv, scope)
+    sims = sims if sims is not None else scenario_metrics(lv, scope, rows)
     fixed = [calc_row(r, lv, a, fixed_volume=True) for r, a in zip(rows, inside)]
-    base_cm = sum(m["cm"] for m in BASE_METRICS)
+    base_cm = sum(m["cm"] for m in base)
     cm_in = sum(f["cm"] for f, a in zip(fixed, inside) if a)
     cm_out = sum(f["cm"] for f, a in zip(fixed, inside) if not a)
     units_in = sum(r["units"] for r, a in zip(rows, inside) if a)
@@ -239,7 +250,7 @@ def breakeven(lv, scope, sims=None):
     return out
 
 
-def suggested_volume_change(lv, scope):
+def suggested_volume_change(lv, scope, rows=None):
     """What the model's elasticities say the volume change would be for the price, promo and chain-term levers.
 
     This is a hint, shown next to the volume the user enters. It is an assumption (elasticities by product family,
@@ -248,7 +259,7 @@ def suggested_volume_change(lv, scope):
     price = lv.price_change_pct / 100
     promo_add, trade_add, rebate_add = lv.promo_add_pp / 100, lv.trade_margin_add_pp / 100, lv.rebate_add_pp / 100
     num = den = 0.0
-    for r in data.ROWS:
+    for r in (data.ROWS if rows is None else rows):
         if not in_scope(r, scope):
             continue
         trade = min(0.4, max(0.0, r["trade"] + trade_add))
@@ -263,14 +274,14 @@ def suggested_volume_change(lv, scope):
     return num / den - 1 if den else 0.0
 
 
-def volume_ladder(lv, scope, sims=None):
+def volume_ladder(lv, scope, sims=None, rows=None, base=None):
     """The same scenario at a range of volume changes, against today's baseline.
 
     One row per step in VOLUME_LADDER, plus the volume the user entered (marked). This shows how much the answer
     depends on the volume, which is the number the user has to judge."""
-    rows = data.ROWS
+    rows = data.ROWS if rows is None else rows
     inside = [in_scope(r, scope) for r in rows]
-    base = total(BASE_METRICS)
+    base = total(BASE_METRICS if base is None else base)
     steps = sorted(set(VOLUME_LADDER) | {lv.volume_change_pct})
     cases = []
     for v in steps:
@@ -334,19 +345,23 @@ def _items(lv, scope, flt=None, sims=None):
 
 
 def simulate(levers_raw, scope_raw):
+    """Everything on the simulator screen is for the selected rows only (all rows when nothing is selected).
+    So the cost levers, which apply to every row in the view, change only the selection's numbers too."""
     lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
-    sims = scenario_metrics(lv, scope)
-    items = _items(lv, scope, sims=sims)
+    rows, base = view_rows(scope)
+    sims = scenario_metrics(lv, scope, rows)
+    items = [{"row": r, "base": b, "sim": m} for r, b, m in zip(rows, base, sims)]
     return {
-        "base": derive(total(i["base"] for i in items)),
-        "sim": derive(total(i["sim"] for i in items)),
-        "bridge": bridge(lv, scope, sims),
-        "breakeven": breakeven(lv, scope, sims),
-        "ladder": volume_ladder(lv, scope, sims),
-        "suggested_volume": suggested_volume_change(lv, scope),
+        "base": derive(total(base)),
+        "sim": derive(total(sims)),
+        "bridge": bridge(lv, scope, sims, rows, base),
+        "breakeven": breakeven(lv, scope, sims, rows, base),
+        "ladder": volume_ladder(lv, scope, sims, rows, base),
+        "suggested_volume": suggested_volume_change(lv, scope, rows),
         "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
-        "rows_in_scope": sum(1 for r in data.ROWS if in_scope(r, scope)),
+        "rows_in_scope": len(rows),
         "rows_total": len(data.ROWS),
+        "whole": derive(total(BASE_METRICS)),     # the whole business at baseline, to show the selection's share
     }
 
 

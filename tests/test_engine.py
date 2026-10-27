@@ -93,20 +93,34 @@ def test_attributed_costs_follow_their_basis():
     assert close(after["ou"] / after["units"], before["ou"] / before["units"])
 
 
-def test_cogs_change_hits_cogs_everywhere_even_with_scope():
+def test_cogs_change_is_exact_on_whatever_is_shown():
     out = sim.simulate({"cogs_change_pct": 10}, {"chain": [first("chain")]})
-    other = [c for c in out["breakdown"]["chain"] if c["id"] == last("chain")][0]
-    assert out["sim"]["cogs"] > out["base"]["cogs"]
-    assert other["sim"]["cogs"] > other["base"]["cogs"]
     assert out["sim"]["cogs"] == pytest.approx(out["base"]["cogs"] * 1.10)      # exactly +10%, no hidden share
+    whole = sim.pnl({"cogs_change_pct": 10}, {"chain": [first("chain")]}, ["chain"])
+    assert all(n["sim"]["cogs"] == pytest.approx(n["base"]["cogs"] * 1.10) for n in whole["tree"])   # the P&L page shows every chain
 
 
-def test_scope_limits_commercial_levers():
-    c1, c2 = first("chain"), last("chain")
+def test_the_simulator_screen_shows_only_the_selection():
+    c1 = first("chain")
     out = sim.simulate({"price_change_pct": 8}, {"chain": [c1]})
-    by = {c["id"]: c for c in out["breakdown"]["chain"]}
-    assert not close(by[c1]["sim"]["net"], by[c1]["base"]["net"])
-    assert close(by[c2]["sim"]["net"], by[c2]["base"]["net"])
+    inside = [r for r in data.ROWS if r["chain"] == c1]
+    assert [c["id"] for c in out["breakdown"]["chain"]] == [c1]
+    assert close(out["base"]["units"], sum(r["units"] for r in inside))
+    assert out["base"]["units"] < out["whole"]["units"]
+    assert not close(out["sim"]["net"], out["base"]["net"])
+
+
+def test_with_nothing_selected_the_screen_shows_the_whole_business():
+    out = sim.simulate({}, {})
+    assert out["rows_in_scope"] == out["rows_total"] and close(out["base"]["net"], out["whole"]["net"])
+
+
+def test_the_p_and_l_page_still_shows_every_chain_when_levers_are_scoped():
+    c1, c2 = first("chain"), last("chain")
+    res = sim.pnl({"price_change_pct": 8}, {"chain": [c1]}, ["chain"])
+    by = {n["id"].split(":")[-1]: n for n in res["tree"]}
+    assert not close(by[str(c1)]["sim"]["net"], by[str(c1)]["base"]["net"])
+    assert close(by[str(c2)]["sim"]["net"], by[str(c2)]["base"]["net"])
 
 
 @pytest.mark.parametrize("dim", data.DIM_IDS)
@@ -195,8 +209,9 @@ def test_old_style_plural_keys_are_ignored_not_misread():
 
 
 # ---------- breakeven and the volume ladder ----------
-def base_cm():
-    return sum(m["cm"] for m in sim.BASE_METRICS)
+def base_cm(scope=None):
+    sc = sim.parse_scope(scope)
+    return sum(m["cm"] for r, m in zip(data.ROWS, sim.BASE_METRICS) if sim.in_scope(r, sc))
 
 
 def cm_with_uplift(levers, scope, uplift):
@@ -206,8 +221,9 @@ def cm_with_uplift(levers, scope, uplift):
     total = 0.0
     for r in data.ROWS:
         active = sim.in_scope(r, sc)
-        row = dict(r, units=r["units"] * (1 + uplift)) if active else r
-        total += sim.calc_row(row, lv, active, fixed_volume=True)["cm"]
+        if not active:
+            continue                      # the screen reports only the selection
+        total += sim.calc_row(dict(r, units=r["units"] * (1 + uplift)), lv, active, fixed_volume=True)["cm"]
     return total
 
 
@@ -235,7 +251,7 @@ def test_breakeven_volume_brings_contribution_back_to_baseline(levers, scope):
     scope = {"chain": [first("chain")]} if scope == "one chain" else scope
     b = sim.simulate(levers, scope)["breakeven"]
     assert b["status"] in ("needs", "ahead")
-    assert close(cm_with_uplift(levers, scope, b["required"]), base_cm(), tol=1e-9)
+    assert close(cm_with_uplift(levers, scope, b["required"]), base_cm(scope), tol=1e-9)
 
 
 def test_a_promo_needs_extra_volume_and_you_may_not_expect_enough():
@@ -329,13 +345,6 @@ def test_the_suggestion_follows_the_direction_of_the_levers():
 def test_the_suggestion_never_changes_the_numbers():
     a = sim.simulate({"promo_add_pp": 4}, {})
     assert a["suggested_volume"] != 0 and close(a["sim"]["units"], a["base"]["units"])
-
-
-def test_cost_levers_do_not_depend_on_the_scope_of_volume():
-    chain = first("chain")
-    whole = sim.simulate({"cogs_change_pct": 5}, {})
-    scoped = sim.simulate({"cogs_change_pct": 5}, {"chain": [chain]})
-    assert close(whole["sim"]["cogs"], scoped["sim"]["cogs"])
 
 
 def test_a_large_fall_never_makes_volume_negative():

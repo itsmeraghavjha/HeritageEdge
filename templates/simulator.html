@@ -4,7 +4,7 @@
 <header class="page-head">
   <div>
     <h1>Promo simulator</h1>
-    <p class="lede">Change price, promo, chain terms and costs. See what each one does to net revenue, margin and contribution, against today&rsquo;s baseline.</p>
+    <p class="lede">Pick the chains, states or SKUs you care about, change price, promo, chain terms and costs, and see what each one does to net revenue, margin and contribution for that selection, against today&rsquo;s baseline.</p>
   </div>
   <div class="head-actions">
     <label class="visually-hidden" for="loadSelect">Load a scenario</label>
@@ -19,7 +19,7 @@
   <aside class="panel levers" aria-label="Scenario levers">
     <details class="scope" id="scope">
       <summary>
-        <span class="scope-title">Apply price, promo and chain terms to</span>
+        <span class="scope-title">Show and change only</span>
         <span class="scope-summary" id="scopeSummary">Everything</span>
       </summary>
       <div class="scope-body" id="scopeBody"><div id="scopeDims"></div><button type="button" class="link-btn" id="scopeClear" hidden>Clear selection</button></div>
@@ -28,6 +28,7 @@
   </aside>
 
   <section class="results" aria-live="polite" aria-label="Scenario results">
+    <p class="view-note" id="viewNote" role="status"></p>
     <div class="kpis" id="kpis"></div>
 
     <div class="panel" id="volumePanel">

@@ -6,8 +6,8 @@ AI coding assistants such as Claude Code read this file automatically. Humans: s
 
 A Flask app for the MRF (Heritage Foods, dairy FMCG) team. Three screens:
 
-- `/` Promo simulator: levers for price, promo, chain terms, costs and the volume you expect, with KPIs, a breakeven and a volume ladder, a contribution bridge and breakdowns. The "apply to" scope can be limited on any dimension.
-- `/pnl` P&L statement: net revenue down to net margin, grouped in any order by chain, customer group, state, city, sales office, product category, variant, pack size and SKU, with filters, drill-down, baseline / scenario / change views and Excel export.
+- `/` Promo simulator: levers for price, promo, chain terms, costs and the volume you expect, with KPIs, a breakeven and a volume ladder, a contribution bridge and breakdowns. The selection (scope) can be limited on any dimension and everything on the screen follows it.
+- `/pnl` P&L statement: net revenue down to net margin, grouped in any order by chain, customer group, state, city, sales office, product category, variant, pack size and SKU, with drill-down, baseline / scenario / change views and Excel export.
 - `/data` Data: pulls monthly volumes from SQL Server, takes the offer file and MIS workbook as uploads, and builds the dataset the other two screens run on.
 
 Everything is a monthly run-rate in rupees. With no real data built, the app runs on synthetic **sample data**.
@@ -50,7 +50,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - Plain, specific UI copy in sentence case. No all-caps labels, no arrows on buttons.
 - Money is shown in Indian units: crore (Cr) and lakh (L). Tables use rupees lakh.
 - Colour carries meaning: green is good for profit, red is bad. For cost lines (COGS, promo, rebates, S&D, P&A, interest, over/under, marketing) an increase is bad, so those use inverted colouring (see the `goodUp` flag in `simulator.js` and `pnl.js`).
-- Cost levers (COGS change, S&D / freight) apply to every row. All other levers respect the scope.
+- The simulator screen reports the selected rows only, and every lever applies to them. On the P&L page the cost levers (COGS change, S&D / freight) apply to every row and the other levers respect the scope.
 - Contribution is gross margin less over/under and S&D (the MIS definition of MC). Net margin is contribution less P&A, interest and marketing.
 - Every maths change needs a test in `tests/test_engine.py` (or `test_prepare.py` for the build) and an update to `docs/HOW_IT_WORKS.md`.
 

@@ -444,3 +444,5 @@ input[type="range"]::-moz-range-thumb {
 .vol-table .chg.up { color: var(--green-text); }
 .vol-table .chg.down { color: var(--red); }
 .sub.pad { padding: 4px 18px 10px; }
+
+.view-note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }

@@ -302,6 +302,11 @@
     renderSummary(r);
     renderBreakdown(r);
     updateScopeSummary(r);
+    const sel = r.rows_in_scope !== r.rows_total;
+    const share = r.whole.units ? r.base.units / r.whole.units : 0;
+    $('viewNote').textContent = sel
+      ? `Showing your selection only: ${r.rows_in_scope.toLocaleString('en-IN')} of ${r.rows_total.toLocaleString('en-IN')} lines, ${HE.pct(share)} of today’s volume.`
+      : 'Showing the whole business. Pick chains, states or SKUs on the left to see just those.';
   }
 
   /* ---------- data flow ---------- */
