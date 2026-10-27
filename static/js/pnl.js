@@ -9,16 +9,6 @@
   let meta = null;
   let requestId = 0;
 
-  /* ---------- view filters (what the table shows; separate from the simulator's scope) ---------- */
-  const FILTER_KEY = 'heritageedge:pnlfilter:v2';
-  const view = { filters: {} };
-  try {
-    const saved = localStorage.getItem(FILTER_KEY) || localStorage.getItem('heritageedge:pnlfilter:v1');
-    view.filters = HE.normalizeSelection(saved ? JSON.parse(saved) : {});
-  } catch (e) { /* none saved */ }
-  const saveFilters = () => { try { localStorage.setItem(FILTER_KEY, JSON.stringify(view.filters)); } catch (e) { /* storage unavailable */ } };
-  const hasFilters = () => HE.hasSelection(view.filters);
-
   // [header, key, kind, good when up]
   const COLS = [
     ['Volume', 'units', 'k', true],
@@ -116,12 +106,9 @@
   async function load() {
     const id = ++requestId;
     try {
-      const res = await (await HE.postJson('/api/pnl',
-        { levers: state.levers, scope: state.scope, dims: dims(), filters: view.filters })).json();
+      const res = await (await HE.postJson('/api/pnl', { levers: state.levers, scope: state.scope, dims: dims() })).json();
       if (id !== requestId) return;
       data = res;
-      $('filterCount').textContent = hasFilters()
-        ? `Showing ${res.rows_shown.toLocaleString('en-IN')} of ${res.rows_total.toLocaleString('en-IN')} lines` : '';
       if (!expanded.size) data.tree.forEach((n) => { if (n.children) expanded.add(n.id); });
       render();
     } catch (e) {
@@ -186,7 +173,7 @@
     const btn = $('exportBtn');
     btn.disabled = true;
     try {
-      const r = await HE.postJson('/api/export', { levers: state.levers, scope: state.scope, dims: dims(), filters: view.filters });
+      const r = await HE.postJson('/api/export', { levers: state.levers, scope: state.scope, dims: dims() });
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
       a.href = url;
@@ -200,35 +187,11 @@
     } finally { btn.disabled = false; }
   });
 
-  /* ---------- filters: searchable checkbox lists, one per dimension ---------- */
-  let filterTimer = null;
-  let filterUi = null;
-  function filtersChanged() {
-    saveFilters();
-    $('filterClear').hidden = !hasFilters();
-    expanded.clear();
-    clearTimeout(filterTimer);
-    filterTimer = setTimeout(load, 150);   // let a few clicks settle into one request
-  }
-
-  function buildFilters() {
-    filterUi = HE.buildSelectors({ host: $('filters'), dims: meta.dims, holder: view, key: 'filters',
-                                   onChange: filtersChanged, mode: 'popover' });
-    $('filterClear').hidden = !hasFilters();
-    $('filterClear').addEventListener('click', () => {
-      view.filters = {};
-      filterUi.refresh();
-      filtersChanged();
-    });
-  }
-
   fetch('/api/meta').then((r) => r.json()).then((m) => {
     meta = m;
-    view.filters = HE.pruneSelection(view.filters, meta.dims);
     state.scope = HE.pruneSelection(state.scope, meta.dims);
     banner();
     initSelects();
-    buildFilters();
     load();
   });
 })();
