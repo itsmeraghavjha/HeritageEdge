@@ -43,6 +43,7 @@ DIM_IDS = tuple(d for d, _ in DIM_DEFS)
 ROWS = []
 BASIS = {}
 OPTIONS = {}
+COMBOS = []     # every distinct combination of dimension values in the data, in DIM_IDS order (as text)
 LABEL = {}
 MODE = "sample"
 META = {}
@@ -104,7 +105,7 @@ def status():
 
 def reload():
     """(Re)read the dataset. Called at import and again after a new dataset is built."""
-    global ROWS, BASIS, OPTIONS, LABEL, MODE, META
+    global ROWS, BASIS, OPTIONS, LABEL, MODE, META, COMBOS
     real = DATA_DIR / "rows.csv"
     use_real = real.exists() and os.environ.get("HERITAGEEDGE_USE_SAMPLE") != "1"
     path = real if use_real else SAMPLE_DIR / "rows.csv"
@@ -134,6 +135,7 @@ def reload():
                         for k, v in sorted(seen.items(), key=lambda kv: str(kv[1]).lower())]
 
     mode = "actual" if use_real else "sample"
+    COMBOS = sorted({tuple(str(r[d]) for d in DIM_IDS) for r in rows})
     ROWS, BASIS, OPTIONS, LABEL, MODE = rows, basis, options, label, mode
     META = _load_meta(mode)
 

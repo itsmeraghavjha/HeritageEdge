@@ -129,6 +129,8 @@
   const MAX_SHOWN = 400;
   function buildSelectors(cfg) {
     const { host, dims, holder, key, onChange } = cfg;
+    const combos = cfg.combos || null;      // when given, each list shows only values that exist with the other choices
+    const dimIndex = Object.fromEntries(dims.map((d, i) => [d.id, i]));
     const inline = cfg.mode === 'inline';
     const byId = Object.fromEntries(dims.map((d) => [d.id, d]));
     const sel = () => holder[key] || {};
@@ -152,10 +154,23 @@
     const roots = [...host.querySelectorAll('[data-dim]')];
     const rootOf = (el) => el.closest('[data-dim]');
 
+    // Values of this dimension that appear in at least one line matching every choice made in the other dimensions.
+    function allowedIds(dimId) {
+      if (!combos) return null;
+      const others = dims.filter((e) => e.id !== dimId && (sel()[e.id] || []).length)
+        .map((e) => [dimIndex[e.id], new Set(sel()[e.id].map(String))]);
+      if (!others.length) return null;
+      const i = dimIndex[dimId], ok = new Set();
+      combos.forEach((c) => { if (others.every(([j, s]) => s.has(c[j]))) ok.add(c[i]); });
+      return ok;
+    }
     function shown(root) {
       const d = byId[root.dataset.dim];
       const q = root.querySelector('.msel-search').value.trim().toLowerCase();
-      return d.options.filter((o) => !q || o.name.toLowerCase().includes(q));
+      const ok = allowedIds(d.id);
+      const chosen = new Set((sel()[d.id] || []).map(String));
+      return d.options.filter((o) => (!ok || ok.has(String(o.id)) || chosen.has(String(o.id)))
+        && (!q || o.name.toLowerCase().includes(q)));
     }
     function paint(root) {
       const d = byId[root.dataset.dim];
@@ -189,6 +204,7 @@
       holder[key] = next;
     }
     function refresh() { roots.forEach((r) => { paint(r); summarize(r); }); }
+    const repaintAll = () => roots.forEach(paint);
 
     host.addEventListener('input', (e) => {
       if (e.target.classList.contains('msel-search')) paint(rootOf(e.target));
@@ -202,6 +218,7 @@
       if (box.checked) set.add(box.value); else set.delete(box.value);
       setDim(dim, [...set]);
       summarize(root);
+      repaintAll();
       onChange();
     });
     host.addEventListener('click', (e) => {
@@ -212,8 +229,8 @@
         const dim = root.dataset.dim;
         if (act === 'none') setDim(dim, []);
         else setDim(dim, [...new Set([...(sel()[dim] || []), ...shown(root).map((o) => String(o.id))])]);
-        paint(root);
         summarize(root);
+        repaintAll();
         onChange();
         return;
       }

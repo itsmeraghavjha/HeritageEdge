@@ -118,6 +118,16 @@ def test_scope_works_on_every_dimension(dim):
         assert not close(out["sim"]["units"], out["base"]["units"])
 
 
+def test_combos_cover_every_line_so_filters_can_cascade():
+    assert len(data.COMBOS) == len({tuple(str(r[d]) for d in data.DIM_IDS) for r in data.ROWS})
+    assert all(len(c) == len(data.DIM_IDS) for c in data.COMBOS)
+    # choosing one chain leaves only states that chain sells in
+    chain = first("chain")
+    i, j = data.DIM_IDS.index("chain"), data.DIM_IDS.index("state")
+    states = {c[j] for c in data.COMBOS if c[i] == str(chain)}
+    assert states == {str(r["state"]) for r in data.ROWS if r["chain"] == chain}
+
+
 def test_unknown_scope_id_changes_nothing():
     out = sim.simulate({"price_change_pct": 8}, {"chain": ["no-such-chain"]})
     assert out["rows_in_scope"] == 0

@@ -91,6 +91,7 @@ def meta():
     return jsonify({
         "status": data.status(),
         "dims": [{"id": d, "name": name, "options": data.OPTIONS[d]} for d, name in data.DIM_DEFS],
+        "combos": data.COMBOS,
     })
 
 

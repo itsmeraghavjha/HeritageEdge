@@ -65,7 +65,7 @@
   let selectors = null;
 
   function renderScope() {
-    selectors = HE.buildSelectors({ host: $('scopeDims'), dims: meta.dims, holder: state, key: 'scope',
+    selectors = HE.buildSelectors({ host: $('scopeDims'), dims: meta.dims, combos: meta.combos, holder: state, key: 'scope',
                                     onChange: changed, mode: 'inline' });
     updateScopeSummary();
   }
