@@ -111,9 +111,9 @@
       kpi('Net margin', HE.inr(s.nm),
           `${HE.inrSigned(dNm)} (${HE.pp(s.nm_pct - b.nm_pct)})`, HE.tone(dNm, true, 500),
           `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`) +
-      kpi('Volume in units', (s.units / 1e5).toFixed(1) + ' lakh',
+      kpi('Volume in packs', (s.units / 1e5).toFixed(1) + ' lakh',
           HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
-          `Baseline ${(b.units / 1e5).toFixed(1)} lakh units`);
+          `Baseline ${(b.units / 1e5).toFixed(1)} lakh packs`);
   }
 
   function renderBridge(steps) {
@@ -180,7 +180,7 @@
   }
 
   const SUMMARY_ROWS = [
-    ['Volume (’000 units)', 'units', 'k', true],
+    ['Volume (’000 packs)', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
     ['Other deductions', 'rebates', 'l', false],

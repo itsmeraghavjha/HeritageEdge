@@ -27,7 +27,7 @@ PERCENT = "0.0;[Red]-0.0"
 
 # (header, metric key, scale, number format)
 COLUMNS = [
-    ("Volume ('000 units)", "units", 1e3, AMOUNT),
+    ("Volume ('000 packs)", "units", 1e3, AMOUNT),
     ("Gross sales", "gross", 1e5, AMOUNT),
     ("Promo", "promo", 1e5, AMOUNT),
     ("Other deductions", "rebates", 1e5, AMOUNT),
@@ -81,7 +81,7 @@ PIVOT_STEPS = [
     "4. Drag the amounts you want into Values (for example Scenario Net revenue, Scenario Contribution). Choose Sum.",
     "5. For a percentage, use PivotTable Analyze > Fields, Items & Sets > Calculated Field.",
     "   Example, name CM %: = 'Scenario Contribution' / 'Scenario Net revenue'. Format it as a percentage.",
-    "Amounts are Rs lakh a month, volume is thousand units. Baseline columns have no levers applied.",
+    "Amounts are Rs lakh a month, volume is thousand packs. Baseline columns have no levers applied.",
 ]
 
 

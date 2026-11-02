@@ -11,7 +11,7 @@
 
   // [header, key, kind, good when up]
   const COLS = [
-    ['Volume', 'units', 'k', true],
+    ['Volume (’000 packs)', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
     ['Other deductions', 'rebates', 'l', false],
@@ -76,8 +76,8 @@
     $('pnlTable').innerHTML = head + '<tbody>' + totalRow +
       data.tree.map((n) => rowHtml(n, 0)).join('') + '</tbody>';
     $('tableFoot').textContent = mode === 'delta'
-      ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand units, percentages in points.'
-      : 'Rupees lakh a month. Volume in thousand units.';
+      ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand packs, percentages in points.'
+      : 'Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs, not litres or kg.';
   }
 
   function allIds(nodes, out) {
