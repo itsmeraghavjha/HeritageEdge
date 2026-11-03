@@ -494,7 +494,7 @@ input[type="range"]::-moz-range-thumb {
 .auth-main { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 24px; background: #fff url('../img/login-light.svg') center bottom / cover no-repeat; }
 .auth-card { background: rgba(255, 255, 255, .9); padding: 36px 36px 32px; border: 1px solid #e3ebe0; border-radius: 14px; box-shadow: 0 1px 2px rgba(18, 53, 36, .05), 0 12px 32px rgba(18, 53, 36, .08); backdrop-filter: blur(2px); }
 .auth-card { width: min(450px, 100%); }
-.auth-logo { width: 150px; height: auto; display: block; margin-bottom: 30px; }
+.auth-logo { display: none; width: 140px; height: auto; margin: 0 auto 24px; }
 .auth-card h1 { font-size: 26px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); }
 .auth-sub { margin: 8px 0 24px; color: var(--muted); font-size: 14px; line-height: 1.55; }
 .auth-sub strong { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
@@ -531,6 +531,7 @@ input[type="range"]::-moz-range-thumb {
   .auth { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   .auth-brand { padding: 24px 24px 22px; }
   .brand-body, .brand-foot, .brand-net { display: none; }
+  .auth-logo { display: block; }
   .auth-main { padding: 28px 16px 24px; justify-content: flex-start; }
   .auth-card { padding: 28px 22px 24px; }
 }
