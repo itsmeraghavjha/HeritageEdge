@@ -8,7 +8,7 @@ from functools import wraps
 from flask import (Flask, g, jsonify, redirect, render_template, request, send_file, session, url_for)
 
 from engine import env  # noqa: F401  (loads .env before anything reads settings)
-from engine import data, datastore, export, mailer, prepare, simulate, sql_source, users
+from engine import data, datastore, export, mailer, network, prepare, simulate, sql_source, users
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 ** 3          # the MIS workbook can be large
@@ -227,7 +227,8 @@ def no_store(response):
 @app.context_processor
 def inject_globals():
     return {"data_status": data.status(), "auth_enabled": auth_enabled(), "current_user": g.get("user"),
-            "csrf_token": csrf_token}
+            "csrf_token": csrf_token,
+            "network_svg": lambda: network.svg(network.labels(), url_for("static", filename="img/heritage-logo.png"))}
 
 
 @app.template_filter("datetime")

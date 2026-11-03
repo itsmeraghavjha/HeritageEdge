@@ -34,6 +34,8 @@ Logging in uses each person's own email and password. Create the one admin once,
 python manage.py create-admin you@company.com "Your name"
 ```
 
+The picture on the login page shows Heritage with its customers around it. To name your customers, create `data/login_chains.txt` with one name per line (up to 8; lines starting with `#` are ignored). That folder is never added to git. Without the file it shows generic channels. Anyone who can open the login page will see these names, even before logging in.
+
 Open the link it prints to set the admin password. From then on the admin adds people on the **Users** page; each person gets a link by email to set their own password, and the admin can disable or enable them. To send the emails, fill in the `SMTP_*` lines in `.env`; without them the Users page shows the link to copy and send yourself. Until the first user exists the app stays open, on this computer only, and it will not listen on a network address until an admin exists.
 
 Details: [docs/DATA.md](docs/DATA.md).

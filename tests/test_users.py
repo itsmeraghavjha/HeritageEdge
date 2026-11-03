@@ -155,3 +155,16 @@ def test_password_rules_and_tokens_are_stored_hashed(client):
     import sqlite3
     raw = sqlite3.connect(data.DATA_DIR / "users.db").execute("SELECT hash FROM tokens").fetchone()[0]
     assert raw != tok and tok not in raw
+
+
+def test_login_network_uses_names_from_the_private_file_and_escapes_them(tmp_path, monkeypatch):
+    from engine import network
+    monkeypatch.setattr(data, "DATA_DIR", tmp_path)
+    assert network.labels() == network.GENERIC
+    (tmp_path / "login_chains.txt").write_text("# comment\nAlpha Mart\n<script>x</script>\n\nBeta Stores\n", encoding="utf-8")
+    names = network.labels()
+    assert names == ["Alpha Mart", "<script>x</script>", "Beta Stores"]
+    out = network.svg(names, "/static/logo.png")
+    assert "Alpha Mart" in out and "<script>" not in out and "&lt;script&gt;" in out
+    (tmp_path / "login_chains.txt").write_text("\n".join(f"Name {i}" for i in range(20)), encoding="utf-8")
+    assert len(network.labels()) == network.MAX_NAMES
