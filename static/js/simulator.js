@@ -113,7 +113,15 @@
           `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`) +
       kpi('Volume in packs', (s.units / 1e5).toFixed(1) + ' lakh',
           HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
-          `Baseline ${(b.units / 1e5).toFixed(1)} lakh packs`);
+          `Baseline ${(b.units / 1e5).toFixed(1)} lakh packs. ${qtyText(s)}`);
+  }
+
+  // Litres and kg are kept apart: nothing is converted between them.
+  function qtyText(m) {
+    const parts = [];
+    if (m.litres > 0) parts.push(`${(m.litres / 1e5).toFixed(2)} lakh litres`);
+    if (m.kg > 0) parts.push(`${(m.kg / 1e5).toFixed(2)} lakh kg`);
+    return parts.length ? 'That is ' + parts.join(' and ') + '.' : '';
   }
 
   function renderBridge(steps) {

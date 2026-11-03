@@ -78,6 +78,10 @@ Volume is the one number the data cannot give us: we hold no competitor prices, 
 
 There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
 
+## Litres and kg
+
+Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. The two are never converted into each other and never added together, so a total shows litres and kg as separate columns. Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
+
 ## Row adjustments
 
 Under "Where it lands", a chain, product category, SKU or state can carry its own price, promo, trade margin, other deductions and volume change (the **Adjust** button on each row). They are the five commercial levers; the two cost levers stay global.

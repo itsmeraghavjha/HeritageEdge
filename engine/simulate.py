@@ -31,7 +31,7 @@ PUSH_PER_PP_REBATE = 0.004  # volume lift per +1 pp rebate / display fees
 VOLUME_LADDER = (-10.0, 0.0, 10.0, 20.0, 30.0)
 NEUTRAL_RUPEES = 0.5        # a scenario that moves contribution by less than this at today's volume is "neutral"
 
-METRICS = ("units", "mrp_value", "trade_margin", "gross", "promo", "rebates", "net", "cogs", "gm",
+METRICS = ("units", "litres", "kg", "mrp_value", "trade_margin", "gross", "promo", "rebates", "net", "cogs", "gm",
            "logistics", "cm", "pa", "interest", "ou", "mktg", "nm")
 
 # (min, max) the API will accept for each lever.
@@ -191,7 +191,9 @@ def calc_row(row, lv, active, fixed_volume=False):
     cm = gm - ou - logistics          # the MIS definition: over/under is taken off before contribution
     pa, interest, mktg = cost("pa"), cost("interest"), cost("mktg")
     nm = cm - pa - interest - mktg
-    return {"units": units, "mrp_value": mrp_value, "trade_margin": trade_margin,
+    qty = units * row["size"]
+    return {"units": units, "litres": qty if row["qty_unit"] == "L" else 0.0,
+            "kg": qty if row["qty_unit"] == "kg" else 0.0, "mrp_value": mrp_value, "trade_margin": trade_margin,
             "gross": gross, "promo": promo, "rebates": rebates, "net": net,
             "cogs": cogs, "gm": gm, "logistics": logistics, "cm": cm,
             "pa": pa, "interest": interest, "ou": ou, "mktg": mktg, "nm": nm}

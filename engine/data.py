@@ -54,6 +54,39 @@ def _read(path):
         return list(csv.DictReader(fh))
 
 
+def pack_qty(text):
+    """Quantity in one pack, in its own unit: ('400 GMS') -> (0.4, 'kg'), ('500 ML') -> (0.5, 'L'),
+    ('1 KG') -> (1.0, 'kg'), ('1.5 LTR') -> (1.5, 'L'), ('700+700 ML') -> (1.4, 'L').
+    Litres stay litres and kilograms stay kilograms; nothing is converted between them.
+    Returns (0.0, '') when the text cannot be read."""
+    t = str(text or "").upper()
+    for a in ("LITRES", "LITERS", "LITRE", "LITER", "LTR"):
+        t = t.replace(a, "L")
+    nums = re.findall(r"\d+\.?\d*", t)
+    unit = re.sub(r"[\d.+\s]", "", t)
+    if not nums:
+        return 0.0, ""
+    tot = sum(float(n) for n in nums)
+    if unit.startswith("ML"):
+        return tot / 1000, "L"
+    if unit.startswith("L"):
+        return tot, "L"
+    if unit.startswith("GM") or unit == "G":
+        return tot / 1000, "kg"
+    if unit.startswith("KG"):
+        return tot, "kg"
+    return 0.0, ""
+
+
+_NAME_QTY = re.compile(r"(\d+(?:\.\d+)?(?:\s*\+\s*\d+(?:\.\d+)?)*)\s*(ML|LTRS?|LITRES?|LITERS?|L|GMS?|G|KGS?)\b", re.I)
+
+
+def pack_qty_in_name(name):
+    """Same as pack_qty, for a SKU name such as 'GHEE-COW-500 ML-PP' or 'Toned milk 500 ml'."""
+    m = _NAME_QTY.search(str(name or ""))
+    return pack_qty(m.group(1) + m.group(2)) if m else (0.0, "")
+
+
 def _city(so_name):
     """Older files have no city column: take it from the sales office name
     ('Bangalore Sales Office - 3' -> 'Bangalore'). Approximate."""
@@ -123,6 +156,9 @@ def reload():
         r["city"] = r.get("city") or _city(r["so_name"])
         for k in ("grp", "variant", "pack"):
             r[k] = r.get(k) or ""
+        r["size"], r["qty_unit"] = pack_qty(r["pack"])
+        if not r["qty_unit"]:      # a dataset built before pack sizes were kept: read it from the SKU name
+            r["size"], r["qty_unit"] = pack_qty_in_name(r["name"])
         rows.append(r)
 
     options, label = {}, {}

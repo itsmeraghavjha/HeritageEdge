@@ -493,3 +493,31 @@ def test_excel_export_has_a_flat_sheet_that_adds_up_to_the_total_row():
     assert flat_sim == pytest.approx(total["sim"]["net"] / 1e5)
     assert flat_base == pytest.approx(total["base"]["net"] / 1e5)
     assert ws.max_row - 1 == sim.pnl(levers, {}, ["chain"], flt)["rows_shown"]
+
+
+def test_pack_qty_keeps_each_unit():
+    assert data.pack_qty("500 ML") == (0.5, "L")
+    assert data.pack_qty("1.5 LTR") == (1.5, "L")
+    assert data.pack_qty("400 GMS") == (0.4, "kg")
+    assert data.pack_qty("1 KG") == (1.0, "kg")
+    assert data.pack_qty("700+700 ML") == (1.4, "L")
+    assert data.pack_qty("pack") == (0.0, "")
+
+
+def test_litres_and_kg_are_separate_and_follow_volume():
+    rows = data.ROWS
+    base = sim.total([sim.calc_row(r, sim.DEFAULT_LEVERS, False) for r in rows])
+    want_l = sum(r["units"] * r["size"] for r in rows if r["qty_unit"] == "L")
+    want_kg = sum(r["units"] * r["size"] for r in rows if r["qty_unit"] == "kg")
+    assert base["litres"] == pytest.approx(want_l)
+    assert base["kg"] == pytest.approx(want_kg)
+    up = sim.total([sim.calc_row(r, sim.Levers(volume_change_pct=10.0), True) for r in rows])
+    assert up["litres"] == pytest.approx(want_l * 1.1)
+    assert up["kg"] == pytest.approx(want_kg * 1.1)
+
+
+def test_pack_qty_in_name_for_older_datasets():
+    assert data.pack_qty_in_name("GHEE-COW-500 ML-PP") == (0.5, "L")
+    assert data.pack_qty_in_name("Butter 100 GM") == (0.1, "kg")
+    assert data.pack_qty_in_name("Curd 1 KG pouch") == (1.0, "kg")
+    assert data.pack_qty_in_name("No size here") == (0.0, "")
