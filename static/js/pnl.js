@@ -12,8 +12,7 @@
   // [header, key, kind, good when up]
   const COLS = [
     ['Volume (’000 packs)', 'units', 'k', true],
-    ['Litres (’000 L)', 'litres', 'k', true],
-    ['Kg (’000 kg)', 'kg', 'k', true],
+    ['Litres or kg (’000)', 'qty', 'q', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
     ['Other deductions', 'rebates', 'l', false],
@@ -33,8 +32,23 @@
   ];
   const STRONG = new Set(['net', 'gm', 'cm', 'nm']);
 
+  // Litres and kg stay in their own units, side by side in one cell: "675 L + 307 kg".
+  function qtyCell(node) {
+    const pick = () => [['litres', ' L'], ['kg', ' kg']];
+    const part = (v, u, signed) => (Math.abs(v) < 0.5 ? '' : HE.thousands(v, signed) + u);
+    const join = (a) => a.filter(Boolean).join(' + ') || '–';
+    const val = (m, signed) => join(pick().map(([k, u]) => part(m[k], u, signed)));
+    if (mode === 'delta') {
+      const d = ['litres', 'kg'].map((k) => node.sim[k] - node.base[k]);
+      const text = join([part(d[0], ' L', true), part(d[1], ' kg', true)]);
+      return `<td class="${HE.tone(d[0] + d[1], true, 50)}">${text}</td>`;
+    }
+    return `<td>${val(mode === 'base' ? node.base : node.sim, false)}</td>`;
+  }
+
   function cell(node, col) {
     const [, key, kind, goodUp] = col;
+    if (kind === 'q') return qtyCell(node);
     const b = node.base[key], s = node.sim[key];
     let text, cls = '';
     if (mode === 'delta') {
@@ -79,7 +93,7 @@
       data.tree.map((n) => rowHtml(n, 0)).join('') + '</tbody>';
     $('tableFoot').textContent = mode === 'delta'
       ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand packs, litres and kg, percentages in points.'
-      : 'Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs, litres (ML and L packs) and kg (GM and KG packs). Litres and kg are not added together.';
+      : 'Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs, litres (ML and L packs) and kg (GM and KG packs) in one column, never added together.';
   }
 
   function allIds(nodes, out) {

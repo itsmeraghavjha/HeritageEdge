@@ -28,7 +28,7 @@ PERCENT = "0.0;[Red]-0.0"
 # (header, metric key, scale, number format)
 COLUMNS = [
     ("Volume ('000 packs)", "units", 1e3, AMOUNT),
-    ("Litres ('000 L)", "litres", 1e3, AMOUNT),
+    ("Litres ('000 L)", "litres", 1e3, AMOUNT),     # separate numeric columns so they can be summed in Excel
     ("Kg ('000 kg)", "kg", 1e3, AMOUNT),
     ("Gross sales", "gross", 1e5, AMOUNT),
     ("Promo", "promo", 1e5, AMOUNT),
