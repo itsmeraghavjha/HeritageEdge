@@ -454,7 +454,7 @@ input[type="range"]::-moz-range-thumb {
 .row-actions { display: flex; gap: 8px; }
 
 /* ---------- users and login links ---------- */
-.side-card .who { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.side-card .who { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .people-add { padding: 16px 18px; margin: 14px 0; }
 .people-add h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
 .people-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }

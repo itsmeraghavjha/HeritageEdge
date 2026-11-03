@@ -45,7 +45,7 @@
       <strong>{{ data_status.title }}</strong>
       <span>{{ data_status.detail }}</span>
       {% if current_user %}
-      <span class="who">{{ current_user.email }}</span>
+      <span class="who" title="{{ current_user.email }}">{{ current_user.email }}</span>
       <form method="post" action="/logout"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button type="submit" class="link-btn">Log out</button></form>
       {% endif %}
     </div>
