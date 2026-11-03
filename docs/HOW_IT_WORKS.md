@@ -120,7 +120,7 @@ API (all JSON): `/api/meta`, `/api/simulate`, `/api/pnl`, `/api/export`, and for
 ## Known limits
 
 - Scenarios you save are stored **in your own browser**, so they are not shared with the team yet.
-- Login is a single shared password (`APP_PASSWORD`), not per-user.
+- Login is per person (email and password), with one admin who adds and disables users. See `docs/DECISIONS.md`. Passwords need 10 or more characters with letters and numbers; five wrong tries lock that email for 15 minutes; a set-password link works once and expires (72 hours for a new user, 2 hours from "Forgot password"); a newer link cancels older ones.
 - `python app.py` runs Flask's development server. Do not use it as a shared production deployment.
 - Volume is your input. The elasticities and response constants only feed the suggestion. The rate effects are exact arithmetic on the inputs.
 - Scope is the customers and SKUs present in the offer file, within Modern Formats and E-Commerce.

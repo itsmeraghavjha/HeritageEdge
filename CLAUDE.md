@@ -16,11 +16,11 @@ Everything is a monthly run-rate in rupees. With no real data built, the app run
 
 The real dataset holds chain-wise prices, offers and costs. It must never reach git.
 
-- Ignored by git: `data/` (built dataset, uploads, cached SQL pull), `.env` (SQL host, port, user, password, app password), `*.xlsb`, `*.xlsx`.
+- Ignored by git: `data/` (built dataset, uploads, cached SQL pull, user accounts), `.env` (SQL host, port, user, password, SMTP settings), `*.xlsb`, `*.xlsx`.
 - Safe in git: `sample_data/`, `config/` (elasticities, cost attribution rules), `engine/sql/billing.sql` (the shared billing query: table names only, never a login).
 - Never put real chain names, prices, volumes or costs in code, tests, docs, commit messages or screenshots. Tests use `tests/synth.py`.
 - Never print or log `SQL_PASSWORD`. `sql_source._clean()` scrubs it from errors.
-- `app.py` refuses to listen beyond this computer unless `APP_PASSWORD` is set.
+- `app.py` refuses to listen beyond this computer until an admin exists (`python manage.py create-admin`). Accounts are in `data/users.db` (git-ignored). Never log or print `SMTP_PASSWORD`; set-password links are shown only to the admin or the person they belong to.
 
 ## Commands
 

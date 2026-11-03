@@ -28,7 +28,13 @@ Real data never goes into git. It stays on the computer running the app.
 4. Open **Data**: test the connection, pull billing from SQL, upload the offer file and MIS workbook, tick the baseline months and build.
 5. Check the reconciliation shown after the build before trusting the P&L.
 
-Set `APP_PASSWORD` in `.env` to require a login. This is strongly recommended on any shared computer, and required to listen beyond your own machine.
+Logging in uses each person's own email and password. Create the one admin once, before anyone else uses the app:
+
+```bash
+python manage.py create-admin you@company.com "Your name"
+```
+
+Open the link it prints to set the admin password. From then on the admin adds people on the **Users** page; each person gets a link by email to set their own password, and the admin can disable or enable them. To send the emails, fill in the `SMTP_*` lines in `.env`; without them the Users page shows the link to copy and send yourself. Until the first user exists the app stays open, on this computer only, and it will not listen on a network address until an admin exists.
 
 Details: [docs/DATA.md](docs/DATA.md).
 

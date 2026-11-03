@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Users | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+  <h1>Users</h1>
+  <p class="lede">Add the people who can use HeritageEdge. They get a link by email to set their own password. Disable someone to stop them logging in at once; their account and history stay.</p>
+  </div>
+</header>
+
+{% if message %}
+<div class="panel people-note" role="status">
+  <p>{{ message.text }}</p>
+  {% if message.link %}<input class="text" readonly value="{{ message.link }}" onclick="this.select()" aria-label="Set-password link">{% endif %}
+</div>
+{% endif %}
+{% if not email_ready %}
+<p class="sub people-warn">Email is not set up on this computer (SMTP_* in .env), so new users will not get an email. After adding someone, copy the link shown here and send it to them yourself.</p>
+{% endif %}
+
+<section class="panel people-add">
+  <h2>Add a user</h2>
+  <form method="post" action="/admin/users/new" class="people-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Name <input name="name" class="text" autocomplete="off" maxlength="100"></label>
+    <label>Email <input name="email" type="email" class="text" autocomplete="off" required></label>
+    <button type="submit" class="btn btn-primary">Add and send link</button>
+  </form>
+</section>
+
+<section class="panel table-panel">
+  <div class="table-scroll">
+    <table class="data people">
+      <thead><tr><th class="left">Name</th><th class="left">Email</th><th class="left">Role</th><th class="left">Status</th><th class="left">Last login</th><th class="left">Actions</th></tr></thead>
+      <tbody>
+      {% for p in people %}
+        <tr>
+          <td class="left">{{ p.name or '–' }}</td>
+          <td class="left">{{ p.email }}</td>
+          <td class="left">{{ 'Admin' if p.role == 'admin' else 'User' }}</td>
+          <td class="left">{% if not p.active %}Disabled{% elif not p.pw_hash %}Waiting to set password{% else %}Active{% endif %}</td>
+          <td class="left">{{ p.last_login | datetime if p.last_login else 'Never' }}</td>
+          <td class="left actions">
+            {% if p.active %}
+            <form method="post" action="/admin/users/{{ p.id }}/link"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">{{ 'Send link again' if not p.pw_hash else 'Send password link' }}</button></form>
+            {% endif %}
+            {% if p.role != 'admin' %}
+            <form method="post" action="/admin/users/{{ p.id }}/active"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="active" value="{{ 0 if p.active else 1 }}"><button class="btn btn-small" type="submit">{{ 'Disable' if p.active else 'Enable' }}</button></form>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

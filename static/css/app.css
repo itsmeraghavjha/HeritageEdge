@@ -459,3 +459,17 @@ input[type="range"]::-moz-range-thumb {
 .row-levers { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 24px; }
 .row-result { margin: 8px 0; font-size: 13px; color: var(--ink); }
 .row-actions { display: flex; gap: 8px; }
+
+/* ---------- users and login links ---------- */
+.login-link { margin-top: 10px; font-size: 13px; color: var(--green); text-align: center; }
+.notice-text { color: #1f6a1d; font-size: 13px; margin-top: 6px; }
+.side-card .who { display: block; margin-top: 8px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.people-add { padding: 16px 18px; margin: 14px 0; }
+.people-add h2 { font-size: 15px; font-weight: 600; margin-bottom: 10px; }
+.people-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.people-form label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); min-width: 220px; flex: 1; }
+.people-note { padding: 12px 16px; margin: 14px 0; display: grid; gap: 8px; }
+.people-warn { margin: 10px 0; }
+.data th.left, .data td.left { text-align: left; }
+.people .actions { display: flex; gap: 8px; }
+.people .actions form { margin: 0; }
