@@ -232,21 +232,144 @@
     if (latest) renderBreakdown(latest);
   });
 
+  /* ---------- row adjustments: sliders on a single chain, product category, SKU or state ---------- */
+  let openRow = null;                       // { dim, id }: the row whose sliders are open
+  const ROW_LEVERS = () => HE.FLAT.filter((l) => HE.ADJUST_KEYS.includes(l.key));
+  const rowAdjust = (dim, id) => (state.adjust[dim] || {})[id] || {};
+  function setRowAdjust(dim, id, key, v) {
+    const cur = Object.assign({}, rowAdjust(dim, id));
+    if (v) cur[key] = v; else delete cur[key];
+    const by = Object.assign({}, state.adjust[dim]);
+    if (Object.keys(cur).length) by[id] = cur; else delete by[id];
+    if (Object.keys(by).length) state.adjust[dim] = by; else delete state.adjust[dim];
+  }
+  function clearRowAdjust(dim, id) {
+    ROW_LEVERS().forEach((l) => setRowAdjust(dim, id, l.key, 0));
+  }
+
+  function rowVerdict(n) {
+    const v = n.volume;
+    if (!v) return '';
+    const dCm = n.sim.cm - n.base.cm;
+    const now = `Contribution ${HE.lakhSigned(dCm)} L against today.`;
+    if (v.status === 'neutral') return `${now} Nothing changes what a pack earns here.`;
+    if (v.status === 'unreachable') return `${now} Each pack earns nothing or loses money at these terms, so more volume will not pay it back.`;
+    if (v.status === 'ahead') return `${now} Already ahead at today’s volume. Volume here could fall by ${HE.pct(-v.required)} before it drops below today.`;
+    const has = Math.abs(v.assumed) < 1e-9 ? 'No volume change is set for this row yet.'
+      : `Volume here is ${HE.relText(v.assumed)} in this scenario, which ${v.assumed >= v.required - 1e-9 ? 'covers it' : 'falls short'}.`;
+    return `${now} Needs ${HE.pct(v.required)} more volume to match today. ${has}`;
+  }
+
+  function editorHtml(n) {
+    const cur = rowAdjust(activeDim, n.id);
+    return `<div class="row-editor" data-dim="${activeDim}" data-id="${HE.esc(n.id)}">
+      <p class="row-editor-head">Changes for <strong>${HE.esc(n.label)}</strong> only. They add to the levers on the left.</p>
+      <div class="row-levers">${ROW_LEVERS().map((l) => `
+        <div class="lever${cur[l.key] ? ' is-changed' : ''}" data-key="${l.key}">
+          <div class="lever-top"><label for="rn-${l.key}">${HE.esc(l.label)}</label>
+            <span class="lever-input"><input type="number" id="rn-${l.key}" data-key="${l.key}" min="${l.min}" max="${l.max}" step="${l.step}" value="${cur[l.key] || 0}" inputmode="decimal">
+            <span class="unit">${HE.esc(l.unit.trim())}</span></span></div>
+          <input type="range" id="rr-${l.key}" data-key="${l.key}" aria-label="${HE.esc(l.label)}" min="${l.min}" max="${l.max}" step="${l.step}" value="${cur[l.key] || 0}">
+        </div>`).join('')}</div>
+      <p class="row-result" data-result>${HE.esc(rowVerdict(n))}</p>
+      <div class="row-actions"><button type="button" class="btn btn-small" data-act="reset-row">Reset this row</button>
+        <button type="button" class="btn btn-small" data-act="close-row">Done</button></div></div>`;
+  }
+
+  function rowCellList(n) {
+    const dNet = n.sim.net - n.base.net, dCm = n.sim.cm - n.base.cm;
+    return [['', HE.lakh(n.sim.net)], [HE.tone(dNet, true, 500), HE.lakhSigned(dNet)],
+      ['', HE.lakh(n.sim.cm)], [HE.tone(dCm, true, 500), HE.lakhSigned(dCm)], ['', HE.pct(n.sim.cm_pct)]];
+  }
+  const rowCells = (n) => rowCellList(n).map(([cls, html]) => `<td${cls ? ` class="${cls}"` : ''}>${html}</td>`).join('');
+  const adjustLabel = (n) => (Object.keys(rowAdjust(activeDim, n.id)).length ? 'Adjusted' : 'Adjust');
+  const isOpen = (n) => openRow && openRow.dim === activeDim && openRow.id === n.id;
+
+  function updateRowNote() {
+    const count = HE.adjustCount(state.adjust);
+    $('rowNote').hidden = !count;
+    $('rowNote').firstElementChild.textContent = `${count} row${count > 1 ? 's' : ''} adjusted on their own. They are included in every number on this page.`;
+  }
+
   function renderBreakdown(r) {
-    const rows = r.breakdown[activeDim].map((n) => {
-      const dNet = n.sim.net - n.base.net, dCm = n.sim.cm - n.base.cm;
-      return `<tr><th scope="row">${HE.esc(n.label)}</th>
-        <td>${HE.lakh(n.sim.net)}</td>
-        <td class="${HE.tone(dNet, true, 500)}">${HE.lakhSigned(dNet)}</td>
-        <td>${HE.lakh(n.sim.cm)}</td>
-        <td class="${HE.tone(dCm, true, 500)}">${HE.lakhSigned(dCm)}</td>
-        <td>${HE.pct(n.sim.cm_pct)}</td></tr>`;
-    }).join('');
-    $('breakdown').innerHTML = `<thead><tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
+    const nodes = r.breakdown[activeDim];
+    const canAdjust = HE.ADJUST_DIMS.includes(activeDim);
+    updateRowNote();
+    const table = $('breakdown');
+    // While a row's sliders are open the table is updated in place, so a drag is not interrupted.
+    if (openRow && openRow.dim === activeDim && table.dataset.dim === activeDim
+        && table.querySelector(`.row-editor[data-id="${CSS.escape(openRow.id)}"]`)) {
+      const done = nodes.every((n) => {
+        const tr = table.querySelector(`tr[data-id="${CSS.escape(n.id)}"]`);
+        if (!tr) return false;
+        rowCellList(n).forEach(([cls, html], i) => { const td = tr.children[i + 1]; td.className = cls; td.innerHTML = html; });
+        tr.querySelector('.adjust-btn').textContent = adjustLabel(n);
+        tr.querySelector('.adjust-btn').classList.toggle('is-adjusted', adjustLabel(n) === 'Adjusted');
+        if (isOpen(n)) {
+          const res = table.querySelector('[data-result]');
+          if (res) res.textContent = rowVerdict(n);
+        }
+        return true;
+      });
+      if (done) return;
+    }
+    const rows = nodes.map((n) => `<tr data-id="${HE.esc(n.id)}"><th scope="row">${HE.esc(n.label)}</th>
+        ${rowCells(n)}
+        <td class="adjust-cell">${canAdjust ? `<button type="button" class="link-btn adjust-btn${adjustLabel(n) === 'Adjusted' ? ' is-adjusted' : ''}" data-act="open-row" aria-expanded="${isOpen(n)}">${adjustLabel(n)}</button>` : ''}</td></tr>
+      ${isOpen(n) ? `<tr class="row-edit"><td colspan="7">${editorHtml(n)}</td></tr>` : ''}`).join('');
+    table.dataset.dim = activeDim;
+    table.innerHTML = `<thead><tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
       <th scope="col">Net revenue</th><th scope="col">Change</th>
-      <th scope="col">Contribution</th><th scope="col">Change</th><th scope="col">CM %</th></tr></thead>
+      <th scope="col">Contribution</th><th scope="col">Change</th><th scope="col">CM %</th><th scope="col"></th></tr></thead>
       <tbody>${rows}</tbody>`;
   }
+
+  $('breakdown').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    const tr = btn.closest('tr');
+    const id = btn.closest('.row-editor') ? btn.closest('.row-editor').dataset.id : tr && tr.dataset.id;
+    if (btn.dataset.act === 'open-row') {
+      openRow = isOpenId(id) ? null : { dim: activeDim, id };
+      renderBreakdown(latest);
+    } else if (btn.dataset.act === 'close-row') {
+      openRow = null;
+      renderBreakdown(latest);
+    } else if (btn.dataset.act === 'reset-row') {
+      clearRowAdjust(activeDim, id);
+      changed();
+      $('breakdown').querySelectorAll('.row-editor [data-key]').forEach((el) => { if (el.type) el.value = 0; });
+      $('breakdown').querySelectorAll('.row-editor .lever').forEach((el) => el.classList.remove('is-changed'));
+      $('breakdown').querySelectorAll('.row-editor input[type=range]').forEach(fillPct);
+    }
+  });
+  const isOpenId = (id) => openRow && openRow.dim === activeDim && openRow.id === id;
+
+  function onRowInput(e) {
+    const el = e.target;
+    const box = el.closest('.row-editor');
+    if (!box || !el.dataset.key) return;
+    const l = HE.FLAT.find((x) => x.key === el.dataset.key);
+    let v = parseFloat(el.value);
+    if (Number.isNaN(v)) v = 0;
+    v = Math.min(l.max, Math.max(l.min, v));
+    setRowAdjust(box.dataset.dim, box.dataset.id, l.key, v);
+    const lever = el.closest('.lever');
+    const other = lever.querySelector(el.type === 'range' ? 'input[type=number]' : 'input[type=range]');
+    other.value = v;
+    if (other.type === 'range') fillPct(other); else fillPct(el);
+    lever.classList.toggle('is-changed', v !== 0);
+    changed();
+  }
+  $('breakdown').addEventListener('input', (e) => { if (e.target.type === 'range') onRowInput(e); });
+  $('breakdown').addEventListener('change', (e) => { if (e.target.type === 'number') onRowInput(e); });
+
+  $('rowClear').addEventListener('click', () => {
+    state.adjust = {};
+    openRow = null;
+    $('breakdown').dataset.dim = '';
+    changed();
+  });
 
   /* ---------- volume check: the volume you expect, what the model suggests, and the breakeven ---------- */
   function breakevenText(b) {
@@ -307,6 +430,8 @@
     $('viewNote').textContent = sel
       ? `Showing your selection only: ${r.rows_in_scope.toLocaleString('en-IN')} of ${r.rows_total.toLocaleString('en-IN')} lines, ${HE.pct(share)} of today’s volume.`
       : 'Showing the whole business. Pick chains, states or SKUs on the left to see just those.';
+    const rc = HE.adjustCount(state.adjust);
+    if (rc) $('viewNote').textContent += ` ${rc} row${rc > 1 ? 's are' : ' is'} adjusted on ${rc > 1 ? 'their' : 'its'} own.`;
   }
 
   /* ---------- data flow ---------- */
@@ -317,7 +442,7 @@
   async function refresh() {
     const id = ++requestId;
     try {
-      const res = await (await HE.postJson('/api/simulate', { levers: state.levers, scope: state.scope })).json();
+      const res = await (await HE.postJson('/api/simulate', { levers: HE.leversPayload(state), scope: state.scope })).json();
       if (id === requestId) render(res);
     } catch (e) { if (id === requestId) showError(); }
   }
@@ -340,8 +465,11 @@
         saved.map((s, i) => `<option value="s:${i}">${HE.esc(s.name)}</option>`).join('') + '</optgroup>' : '');
   }
 
-  function applyScenario(levers, scope) {
+  function applyScenario(levers, scope, adjust) {
     state.levers = Object.assign({}, HE.DEFAULTS, levers || {});
+    state.adjust = HE.normalizeAdjust(adjust);
+    openRow = null;
+    $('breakdown').dataset.dim = '';
     if (scope) state.scope = HE.pruneSelection(scope, meta.dims);
     syncAllLevers();
     selectors.refresh();
@@ -352,15 +480,15 @@
     const v = e.target.value;
     if (v.startsWith('p:')) {
       const p = HE.PRESETS.find((x) => x.id === v.slice(2));
-      if (p) applyScenario(p.levers, null);
+      if (p) applyScenario(p.levers, null, {});
     } else if (v.startsWith('s:')) {
       const s = HE.loadSaved()[Number(v.slice(2))];
-      if (s) applyScenario(s.levers, s.scope);
+      if (s) applyScenario(s.levers, s.scope, s.adjust);
     }
     e.target.value = '';
   });
 
-  $('resetBtn').addEventListener('click', () => applyScenario({}, HE.emptyScope()));
+  $('resetBtn').addEventListener('click', () => applyScenario({}, HE.emptyScope(), {}));
 
   const dialog = $('saveDialog');
   $('saveBtn').addEventListener('click', () => {
@@ -378,7 +506,8 @@
     name = name.trim();
     if (!name) return;
     const list = HE.loadSaved().filter((s) => s.name !== name);
-    list.push({ name, levers: Object.assign({}, state.levers), scope: JSON.parse(JSON.stringify(state.scope)) });
+    list.push({ name, levers: Object.assign({}, state.levers), scope: JSON.parse(JSON.stringify(state.scope)),
+                adjust: JSON.parse(JSON.stringify(state.adjust)) });
     HE.storeSaved(list);
     renderLoadSelect();
   }

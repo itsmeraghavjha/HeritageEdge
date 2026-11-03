@@ -124,7 +124,7 @@ def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw):
 
 def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
     res = sim.pnl(levers_raw, scope_raw, dims, filter_raw)
-    lv = sim.parse_levers(levers_raw)
+    lv, adjust = sim.split_levers(levers_raw)
     wb = Workbook()
 
     for title, side in (("Scenario P&L", "sim"), ("Baseline P&L", "base")):
@@ -168,7 +168,20 @@ def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
         cell.fill, cell.font = HEADER_FILL, HEADER_FONT
     for key, (label, unit) in LEVER_LABELS.items():
         ws.append([label, getattr(lv, key), unit])
-    ws.column_dimensions["A"].width = 34
+    if adjust:
+        from . import data
+        title = dict(data.DIM_DEFS)
+        ws.append([])
+        ws.append(["Row adjustments (added to the levers above)", "Value", "Unit"])
+        for cell in ws[ws.max_row]:
+            cell.fill, cell.font = HEADER_FILL, HEADER_FONT
+        for dim, by_id in adjust.items():
+            for key, levers in by_id.items():
+                name = data.LABEL[dim].get(key, key)
+                for lever, value in levers.items():
+                    label, unit = LEVER_LABELS[lever]
+                    ws.append([f"{title[dim]}: {name}. {label}", value, unit])
+    ws.column_dimensions["A"].width = 60
     ws.column_dimensions["C"].width = 16
 
     buf = io.BytesIO()

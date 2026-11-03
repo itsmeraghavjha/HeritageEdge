@@ -88,7 +88,8 @@
   function banner() {
     const list = HE.changedLevers(state.levers);
     const scope = HE.describeSelection(state.scope, meta.dims);
-    if (!list.length) {
+    const rowChanges = HE.adjustCount(state.adjust);
+    if (!list.length && !rowChanges) {
       $('banner').className = 'banner';
       $('banner').innerHTML = 'No levers are set, so the scenario matches the baseline. <a href="/">Set levers in the simulator.</a>';
       return;
@@ -96,6 +97,7 @@
     $('banner').className = 'banner is-live';
     $('banner').innerHTML = '<strong>Scenario applied:</strong> ' +
       list.map((l) => `${HE.esc(l.label)} ${HE.esc(l.text)}`).join(', ') +
+      (rowChanges ? `${list.length ? '; ' : ''}${rowChanges} row${rowChanges > 1 ? 's' : ''} adjusted on their own` : '') +
       (scope ? `. Price, promo and chain-term levers apply only to: ${HE.esc(scope)}` : '') + '.';
   }
 
@@ -106,7 +108,7 @@
   async function load() {
     const id = ++requestId;
     try {
-      const res = await (await HE.postJson('/api/pnl', { levers: state.levers, scope: state.scope, dims: dims() })).json();
+      const res = await (await HE.postJson('/api/pnl', { levers: HE.leversPayload(state), scope: state.scope, dims: dims() })).json();
       if (id !== requestId) return;
       data = res;
       if (!expanded.size) data.tree.forEach((n) => { if (n.children) expanded.add(n.id); });
@@ -173,7 +175,7 @@
     const btn = $('exportBtn');
     btn.disabled = true;
     try {
-      const r = await HE.postJson('/api/export', { levers: state.levers, scope: state.scope, dims: dims() });
+      const r = await HE.postJson('/api/export', { levers: HE.leversPayload(state), scope: state.scope, dims: dims() });
       const url = URL.createObjectURL(await r.blob());
       const a = document.createElement('a');
       a.href = url;

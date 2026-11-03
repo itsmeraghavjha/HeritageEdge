@@ -50,6 +50,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - Plain, specific UI copy in sentence case. No all-caps labels, no arrows on buttons.
 - Money is shown in Indian units: crore (Cr) and lakh (L). Tables use rupees lakh.
 - Colour carries meaning: green is good for profit, red is bad. For cost lines (COGS, promo, rebates, S&D, P&A, interest, over/under, marketing) an increase is bad, so those use inverted colouring (see the `goodUp` flag in `simulator.js` and `pnl.js`).
+- Row adjustments (`adjust` inside the levers value) add the five commercial levers to single chains, categories, SKUs or states; see `docs/HOW_IT_WORKS.md`.
 - The simulator screen reports the selected rows only, and every lever applies to them. On the P&L page the cost levers (COGS change, S&D / freight) apply to every row and the other levers respect the scope.
 - Contribution is gross margin less over/under and S&D (the MIS definition of MC). Net margin is contribution less P&A, interest and marketing.
 - Every maths change needs a test in `tests/test_engine.py` (or `test_prepare.py` for the build) and an update to `docs/HOW_IT_WORKS.md`.

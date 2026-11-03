@@ -108,17 +108,40 @@
   }
   const hasSelection = (sel) => Object.keys(sel || {}).some((k) => (sel[k] || []).length);
 
+  /* ---------- row adjustments: a lever set on one chain, product category, SKU or state ---------- */
+  const ADJUST_DIMS = ['chain', 'family', 'sku', 'state'];
+  const ADJUST_KEYS = ['price_change_pct', 'promo_add_pp', 'trade_margin_add_pp', 'rebate_add_pp', 'volume_change_pct'];
+  function normalizeAdjust(raw) {
+    const out = {};
+    ADJUST_DIMS.forEach((dim) => {
+      Object.keys((raw || {})[dim] || {}).forEach((id) => {
+        const clean = {};
+        ADJUST_KEYS.forEach((k) => {
+          const v = Number(raw[dim][id][k]);
+          if (v && Number.isFinite(v)) clean[k] = v;
+        });
+        if (Object.keys(clean).length) (out[dim] = out[dim] || {})[String(id)] = clean;
+      });
+    });
+    return out;
+  }
+  const adjustCount = (adjust) => ADJUST_DIMS.reduce((n, d) => n + Object.keys((adjust || {})[d] || {}).length, 0);
+  // What goes to the server as "levers": the screen's levers plus the row adjustments.
+  const leversPayload = (state) => (adjustCount(state.adjust)
+    ? Object.assign({}, state.levers, { adjust: state.adjust }) : state.levers);
+
   function loadState() {
     const s = read(STATE_KEY, null) || read('heritageedge:scenario:v1', {});
     return {
       levers: Object.assign({}, DEFAULTS, s.levers || {}),
       scope: normalizeSelection(s.scope),
+      adjust: normalizeAdjust(s.adjust),
     };
   }
   function saveState(state) { write(STATE_KEY, state); }
   function loadSaved() {
     const list = read(SAVED_KEY, null) || read('heritageedge:saved:v1', []);
-    return list.map((x) => Object.assign({}, x, { scope: normalizeSelection(x.scope) }));
+    return list.map((x) => Object.assign({}, x, { scope: normalizeSelection(x.scope), adjust: normalizeAdjust(x.adjust) }));
   }
   function storeSaved(list) { write(SAVED_KEY, list); }
 
@@ -332,6 +355,7 @@
     DEFAULTS, GROUPS, FLAT, PRESETS,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,
+    ADJUST_DIMS, ADJUST_KEYS, normalizeAdjust, adjustCount, leversPayload,
     postJson, inr, inrSigned, lakh, lakhSigned, thousands, pct, pp, rel, relText, tone, esc,
     leverText, changedLevers, MINUS,
   };

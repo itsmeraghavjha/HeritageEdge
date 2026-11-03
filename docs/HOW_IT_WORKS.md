@@ -78,6 +78,18 @@ Volume is the one number the data cannot give us: we hold no competitor prices, 
 
 There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
 
+## Row adjustments
+
+Under "Where it lands", a chain, product category, SKU or state can carry its own price, promo, trade margin, other deductions and volume change (the **Adjust** button on each row). They are the five commercial levers; the two cost levers stay global.
+
+- **Added to the screen's levers.** For a row of data, the effective lever is the screen's value plus every adjustment that matches the row (its chain, its category, its SKU, its state), then clamped to the lever's limit in `LIMITS`. Where two adjustments match one row, for example a chain and a SKU, they add up.
+- **Same maths as a selection.** Adjusting promo by +3 pp on one chain gives the same numbers as selecting that chain and setting +3 pp. A test checks it.
+- **Selection still decides what is shown and changed.** Adjustments only matter for rows inside the selection.
+- **Per-row breakeven.** Each row group shows its own breakeven: the extra volume that brings the group's contribution back to today's at the new terms, using the same formula as the screen-level breakeven but for that group.
+- **Volume ladder.** If volume is set on rows, there is no single entered figure, so the marked line is the scenario's actual overall volume change. The other lines use one volume change for every row.
+- **Not modelled.** A promo on one SKU may take sales from another (cannibalisation). Each row's volume is your own estimate, so the total can be lower than the sum of the rows.
+- **Where it lives.** The adjustments travel inside the `levers` value as `adjust: {dimension: {id: {lever: value}}}`. They are saved with scenarios, applied on the P&L page, and listed on the "Scenario levers" sheet of the Excel export. "Clear all row changes" and "Reset levers" remove them.
+
 ## The contribution bridge
 
 The chart on the simulator page answers "which of my changes is doing what?". It applies lever groups one at a time (price, then promo, then trade terms, then costs) **with volume held at baseline**, so each bar is a pure rate effect. Whatever remains is the **volume you expect**. The bars always add up exactly to the scenario contribution.

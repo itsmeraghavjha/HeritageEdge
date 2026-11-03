@@ -361,6 +361,96 @@ def test_the_bridge_volume_step_is_the_volume_you_entered():
     assert close(out["bridge"][0]["value"] + sum(s["value"] for s in out["bridge"][1:-1]), out["sim"]["cm"])
 
 
+# ---------- row adjustments (a lever set on one chain, category, SKU or state) ----------
+def test_a_row_adjustment_equals_selecting_that_row_and_pulling_the_lever():
+    chain = first("chain")
+    a = sim.simulate({"adjust": {"chain": {str(chain): {"promo_add_pp": 3, "volume_change_pct": 10}}}}, {"chain": [chain]})
+    b = sim.simulate({"promo_add_pp": 3, "volume_change_pct": 10}, {"chain": [chain]})
+    for k in ("units", "net", "cm", "nm"):
+        assert close(a["sim"][k], b["sim"][k])
+
+
+def test_a_row_adjustment_changes_only_that_row():
+    chain, other = first("chain"), last("chain")
+    out = sim.simulate({"adjust": {"chain": {str(chain): {"price_change_pct": 5}}}}, {})
+    by = {c["id"]: c for c in out["breakdown"]["chain"]}
+    assert not close(by[chain]["sim"]["net"], by[chain]["base"]["net"])
+    assert close(by[other]["sim"]["net"], by[other]["base"]["net"])
+
+
+def test_adjustments_on_overlapping_rows_add_up():
+    chain, sku = first("chain"), first("sku")
+    both = sim.simulate({"adjust": {"chain": {str(chain): {"promo_add_pp": 2}}, "sku": {str(sku): {"promo_add_pp": 3}}}}, {})
+    plain = sim.simulate({"promo_add_pp": 5}, {"chain": [chain], "sku": [sku]})
+    scoped_both = sim.simulate({"adjust": {"chain": {str(chain): {"promo_add_pp": 2}}, "sku": {str(sku): {"promo_add_pp": 3}}}},
+                               {"chain": [chain], "sku": [sku]})
+    assert close(scoped_both["sim"]["cm"], plain["sim"]["cm"])      # the rows where both match get 2 + 3 pp
+    assert not close(both["sim"]["cm"], both["base"]["cm"])
+
+
+def test_adjustments_stack_on_the_screens_levers_and_stay_within_limits():
+    chain = first("chain")
+    lo, hi = sim.LIMITS["promo_add_pp"]
+    out = sim.simulate({"promo_add_pp": hi, "adjust": {"chain": {str(chain): {"promo_add_pp": hi}}}}, {"chain": [chain]})
+    same = sim.simulate({"promo_add_pp": hi}, {"chain": [chain]})
+    assert close(out["sim"]["cm"], same["sim"]["cm"])               # the total is clamped to the lever's limit
+
+
+def test_bad_adjustments_are_ignored():
+    chain = first("chain")
+    out = sim.simulate({"adjust": {"nonsense": {"x": {"promo_add_pp": 3}}, "chain": {str(chain): {"bogus": 9, "promo_add_pp": "x"}}}}, {})
+    assert close(out["sim"]["cm"], out["base"]["cm"])
+    assert sim.parse_adjust({"chain": {"a": {"promo_add_pp": 999}}})["chain"]["a"]["promo_add_pp"] == sim.LIMITS["promo_add_pp"][1]
+
+
+def test_the_bridge_still_reconciles_with_row_adjustments():
+    chain, sku = first("chain"), first("sku")
+    out = sim.simulate({"price_change_pct": 2, "cogs_change_pct": 3, "volume_change_pct": 4,
+                        "adjust": {"chain": {str(chain): {"promo_add_pp": 3, "volume_change_pct": 6}},
+                                   "sku": {str(sku): {"trade_margin_add_pp": 1}}}}, {})
+    steps = out["bridge"]
+    assert close(steps[0]["value"] + sum(s["value"] for s in steps[1:-1]), steps[-1]["value"])
+    assert close(steps[-1]["value"], out["sim"]["cm"])
+
+
+def test_each_group_reports_its_own_breakeven_volume():
+    chain = first("chain")
+    out = sim.simulate({"promo_add_pp": 2}, {})
+    node = [c for c in out["breakdown"]["chain"] if c["id"] == chain][0]
+    v = node["volume"]
+    assert v["status"] == "needs" and v["required"] > 0
+    # check it independently: at that volume the chain's contribution is back to today's
+    levers = {"adjust": {"chain": {str(chain): {"volume_change_pct": v["required"] * 100}}}, "promo_add_pp": 2}
+    again = sim.simulate(levers, {"chain": [chain]})
+    assert close(again["sim"]["cm"], again["base"]["cm"], tol=1e-9)
+
+
+def test_the_ladder_marks_the_actual_change_when_volume_is_set_on_rows():
+    chain = first("chain")
+    out = sim.simulate({"adjust": {"chain": {str(chain): {"volume_change_pct": 10}}}}, {})
+    entered = [c for c in out["ladder"]["cases"] if c["entered"]]
+    assert len(entered) == 1 and close(entered[0]["units"], out["sim"]["units"])
+    assert 0 < entered[0]["volume_pct"] < 10
+
+
+def test_pnl_uses_row_adjustments_too():
+    chain = first("chain")
+    res = sim.pnl({"adjust": {"chain": {str(chain): {"price_change_pct": 4}}}}, {}, ["chain"])
+    by = {n["id"].split(":")[-1]: n for n in res["tree"]}
+    assert not close(by[str(chain)]["sim"]["net"], by[str(chain)]["base"]["net"])
+
+
+def test_excel_export_lists_row_adjustments():
+    import openpyxl
+    from engine import export
+    chain = first("chain")
+    buf = export.build_workbook({"adjust": {"chain": {str(chain): {"promo_add_pp": 3}}}}, {}, ["chain"], {})
+    ws = openpyxl.load_workbook(buf)["Scenario levers"]
+    texts = [str(ws.cell(row=r, column=1).value) for r in range(1, ws.max_row + 1)]
+    assert any("Row adjustments" in t for t in texts)
+    assert any(data.LABEL["chain"][chain] in t and "Extra promo discount" in t for t in texts)
+
+
 def test_excel_export_has_collapsible_rows_and_red_negatives():
     import openpyxl
     from engine import export

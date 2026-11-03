@@ -59,6 +59,71 @@ class Levers:
 
 DEFAULT_LEVERS = Levers()
 
+# Row adjustments: a lever can also be set on a single chain, product category, SKU or state. They are added to the
+# screen's levers for the rows they match; where several match one row (a chain and a SKU, say) they add up.
+ADJUST_DIMS = ("chain", "family", "sku", "state")
+ADJUST_LEVERS = ("price_change_pct", "promo_add_pp", "trade_margin_add_pp", "rebate_add_pp", "volume_change_pct")
+
+
+def parse_adjust(raw):
+    """{dim: {id: {lever: number}}} -> the same, with unknown names dropped, numbers clamped and zeros removed."""
+    out = {}
+    for dim, by_id in (raw or {}).items():
+        if dim not in ADJUST_DIMS or not isinstance(by_id, dict):
+            continue
+        for key, levers in by_id.items():
+            if not isinstance(levers, dict):
+                continue
+            clean = {}
+            for name in ADJUST_LEVERS:
+                try:
+                    v = float(levers.get(name, 0.0))
+                except (TypeError, ValueError):
+                    continue
+                lo, hi = LIMITS[name]
+                v = min(hi, max(lo, v))
+                if v:
+                    clean[name] = v
+            if clean:
+                out.setdefault(dim, {})[str(key)] = clean
+    return out
+
+
+def split_levers(raw):
+    """The levers dict the API receives may carry an "adjust" entry. Returns (Levers, adjust)."""
+    raw = raw or {}
+    return parse_levers(raw), parse_adjust(raw.get("adjust"))
+
+
+def has_volume_adjust(adjust):
+    return any("volume_change_pct" in a for by_id in (adjust or {}).values() for a in by_id.values())
+
+
+def make_resolver(lv, adjust, skip=()):
+    """A function row -> the Levers that apply to that row: the screen's levers plus every adjustment that matches it.
+    `skip` names levers whose adjustments are left out (the bridge adds them one group at a time)."""
+    if not adjust:
+        return lambda row: lv
+    cache = {}
+
+    def resolve(row):
+        extra = {}
+        for dim, by_id in adjust.items():
+            a = by_id.get(str(row[dim]))
+            if a:
+                for k, v in a.items():
+                    if k not in skip:
+                        extra[k] = extra.get(k, 0.0) + v
+        if not extra:
+            return lv
+        sig = tuple(sorted(extra.items()))
+        got = cache.get(sig)
+        if got is None:
+            got = replace(lv, **{k: min(LIMITS[k][1], max(LIMITS[k][0], getattr(lv, k) + v)) for k, v in extra.items()})
+            cache[sig] = got
+        return got
+    return resolve
+
 
 def parse_levers(raw):
     raw = raw or {}
@@ -169,11 +234,12 @@ def view_rows(scope):
     return [data.ROWS[i] for i in keep], [BASE_METRICS[i] for i in keep]
 
 
-def scenario_metrics(lv, scope, rows=None):
-    return [calc_row(r, lv, in_scope(r, scope)) for r in (data.ROWS if rows is None else rows)]
+def scenario_metrics(lv, scope, rows=None, adjust=None):
+    resolve = make_resolver(lv, adjust)
+    return [calc_row(r, resolve(r), in_scope(r, scope)) for r in (data.ROWS if rows is None else rows)]
 
 
-def bridge(lv, scope, sims=None, rows=None, base=None):
+def bridge(lv, scope, sims=None, rows=None, base=None, adjust=None):
     """Contribution bridge from baseline to scenario.
 
     Levers are layered on one group at a time with volume held at baseline,
@@ -184,7 +250,8 @@ def bridge(lv, scope, sims=None, rows=None, base=None):
 
     def cm_for(partial):
         cand = Levers(**{**DEFAULT_LEVERS.__dict__, **partial})
-        return sum(calc_row(r, cand, in_scope(r, scope), fixed_volume=True)["cm"]
+        resolve = make_resolver(cand, adjust, skip=set(ADJUST_LEVERS) - set(partial))
+        return sum(calc_row(r, resolve(r), in_scope(r, scope), fixed_volume=True)["cm"]
                    for r in rows)
 
     groups = [
@@ -196,7 +263,7 @@ def bridge(lv, scope, sims=None, rows=None, base=None):
                            "freight_change_pct": lv.freight_change_pct}),
     ]
     base_cm = sum(m["cm"] for m in base)
-    full_cm = sum(m["cm"] for m in (sims if sims is not None else scenario_metrics(lv, scope, rows)))
+    full_cm = sum(m["cm"] for m in (sims if sims is not None else scenario_metrics(lv, scope, rows, adjust)))
 
     steps = [{"key": "baseline", "label": "Baseline", "kind": "total", "value": base_cm}]
     applied, prev = {}, base_cm
@@ -211,7 +278,7 @@ def bridge(lv, scope, sims=None, rows=None, base=None):
     return steps
 
 
-def breakeven(lv, scope, sims=None, rows=None, base=None):
+def breakeven(lv, scope, sims=None, rows=None, base=None, adjust=None):
     """How much extra volume the scenario needs to match today's contribution.
 
     The levers change what each pack earns. This asks: at the new terms, how many more packs (the same
@@ -227,8 +294,9 @@ def breakeven(lv, scope, sims=None, rows=None, base=None):
     rows = data.ROWS if rows is None else rows
     base = BASE_METRICS if base is None else base
     inside = [in_scope(r, scope) for r in rows]
-    sims = sims if sims is not None else scenario_metrics(lv, scope, rows)
-    fixed = [calc_row(r, lv, a, fixed_volume=True) for r, a in zip(rows, inside)]
+    sims = sims if sims is not None else scenario_metrics(lv, scope, rows, adjust)
+    resolve = make_resolver(lv, adjust)
+    fixed = [calc_row(r, resolve(r), a, fixed_volume=True) for r, a in zip(rows, inside)]
     base_cm = sum(m["cm"] for m in base)
     cm_in = sum(f["cm"] for f, a in zip(fixed, inside) if a)
     cm_out = sum(f["cm"] for f, a in zip(fixed, inside) if not a)
@@ -250,18 +318,20 @@ def breakeven(lv, scope, sims=None, rows=None, base=None):
     return out
 
 
-def suggested_volume_change(lv, scope, rows=None):
+def suggested_volume_change(lv, scope, rows=None, adjust=None):
     """What the model's elasticities say the volume change would be for the price, promo and chain-term levers.
 
     This is a hint, shown next to the volume the user enters. It is an assumption (elasticities by product family,
     a promo boost, shelf-push constants), not a forecast, and it never feeds the numbers unless the user adopts it.
     Returns the units-weighted change over the rows in scope, as a fraction (0.05 = +5%)."""
-    price = lv.price_change_pct / 100
-    promo_add, trade_add, rebate_add = lv.promo_add_pp / 100, lv.trade_margin_add_pp / 100, lv.rebate_add_pp / 100
+    resolve = make_resolver(lv, adjust, skip=("volume_change_pct",))
     num = den = 0.0
     for r in (data.ROWS if rows is None else rows):
         if not in_scope(r, scope):
             continue
+        rl = resolve(r)
+        price = rl.price_change_pct / 100
+        promo_add, trade_add, rebate_add = rl.promo_add_pp / 100, rl.trade_margin_add_pp / 100, rl.rebate_add_pp / 100
         trade = min(0.4, max(0.0, r["trade"] + trade_add))
         promo_delta = max(0.0, r["promo_rate"] + promo_add) - r["promo_rate"]
         promo_ratio = 1 - PROMO_PASS_THROUGH * promo_delta * (1 - r["trade"])
@@ -274,7 +344,7 @@ def suggested_volume_change(lv, scope, rows=None):
     return num / den - 1 if den else 0.0
 
 
-def volume_ladder(lv, scope, sims=None, rows=None, base=None):
+def volume_ladder(lv, scope, sims=None, rows=None, base=None, adjust=None):
     """The same scenario at a range of volume changes, against today's baseline.
 
     One row per step in VOLUME_LADDER, plus the volume the user entered (marked). This shows how much the answer
@@ -282,16 +352,21 @@ def volume_ladder(lv, scope, sims=None, rows=None, base=None):
     rows = data.ROWS if rows is None else rows
     inside = [in_scope(r, scope) for r in rows]
     base = total(BASE_METRICS if base is None else base)
-    steps = sorted(set(VOLUME_LADDER) | {lv.volume_change_pct})
+    # With volume set on single rows there is no one entered figure: the marked case is the scenario's actual change.
+    entered = lv.volume_change_pct
+    if sims is not None and has_volume_adjust(adjust) and base["units"]:
+        entered = round((total(sims)["units"] / base["units"] - 1) * 100, 1)
+    steps = sorted(set(VOLUME_LADDER) | {entered})
+    resolve = make_resolver(lv, adjust, skip=("volume_change_pct",))
     cases = []
     for v in steps:
-        if v == lv.volume_change_pct and sims is not None:
+        if v == entered and sims is not None:
             ms = sims
         else:
             cand = replace(lv, volume_change_pct=v)
-            ms = [calc_row(r, cand, a) for r, a in zip(rows, inside)]
+            ms = [calc_row(r, replace(resolve(r), volume_change_pct=v), a) for r, a in zip(rows, inside)]
         t = total(ms)
-        cases.append({"volume_pct": v, "entered": v == lv.volume_change_pct, "units": t["units"], "net": t["net"],
+        cases.append({"volume_pct": v, "entered": v == entered, "units": t["units"], "net": t["net"],
                       "cm": t["cm"], "nm": t["nm"], "d_units": t["units"] - base["units"],
                       "d_cm": t["cm"] - base["cm"], "d_nm": t["nm"] - base["nm"]})
     return {"cases": cases}
@@ -312,12 +387,34 @@ def _group(items, dim):
     return groups
 
 
+def _group_volume(grp):
+    """Per group: the extra volume that would bring the group's contribution back to today's, at the new terms,
+    against the volume change in the scenario. Same idea as breakeven(), for one chain, SKU, category or state."""
+    base_cm = sum(g["base"]["cm"] for g in grp)
+    fixed = sum(g["fixed_cm"] for g in grp)
+    units_b = sum(g["base"]["units"] for g in grp)
+    units_s = sum(g["sim"]["units"] for g in grp)
+    assumed = units_s / units_b - 1 if units_b else 0.0
+    out = {"status": "neutral", "required": None, "assumed": assumed}
+    if not units_b or abs(fixed - base_cm) < NEUTRAL_RUPEES:
+        return out
+    if fixed <= 0:
+        out["status"] = "unreachable"
+        return out
+    required = base_cm / fixed - 1
+    out.update(status="ahead" if required <= 0 else "needs", required=required)
+    return out
+
+
 def breakdown(items, dim):
     out = []
     for key, grp in _group(items, dim).items():
-        out.append({"id": key, "label": DIM_LABEL(dim, key),
-                    "base": derive(total(g["base"] for g in grp)),
-                    "sim": derive(total(g["sim"] for g in grp))})
+        node = {"id": key, "label": DIM_LABEL(dim, key),
+                "base": derive(total(g["base"] for g in grp)),
+                "sim": derive(total(g["sim"] for g in grp))}
+        if "fixed_cm" in grp[0]:
+            node["volume"] = _group_volume(grp)
+        out.append(node)
     out.sort(key=lambda n: n["sim"]["net"], reverse=True)
     return out
 
@@ -337,8 +434,8 @@ def _tree(items, dims, level, path):
     return nodes
 
 
-def _items(lv, scope, flt=None, sims=None):
-    sims = sims if sims is not None else scenario_metrics(lv, scope)
+def _items(lv, scope, flt=None, sims=None, adjust=None):
+    sims = sims if sims is not None else scenario_metrics(lv, scope, None, adjust)
     return [{"row": r, "base": b, "sim": s}
             for r, b, s in zip(data.ROWS, BASE_METRICS, sims)
             if flt is None or passes(r, flt)]
@@ -347,17 +444,20 @@ def _items(lv, scope, flt=None, sims=None):
 def simulate(levers_raw, scope_raw):
     """Everything on the simulator screen is for the selected rows only (all rows when nothing is selected).
     So the cost levers, which apply to every row in the view, change only the selection's numbers too."""
-    lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
+    lv, adjust = split_levers(levers_raw)
+    scope = parse_scope(scope_raw)
     rows, base = view_rows(scope)
-    sims = scenario_metrics(lv, scope, rows)
-    items = [{"row": r, "base": b, "sim": m} for r, b, m in zip(rows, base, sims)]
+    sims = scenario_metrics(lv, scope, rows, adjust)
+    resolve = make_resolver(lv, adjust)
+    items = [{"row": r, "base": b, "sim": m, "fixed_cm": calc_row(r, resolve(r), True, fixed_volume=True)["cm"]}
+             for r, b, m in zip(rows, base, sims)]
     return {
         "base": derive(total(base)),
         "sim": derive(total(sims)),
-        "bridge": bridge(lv, scope, sims, rows, base),
-        "breakeven": breakeven(lv, scope, sims, rows, base),
-        "ladder": volume_ladder(lv, scope, sims, rows, base),
-        "suggested_volume": suggested_volume_change(lv, scope, rows),
+        "bridge": bridge(lv, scope, sims, rows, base, adjust),
+        "breakeven": breakeven(lv, scope, sims, rows, base, adjust),
+        "ladder": volume_ladder(lv, scope, sims, rows, base, adjust),
+        "suggested_volume": suggested_volume_change(lv, scope, rows, adjust),
         "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
         "rows_in_scope": len(rows),
         "rows_total": len(data.ROWS),
@@ -367,16 +467,17 @@ def simulate(levers_raw, scope_raw):
 
 def pnl_items(levers_raw, scope_raw, filter_raw=None):
     """One entry per dataset row that passes the filters: {"row", "base", "sim"}. Used by the Excel export."""
-    lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
-    return _items(lv, scope, parse_filter(filter_raw))
+    lv, adjust = split_levers(levers_raw)
+    return _items(lv, parse_scope(scope_raw), parse_filter(filter_raw), adjust=adjust)
 
 
 def pnl(levers_raw, scope_raw, dims, filter_raw=None):
-    lv, scope = parse_levers(levers_raw), parse_scope(scope_raw)
+    lv, adjust = split_levers(levers_raw)
+    scope = parse_scope(scope_raw)
     flt = parse_filter(filter_raw)
     dims = [d for d in (dims or []) if d in DIMS]
     dims = list(dict.fromkeys(dims)) or ["chain", "state", "sku"]
-    items = _items(lv, scope, flt)
+    items = _items(lv, scope, flt, adjust=adjust)
     return {
         "dims": dims,
         "rows_shown": len(items),

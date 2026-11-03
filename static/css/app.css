@@ -446,3 +446,16 @@ input[type="range"]::-moz-range-thumb {
 .sub.pad { padding: 4px 18px 10px; }
 
 .view-note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+
+/* ---------- per-row adjustments on "Where it lands" ---------- */
+.row-hint { margin: 0; padding: 0 18px 6px; font-size: 12.5px; color: var(--muted); }
+.row-note { margin: 0; padding: 8px 18px; font-size: 13px; background: var(--green-tint); border-bottom: 1px solid var(--line-soft); }
+.row-note[hidden] { display: none; }
+.adjust-cell { text-align: right; }
+.adjust-btn.is-adjusted { font-weight: 600; color: var(--green-text); }
+.row-edit td { padding: 0; background: #f8faf7; text-align: left; white-space: normal; }
+.row-editor { padding: 12px 18px 14px; }
+.row-editor-head { margin: 0 0 8px; font-size: 13px; }
+.row-levers { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 4px 24px; }
+.row-result { margin: 8px 0; font-size: 13px; color: var(--ink); }
+.row-actions { display: flex; gap: 8px; }
