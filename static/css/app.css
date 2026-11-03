@@ -562,3 +562,7 @@ input[type="range"]::-moz-range-thumb {
 .data tr.strong:hover > * { background: #eef5eb; }
 :where(button, a, select, input, summary):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
 .btn, .tabs button, .nav a { transition: background-color .15s, border-color .15s, color .15s; }
+
+/* wide tables use the room: always on the P&L page, and on any page once the sidebar is collapsed */
+.main:has(#pnlTable) { max-width: none; }
+html.side-collapsed .main { max-width: none; }
