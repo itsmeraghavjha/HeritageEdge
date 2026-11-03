@@ -475,7 +475,7 @@ input[type="range"]::-moz-range-thumb {
     radial-gradient(700px 500px at -20% 110%, rgba(224, 165, 38, .16), transparent 60%),
     linear-gradient(160deg, #123524 0%, #0d2a1b 100%);
 }
-.brand-net { display: block; width: 100%; max-width: 560px; height: auto; max-height: 40vh; margin: 0 0 22px; pointer-events: none; }
+.brand-net { display: block; width: 100%; max-width: 760px; height: auto; max-height: 50vh; margin: 0 0 26px; pointer-events: none; }
 .auth-brand > * { position: relative; }
 .brand-net .flow { stroke-dasharray: 5 7; animation: net-flow 2.4s linear infinite; }
 .brand-net .pulse { transform-box: fill-box; transform-origin: center; animation: net-pulse 3s ease-out infinite; }
@@ -486,8 +486,8 @@ input[type="range"]::-moz-range-thumb {
 .brand-mark { width: 38px; height: 38px; border-radius: 10px; background: rgba(255, 255, 255, .12); display: grid; place-items: center; }
 .brand-mark svg { width: 22px; height: 22px; }
 .brand-name { font-size: 19px; font-weight: 600; letter-spacing: .01em; }
-.brand-body { margin: auto 0; padding: 24px 0; max-width: 560px; }
-.brand-body h2 { font-size: 28px; line-height: 1.2; font-weight: 600; letter-spacing: -.01em; color: #fff; }
+.brand-body { margin: auto 0; padding: 16px 0; max-width: 760px; }
+.brand-body h2 { text-wrap: balance; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -.01em; color: #fff; }
 .brand-points { list-style: none; margin: 22px 0 0; padding: 0; display: grid; gap: 12px; }
 .brand-points li { padding-left: 16px; border-left: 2px solid rgba(224, 165, 38, .8); font-size: 14.5px; line-height: 1.45; color: #cfe2d5; }
 .brand-foot { font-size: 13px; color: #8fb09a; }
@@ -534,3 +534,6 @@ input[type="range"]::-moz-range-thumb {
   .auth-main { padding: 28px 16px 24px; justify-content: flex-start; }
   .auth-card { padding: 28px 22px 24px; }
 }
+
+.auth-help { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); text-align: center; }
+.brand-net text { paint-order: stroke; stroke: #0f2d1e; stroke-width: 3px; stroke-linejoin: round; }
