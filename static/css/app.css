@@ -182,7 +182,7 @@ input[type="range"]::-moz-range-thumb {
 
 .results { display: grid; gap: 18px; min-width: 0; }
 .kpis {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  display: grid; grid-template-columns: repeat(6, 1fr);
   background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden;
 }
 .kpi { padding: 16px 18px; box-shadow: 1px 1px 0 0 var(--line-soft); }
@@ -538,3 +538,27 @@ input[type="range"]::-moz-range-thumb {
 
 .auth-help { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line-soft); font-size: 13px; color: var(--muted); text-align: center; }
 .brand-net text { paint-order: stroke; stroke: #0f2d1e; stroke-width: 3px; stroke-linejoin: round; }
+
+/* ---------- polish ---------- */
+.kpi { grid-column: span 2; }
+.kpi:nth-child(n+4) { grid-column: span 3; }
+@media (min-width: 1700px) {
+  .kpis { grid-template-columns: repeat(5, 1fr); }
+  .kpi, .kpi:nth-child(n+4) { grid-column: auto; }
+}
+@media (max-width: 640px) {
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpi, .kpi:nth-child(n+4) { grid-column: auto; }
+  .kpi:last-child { grid-column: 1 / -1; }
+}
+.panel { box-shadow: 0 1px 2px rgba(18, 53, 36, .04); }
+.vol-table { border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
+.vol-table th, .vol-table td { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.vol-table thead th { color: var(--muted); font-weight: 500; font-size: 12.5px; border-bottom: 1px solid var(--line); white-space: normal; vertical-align: bottom; }
+.vol-table th:first-child, .vol-table td:first-child { padding-left: 0; }
+.vol-table td:last-child, .vol-table th:last-child { padding-right: 0; }
+.vol-table tr.is-base th, .vol-table tr.is-base td { background: #f3f9f0; }
+.data tbody tr:hover > *, .pnl tbody tr:not(.total):hover > * { background: #f4f9f2; }
+.data tr.strong:hover > * { background: #eef5eb; }
+:where(button, a, select, input, summary):focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.btn, .tabs button, .nav a { transition: background-color .15s, border-color .15s, color .15s; }
