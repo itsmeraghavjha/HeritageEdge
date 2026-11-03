@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Log in{% endblock %} | HeritageEdge</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="auth-body">
+  <div class="auth">
+    <aside class="auth-brand" aria-label="About HeritageEdge">
+      <div class="brand-top">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l5-6 4 3 7-9"/><path d="M15 6h5v5"/></svg></span>
+        <span class="brand-name">HeritageEdge</span>
+      </div>
+      <div class="brand-body">
+        <h2>Know what a promotion is worth before you run it.</h2>
+        <ul class="brand-points">
+          <li><strong>Simulate</strong><span>Price, promo, trade terms and costs, by chain, category and SKU.</span></li>
+          <li><strong>See the full P&amp;L</strong><span>From net revenue to net margin, in packs, litres and kg.</span></li>
+          <li><strong>Decide with confidence</strong><span>Breakeven volumes show what a change has to sell to pay back.</span></li>
+        </ul>
+      </div>
+      <p class="brand-foot">Heritage Foods &middot; Modern Retail Formats</p>
+    </aside>
+    <main class="auth-main">
+      <div class="auth-card">
+        <img class="auth-logo" src="{{ url_for('static', filename='img/heritage-logo.png') }}" alt="Heritage Foods">
+        {% block card %}{% endblock %}
+      </div>
+      <p class="auth-legal">Confidential. For authorised Heritage Foods users only.</p>
+    </main>
+  </div>
+  <script>
+    document.querySelectorAll('[data-reveal]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var box = btn.closest('.pw');
+        var input = box.querySelector('input');
+        var show = input.type === 'password';
+        box.querySelectorAll('input').forEach(function (i) { i.type = show ? 'text' : 'password'; });
+        btn.textContent = show ? 'Hide' : 'Show';
+        btn.setAttribute('aria-pressed', show);
+      });
+    });
+    document.querySelectorAll('form').forEach(function (f) {
+      f.addEventListener('submit', function () {
+        var b = f.querySelector('button[type=submit]');
+        if (b) { b.disabled = true; b.textContent = b.dataset.busy || 'Please wait'; }
+      });
+    });
+  </script>
+</body>
+</html>

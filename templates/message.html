@@ -1,21 +1,8 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} | HeritageEdge</title>
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-</head>
-<body>
-  <main class="login">
-    <div class="panel login-card">
-      <img class="login-logo" src="{{ url_for('static', filename='img/heritage-logo.png') }}" alt="Heritage Foods">
-      <h1>{{ title }}</h1>
-      <p class="sub">{{ text }}</p>
-      {% if link %}<a class="btn btn-primary" href="{{ link[0] }}">{{ link[1] }}</a>{% endif %}
-    </div>
-  </main>
-</body>
-</html>
+{% extends "auth_base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block card %}
+<h1>{{ title }}</h1>
+<p class="auth-sub">{{ text }}</p>
+{% if link %}<a class="auth-btn auth-btn-link" href="{{ link[0] }}">{{ link[1] }}</a>{% endif %}
+<p class="auth-alt"><a href="/login">Back to log in</a></p>
+{% endblock %}
