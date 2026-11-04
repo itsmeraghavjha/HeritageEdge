@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}HeritageEdge{% endblock %}</title>
-  <script>try{if(localStorage.getItem('heritageedge:sidebar')==='collapsed')document.documentElement.classList.add('side-collapsed')}catch(e){}</script>
+  <script>try{var s=localStorage.getItem('heritageedge:sidebar');if(s==='collapsed'||(s===null&&window.innerWidth<1500&&window.innerWidth>860))document.documentElement.classList.add('side-collapsed')}catch(e){}</script>
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

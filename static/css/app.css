@@ -566,3 +566,20 @@ input[type="range"]::-moz-range-thumb {
 /* wide tables use the room: always on the P&L page, and on any page once the sidebar is collapsed */
 .main:has(#pnlTable) { max-width: none; }
 html.side-collapsed .main { max-width: none; }
+
+/* Smaller windows and scaled displays (Windows at 125% or 150% gives about 1280 to 1536 px of room): tighter text and
+   tables, so the same screen shows what a 100% view of a larger screen would. */
+@media (min-width: 861px) and (max-width: 1600px) {
+  body { font-size: 13px; }
+  .main { padding: 22px 24px 44px; }
+  .page-head h1 { font-size: 22px; }
+  .sim-grid { grid-template-columns: 300px minmax(0, 1fr); gap: 18px; }
+  .pnl, .data { font-size: 12.5px; }
+  .pnl th, .pnl td { padding: 6px 9px; }
+  .pnl tbody th, .pnl thead th.first { min-width: 230px; }
+  .pnl thead th { font-size: 12px; }
+  .kpi { padding: 14px 15px; }
+  .kpi-value { font-size: 23px; }
+  .side { padding-left: 14px; padding-right: 14px; }
+  .brand-logo { width: 120px; }
+}
