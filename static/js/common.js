@@ -150,6 +150,17 @@
      The selection lives at holder[key] and is replaced (not edited) on every change.
      mode 'popover' draws dropdown buttons; 'inline' draws collapsible rows for narrow panels. */
   const MAX_SHOWN = 400;
+  /* Usage counting: which filter dimension was used on which screen, once per page load. Never the chosen values. */
+  const tracked = new Set();
+  function trackFilter(dim) {
+    const screen = location.pathname.indexOf('/pnl') === 0 ? 'pnl' : 'simulator';
+    if (tracked.has(screen + dim)) return;
+    tracked.add(screen + dim);
+    try {
+      fetch('/api/usage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+                            body: JSON.stringify({ filter: dim, screen }) }).catch(() => {});
+    } catch (e) { /* counting must never get in the way */ }
+  }
   function buildSelectors(cfg) {
     const { host, dims, holder, key, onChange } = cfg;
     const combos = cfg.combos || null;      // when given, each list shows only values that exist with the other choices
@@ -238,7 +249,7 @@
       const root = rootOf(box);
       const dim = root.dataset.dim;
       const set = new Set(sel()[dim] || []);
-      if (box.checked) set.add(box.value); else set.delete(box.value);
+      if (box.checked) { set.add(box.value); trackFilter(dim); } else set.delete(box.value);
       setDim(dim, [...set]);
       summarize(root);
       repaintAll();
@@ -251,7 +262,7 @@
       if (act) {
         const dim = root.dataset.dim;
         if (act === 'none') setDim(dim, []);
-        else setDim(dim, [...new Set([...(sel()[dim] || []), ...shown(root).map((o) => String(o.id))])]);
+        else { setDim(dim, [...new Set([...(sel()[dim] || []), ...shown(root).map((o) => String(o.id))])]); trackFilter(dim); }
         summarize(root);
         repaintAll();
         onChange();

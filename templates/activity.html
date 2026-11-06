@@ -40,6 +40,14 @@
   </section>
 </div>
 
+<section class="panel drawer">
+  <div class="drawer-head"><h2>Filters used</h2><span class="sub">Last 30 days. Counts how often each filter is used, never what was chosen.</span></div>
+  {% set ftop = (stats.filters|map(attribute='n')|max) if stats.filters else 1 %}
+  {% for f in stats.filters %}
+  <div class="hbar hbar-wide"><span class="hbar-name">{{ f.name }}</span><span class="hbar-track"><span style="width: {{ (100 * f.n / ftop)|round|int }}%"></span></span><span class="hbar-n">{{ f.n }}</span><span class="hbar-sub">{{ f.people }} {{ 'person' if f.people == 1 else 'people' }}{% for sc, n in f.where.items() %} &middot; {{ sc }} {{ n }}{% endfor %}</span></div>
+  {% else %}<p class="muted empty-cell">No filter has been used yet.</p>{% endfor %}
+</section>
+
 <section class="panel table-panel">
   <div class="drawer-head people-head"><h2>People</h2><span class="sub">Last 30 days</span></div>
   <div class="table-scroll">
@@ -83,7 +91,7 @@
           <td class="left muted nowrap" title="{{ e.ts|datetime }}">{{ e.ts|ago }}<span class="sub">{{ e.ts|datetime }}</span></td>
           <td class="left">{{ e.email or 'Not signed in' }}</td>
           <td class="left"><span class="badge ev-{{ e.group }}{{ ' ev-bad' if e.action == 'login_failed' }}">{{ e.label }}</span></td>
-          <td class="left muted">{% if e.action == 'view' %}{{ screens.get(e.detail, e.detail) }}{% else %}{{ e.detail }}{% endif %}</td>
+          <td class="left muted">{{ describe(e.action, e.detail) }}</td>
         </tr>
       {% else %}
         <tr><td class="left muted empty-cell" colspan="4">Nothing has been recorded{{ ' for this filter' if group or person }} yet.</td></tr>

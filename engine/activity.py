@@ -30,13 +30,14 @@ ACTIONS = {
     "mapping_uploaded": ("KAM file uploaded", "admin"),
     "alias_changed": ("Cluster matched to a chain", "admin"),
     "view": ("Opened a screen", "use"),
+    "filter": ("Used a filter", "use"),
     "export": ("Excel export", "export"),
     "data_upload": ("Data file uploaded", "data"),
     "data_pull": ("SQL volumes pulled", "data"),
     "data_build": ("Dataset built", "data"),
 }
 GROUPS = [("", "Everything"), ("access", "Sign-ins"), ("admin", "Access changes"), ("export", "Exports"),
-          ("use", "Screens"), ("data", "Data")]
+          ("use", "Screens and filters"), ("data", "Data")]
 SCREENS = {"simulator": "Promo simulator", "pnl": "P&L statement", "data": "Data", "users": "Users", "activity": "Activity"}
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -130,6 +131,9 @@ def summary(days=14, now=None):
                     "AND action IN ('login','view','export')", lo, lo + DAY)
             logins = one("SELECT COUNT(*) FROM activity WHERE ts>=? AND ts<? AND action='login'", lo, lo + DAY)
             series.append({"day": lo, "people": n, "logins": logins})
+        filters = [dict(r) for r in con.execute(
+            "SELECT detail, COUNT(*) AS n, COUNT(DISTINCT user_id) AS people FROM activity "
+            "WHERE action='filter' AND ts>=? GROUP BY detail ORDER BY n DESC", (since30,))]
         screens = [dict(r) for r in con.execute(
             "SELECT detail, COUNT(*) AS n FROM activity WHERE action='view' AND ts>=? GROUP BY detail "
             "ORDER BY n DESC", (since30,))]
@@ -145,7 +149,26 @@ def summary(days=14, now=None):
         s["pct"] = round(100 * s["people"] / peak)
     for s in screens:
         s["name"] = SCREENS.get(s["detail"], s["detail"])
-    return {"tiles": tiles, "series": series, "screens": screens, "people": {p["user_id"]: p for p in per}}
+    names = dict(data.DIM_DEFS)
+    by_dim = {}
+    for f in filters:                      # detail is "screen:dimension"; show one line per dimension across screens
+        screen, _, dim = f["detail"].partition(":")
+        row = by_dim.setdefault(dim, {"name": names.get(dim, dim), "n": 0, "people": 0, "where": {}})
+        row["n"] += f["n"]
+        row["people"] = max(row["people"], f["people"])
+        row["where"][SCREENS.get(screen, screen)] = f["n"]
+    filters = sorted(by_dim.values(), key=lambda r: -r["n"])
+    return {"tiles": tiles, "series": series, "screens": screens, "filters": filters, "people": {p["user_id"]: p for p in per}}
+
+
+def describe(action, detail):
+    """Plain wording for the detail column."""
+    if action == "view":
+        return SCREENS.get(detail, detail)
+    if action == "filter":
+        screen, _, dim = detail.partition(":")
+        return f"{dict(data.DIM_DEFS).get(dim, dim)}, on {SCREENS.get(screen, screen)}"
+    return detail
 
 
 def csv_rows(group="", user_id=None):

@@ -264,7 +264,7 @@ def admin_activity():
                      "exports_30": s.get("exports_30", 0), "views_30": s.get("views_30", 0)})
     return render_template("activity.html", active="activity", events=events, total=total, page=page, per_page=PAGE,
                            group=group, groups=activity.GROUPS, person=uid, people=rows, stats=stats,
-                           labels=activity.ACTIONS, screens=activity.SCREENS)
+                           labels=activity.ACTIONS, describe=activity.describe)
 
 
 @app.get("/admin/activity.csv")
@@ -278,7 +278,7 @@ def admin_activity_csv():
     w.writerow(["time", "email", "role", "action", "detail"])
     for r in activity.csv_rows(group if group in dict(activity.GROUPS) else "", request.args.get("person", type=int)):
         w.writerow([datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d %H:%M:%S"), r["email"], r["role"],
-                    activity.ACTIONS.get(r["action"], (r["action"],))[0], r["detail"]])
+                    activity.ACTIONS.get(r["action"], (r["action"],))[0], activity.describe(r["action"], r["detail"])])
     log("export", "activity log")
     return app.response_class(out.getvalue(), mimetype="text/csv",
                               headers={"Content-Disposition": "attachment; filename=heritageedge-activity.csv"})
@@ -534,6 +534,16 @@ def api_pnl():
     allowed, limited = visible()
     out = simulate.pnl(levers, scope, dims, flt, allowed)
     return jsonify(simulate.strip_below_cm(out) if limited else out)
+
+
+@app.post("/api/usage")
+def api_usage():
+    """Counts that a filter dimension was used on a screen. Only the dimension: never what was chosen."""
+    body = request.get_json(silent=True) or {}
+    dim, screen = body.get("filter"), body.get("screen")
+    if dim in data.DIM_IDS and screen in ("simulator", "pnl"):
+        log("filter", f"{screen}:{dim}")
+    return "", 204
 
 
 @app.post("/api/export")

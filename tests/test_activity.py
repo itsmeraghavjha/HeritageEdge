@@ -123,3 +123,21 @@ def test_nothing_is_logged_before_logins_exist(tmp_path, monkeypatch):
     c.get("/pnl")
     post_json(c, "/api/export", {})
     assert activity.recent(10)[0] == []
+
+
+def test_filter_use_counts_the_dimension_only_never_what_was_chosen(world):
+    a = client("boss@example.com", "Boss-pass-12345")
+    assert post_json(a, "/api/usage", {"filter": "state", "screen": "pnl", "values": ["Telangana"]}).status_code == 204
+    post_json(a, "/api/usage", {"filter": "state", "screen": "simulator"})
+    post_json(a, "/api/usage", {"filter": "chain", "screen": "simulator"})
+    post_json(a, "/api/usage", {"filter": "<script>", "screen": "pnl"})      # not a real dimension: ignored
+    post_json(a, "/api/usage", {"filter": "state", "screen": "elsewhere"})   # not a real screen: ignored
+    events = [e for e in activity.recent(100)[0] if e["action"] == "filter"]
+    assert sorted(e["detail"] for e in events) == ["pnl:state", "simulator:chain", "simulator:state"]
+    assert "Telangana" not in json.dumps(events)
+    rows = {f["name"]: f for f in activity.summary()["filters"]}
+    assert rows["State"]["n"] == 2 and rows["State"]["where"] == {"P&L statement": 1, "Promo simulator": 1}
+    assert rows["Chain"]["n"] == 1
+    assert activity.describe("filter", "pnl:state") == "State, on P&L statement"
+    page = a.get("/admin/activity").get_data(as_text=True)
+    assert "Filters used" in page and "State" in page
