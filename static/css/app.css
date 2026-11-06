@@ -655,3 +655,13 @@ a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .alias-row .sub { margin: 0; }
 .drawer .alias-row .sub { max-width: none; }
 .table-panel { margin-bottom: 16px; }
+
+.drawer .form-grid { grid-template-columns: 1.3fr 1.3fr auto; gap: 16px; align-items: end; }
+.drawer .form-grid .text, .drawer .form-grid select.text { height: 40px; box-sizing: border-box; }
+.drawer .form-grid .btn { height: 40px; padding: 0 20px; white-space: nowrap; }
+.drawer input[type=file].text { padding: 4px; line-height: 30px; color: var(--muted); font-size: 13px; }
+.drawer input[type=file]::file-selector-button { height: 30px; padding: 0 14px; margin-right: 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; }
+.drawer input[type=file]::file-selector-button:hover { border-color: #b9c8b5; background: #fff; }
+.drawer-note { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.drawer .sub { max-width: 90ch; }
+@media (max-width: 900px) { .drawer .form-grid { grid-template-columns: 1fr; } }

@@ -42,10 +42,10 @@
   <form method="post" action="/admin/users/upload" enctype="multipart/form-data" class="form-grid">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <label>KAM file (.xlsx)<input name="file" type="file" accept=".xlsx" class="text" required></label>
-    <label>Starting password<input name="starting_password" type="text" class="text" autocomplete="off" minlength="10" required placeholder="10 or more characters, with letters and numbers"></label>
+    <label>Starting password<input name="starting_password" type="text" class="text" autocomplete="off" minlength="10" required placeholder="At least 10, letters and numbers"></label>
     <button type="submit" class="btn btn-primary">Upload and create users</button>
   </form>
-  <p class="note">Anyone who knows the starting password can sign in as a KAM who has not signed in yet. Share it only with the KAMs.</p>
+  <p class="note drawer-note">Anyone who knows the starting password can sign in as a KAM who has not signed in yet. Share it only with the KAMs.</p>
 </section>
 
 <section class="panel drawer" id="addPanel" hidden>
