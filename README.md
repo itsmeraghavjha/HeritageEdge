@@ -4,6 +4,7 @@ A planning tool for the MRF team at Heritage Foods.
 
 - **Promo simulator** (`/`): change price, promo, chain terms and costs, enter the volume you expect, and see the effect on net revenue, gross margin, contribution and volume against a baseline. A bridge chart shows how much each lever group adds or takes away, and each chain, category, SKU or state row can be adjusted on its own.
 - **P&L statement** (`/pnl`): net revenue down to net margin, grouped in any order by chain, customer group, state, city, sales office, product category, variant, pack size and SKU. Drill down, compare baseline with scenario, and export to Excel.
+- **Users** and **Activity** (admin only): add people, upload the KAM mapping, and see who signed in, what they opened and who exported.
 - **Data** (`/data`): pull volumes from SQL Server, upload the offer file and MIS workbook, and build the dataset the other screens use.
 
 Figures are monthly run-rates in rupees. Until a real dataset is built, the app runs on **synthetic sample data**.
@@ -46,6 +47,7 @@ Details: [docs/DATA.md](docs/DATA.md).
 
 | Read | To learn |
 |---|---|
+| [docs/STATUS.md](docs/STATUS.md) | Where the project stands, what is left, how we work (start here) |
 | [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md) | What each number and lever means, and how volume responds |
 | [docs/DATA.md](docs/DATA.md) | How the dataset is built from SQL, the offer file and the MIS |
 | [docs/DECISIONS.md](docs/DECISIONS.md) | Why it was built this way, and the questions still open |

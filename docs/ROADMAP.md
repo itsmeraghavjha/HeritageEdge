@@ -1,29 +1,34 @@
 # Roadmap
 
-Roughly in order of value. Move items to "Done" with a date when finished.
+Where things stand is in `STATUS.md`. This file is the ordered list of what to do next. Move items to "Done" with a date.
+
+## Before real users
+
+1. **Host it properly**: behind HTTPS with a production server (Waitress or Gunicorn) on a company machine; set `HOST`, `APP_BASE_URL`.
+2. **Company SMTP** in `.env` so links are emailed; then retire the shared starting password.
+3. **Back up `data/`** (dataset, accounts, activity log, uploads).
+4. **Sign off the numbers** with finance: trade margin definition, GST basis, the split of other deductions, ZEPTO tie-out, 500 ML check. See `DECISIONS.md`.
 
 ## Next
 
-1. **Settle the open questions** in `DECISIONS.md`: trade margin definition, whether offer values include GST. The net margin reconciliation against the MIS is done for Aug 2026.
-2. **Record promo outcomes.** When the team runs a promo, save the planned terms, the breakeven shown, and the volume actually billed. Over time this is the only honest evidence for what uplift to expect, and it lets the breakeven be judged against real results.
-3. **Sanity-check the elasticities against history, only where it is clean.** The offer file goes back to April 2025; with at least 24 months of billing, compare modelled response with what happened for chains and SKUs with no competing change. Use it to adjust assumptions in `config/assumptions.csv`, not to forecast.
-4. **Share scenarios.** Saved scenarios live in each person's browser today. Store them on the server so the team can open, compare and comment on each other's work.
-5. **Compare scenarios side by side**, for example "Festive push" against "Price increase of 3%".
+5. **Share scenarios.** Saved scenarios live in each person's browser. Store them on the server so the team can open, compare and comment.
+6. **Compare scenarios side by side**, for example "Festive push" against "Price increase of 3%".
+7. **Record promo outcomes.** Save planned terms, the breakeven shown and the volume actually billed. It is the only honest evidence for the uplift to expect.
+8. **Sanity-check elasticities against history**, only where clean (offer file from April 2025, 24+ months of billing). Adjust `config/assumptions.csv`; do not forecast with it.
+9. Polish: clearer link-expiry messages, P&L "choose columns", one-line verdict on the simulator, self-hosted fonts.
+10. Use the usage counts (Activity page) to decide what to simplify or remove.
 
 ## Later
 
-- Per-user login and roles (view only against can edit). Today there is one shared password.
-- Deploy on a company server with a production web server instead of `python app.py`.
 - Other channels (general trade, institutional).
-- Pull the MIS from SQL Server too, if it lives there, so it no longer needs uploading.
+- Pull the MIS from SQL Server too, if it lives there.
 - A better cost-to-serve driver for S&D than cost per pack.
-- Time view: month-by-month, and promo calendars.
-- Self-hosted fonts, so the app looks identical on networks that block Google Fonts.
+- Time view: month by month, and promo calendars.
+- Several admins, managers over teams of KAMs, single sign-on.
 
 ## Done
 
-- 2026-11-06: Activity log and an admin Activity page (sign-ins, screens, exports, access changes).
-- 2026-10-10: First version of the simulator and P&L, sample data, Excel export, Heritage branding, collapsible sidebar.
-- 2026-10-11: Breakeven view and low / base / high volume response on the simulator.
-- 2026-10-20: Volume is now an input the user enters, with breakeven and a volume ladder; the model's elasticity estimate is only a suggestion.
-- 2026-10-11: Real data pipeline (SQL volumes, offer file, MIS), net margin P&L, filters and extra dimensions, Data page, optional login.
+- 2026-11-06: Merged to `main`: row adjustments, litres/kg volume, email login and Users page, KAM access and KAM screens, UI polish and compact layout, sidebar footer, activity log with filter and slider counts.
+- 2026-10-20: Volume is the user's input, with breakeven and a volume ladder; elasticity only suggests.
+- 2026-10-11: Real data pipeline (SQL volumes, offer file, MIS), net margin P&L, filters and extra dimensions, Data page; breakeven view.
+- 2026-10-10: First simulator and P&L, sample data, Excel export, Heritage branding.
