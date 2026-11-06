@@ -743,7 +743,6 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .ev-use { background: #eceeea; color: #566a5d; }
 .ev-data { background: #e6f2e2; color: #1d5f1b; }
 .ev-bad { background: #fadfd9; color: #8d2c1d; }
-.table-panel th:not(.left), .table-panel td:not(.left) { text-align: right; }
 @media (max-width: 1000px) { .act-grid { grid-template-columns: 1fr; } }
 .hbar-wide { grid-template-columns: 140px 1fr 40px 260px; }
 .hbar-sub { font-size: 12px; color: var(--muted); }
