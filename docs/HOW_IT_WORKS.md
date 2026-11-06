@@ -143,3 +143,5 @@ API (all JSON): `/api/meta`, `/api/simulate`, `/api/pnl`, `/api/export`, and for
 The page shows people active this week, sign-ins, exports and failed sign-ins, active people per day, the most-used screens, one line per person (last active, sign-ins, screens, exports; a person who has never signed in is flagged) and the event list with type and person filters.
 
 Filter use is counted too: when someone picks values in a filter (chain, state, SKU and so on) on the simulator or P&L, the browser sends only the dimension and the screen to `/api/usage`, once per dimension per screen per page load. The values chosen are never sent or stored. The Activity page shows the count per dimension, how many people used it and where, over the last 30 days.
+
+Sliders are counted the same way: when a lever is moved away from its starting value on the simulator, the browser sends only the lever's name (once per lever per page load). The amount is never sent or stored. The Activity page shows "Sliders used" with the count and number of people per lever.

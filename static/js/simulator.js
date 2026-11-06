@@ -42,6 +42,7 @@
         if (Number.isNaN(v)) v = HE.DEFAULTS[l.key];
         v = Math.min(l.max, Math.max(l.min, v));
         state.levers[l.key] = v;
+        if (v !== HE.DEFAULTS[l.key]) HE.trackLever(l.key);
         syncLever(l);
         changed();
       };

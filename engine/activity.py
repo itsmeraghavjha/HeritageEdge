@@ -31,6 +31,7 @@ ACTIONS = {
     "alias_changed": ("Cluster matched to a chain", "admin"),
     "view": ("Opened a screen", "use"),
     "filter": ("Used a filter", "use"),
+    "lever": ("Moved a lever", "use"),
     "export": ("Excel export", "export"),
     "data_upload": ("Data file uploaded", "data"),
     "data_pull": ("SQL volumes pulled", "data"),
@@ -38,6 +39,10 @@ ACTIONS = {
 }
 GROUPS = [("", "Everything"), ("access", "Sign-ins"), ("admin", "Access changes"), ("export", "Exports"),
           ("use", "Screens and filters"), ("data", "Data")]
+LEVER_NAMES = {"price_change_pct": "MRP change", "promo_add_pp": "Extra promo discount",
+               "trade_margin_add_pp": "Trade margin change", "rebate_add_pp": "Other deductions and display fees",
+               "volume_change_pct": "Volume change", "cogs_change_pct": "COGS change",
+               "freight_change_pct": "S&D / freight cost"}
 SCREENS = {"simulator": "Promo simulator", "pnl": "P&L statement", "data": "Data", "users": "Users", "activity": "Activity"}
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -134,6 +139,9 @@ def summary(days=14, now=None):
         filters = [dict(r) for r in con.execute(
             "SELECT detail, COUNT(*) AS n, COUNT(DISTINCT user_id) AS people FROM activity "
             "WHERE action='filter' AND ts>=? GROUP BY detail ORDER BY n DESC", (since30,))]
+        levers = [dict(r) for r in con.execute(
+            "SELECT detail, COUNT(*) AS n, COUNT(DISTINCT user_id) AS people FROM activity "
+            "WHERE action='lever' AND ts>=? GROUP BY detail ORDER BY n DESC", (since30,))]
         screens = [dict(r) for r in con.execute(
             "SELECT detail, COUNT(*) AS n FROM activity WHERE action='view' AND ts>=? GROUP BY detail "
             "ORDER BY n DESC", (since30,))]
@@ -158,7 +166,9 @@ def summary(days=14, now=None):
         row["people"] = max(row["people"], f["people"])
         row["where"][SCREENS.get(screen, screen)] = f["n"]
     filters = sorted(by_dim.values(), key=lambda r: -r["n"])
-    return {"tiles": tiles, "series": series, "screens": screens, "filters": filters, "people": {p["user_id"]: p for p in per}}
+    return {"tiles": tiles, "series": series, "screens": screens, "filters": filters,
+            "levers": [{"name": LEVER_NAMES.get(l["detail"], l["detail"]), "n": l["n"], "people": l["people"]}
+                       for l in levers], "people": {p["user_id"]: p for p in per}}
 
 
 def describe(action, detail):
@@ -168,6 +178,8 @@ def describe(action, detail):
     if action == "filter":
         screen, _, dim = detail.partition(":")
         return f"{dict(data.DIM_DEFS).get(dim, dim)}, on {SCREENS.get(screen, screen)}"
+    if action == "lever":
+        return LEVER_NAMES.get(detail, detail)
     return detail
 
 

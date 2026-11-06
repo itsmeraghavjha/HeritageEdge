@@ -41,11 +41,19 @@
 </div>
 
 <section class="panel drawer">
-  <div class="drawer-head"><h2>Filters used</h2><span class="sub">Last 30 days. Counts how often each filter is used, never what was chosen.</span></div>
+  <div class="drawer-head"><h2>Selections used</h2><span class="sub">Last 30 days. Counts how often each of the chain, state, SKU and other pickers is used, never what was chosen.</span></div>
   {% set ftop = (stats.filters|map(attribute='n')|max) if stats.filters else 1 %}
   {% for f in stats.filters %}
   <div class="hbar hbar-wide"><span class="hbar-name">{{ f.name }}</span><span class="hbar-track"><span style="width: {{ (100 * f.n / ftop)|round|int }}%"></span></span><span class="hbar-n">{{ f.n }}</span><span class="hbar-sub">{{ f.people }} {{ 'person' if f.people == 1 else 'people' }}{% for sc, n in f.where.items() %} &middot; {{ sc }} {{ n }}{% endfor %}</span></div>
   {% else %}<p class="muted empty-cell">No filter has been used yet.</p>{% endfor %}
+</section>
+
+<section class="panel drawer">
+  <div class="drawer-head"><h2>Sliders used</h2><span class="sub">Last 30 days. Counts how often each lever is moved away from its starting value, never by how much.</span></div>
+  {% set ltop = (stats.levers|map(attribute='n')|max) if stats.levers else 1 %}
+  {% for l in stats.levers %}
+  <div class="hbar hbar-wide"><span class="hbar-name">{{ l.name }}</span><span class="hbar-track"><span style="width: {{ (100 * l.n / ltop)|round|int }}%"></span></span><span class="hbar-n">{{ l.n }}</span><span class="hbar-sub">{{ l.people }} {{ 'person' if l.people == 1 else 'people' }}</span></div>
+  {% else %}<p class="muted empty-cell">No lever has been moved yet.</p>{% endfor %}
 </section>
 
 <section class="panel table-panel">

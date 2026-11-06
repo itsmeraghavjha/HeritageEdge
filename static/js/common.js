@@ -161,6 +161,15 @@
                             body: JSON.stringify({ filter: dim, screen }) }).catch(() => {});
     } catch (e) { /* counting must never get in the way */ }
   }
+  /* Same for levers: which lever was moved away from its default, once per page load. Never the value. */
+  function trackLever(key) {
+    if (tracked.has('lever' + key)) return;
+    tracked.add('lever' + key);
+    try {
+      fetch('/api/usage', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+                            body: JSON.stringify({ lever: key }) }).catch(() => {});
+    } catch (e) { /* counting must never get in the way */ }
+  }
   function buildSelectors(cfg) {
     const { host, dims, holder, key, onChange } = cfg;
     const combos = cfg.combos || null;      // when given, each list shows only values that exist with the other choices
@@ -370,7 +379,7 @@
 
   window.HE = {
     LIMITED, allowedKey,
-    DEFAULTS, GROUPS, FLAT, PRESETS,
+    DEFAULTS, GROUPS, FLAT, PRESETS, trackLever,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,
     ADJUST_DIMS, ADJUST_KEYS, normalizeAdjust, adjustCount, leversPayload,

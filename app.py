@@ -538,11 +538,13 @@ def api_pnl():
 
 @app.post("/api/usage")
 def api_usage():
-    """Counts that a filter dimension was used on a screen. Only the dimension: never what was chosen."""
+    """Counts that a filter dimension or a lever was used. Only its name: never what was chosen or the value set."""
     body = request.get_json(silent=True) or {}
-    dim, screen = body.get("filter"), body.get("screen")
+    dim, screen, lever = body.get("filter"), body.get("screen"), body.get("lever")
     if dim in data.DIM_IDS and screen in ("simulator", "pnl"):
         log("filter", f"{screen}:{dim}")
+    if lever in simulate.LIMITS:
+        log("lever", lever)
     return "", 204
 
 

@@ -140,4 +140,19 @@ def test_filter_use_counts_the_dimension_only_never_what_was_chosen(world):
     assert rows["Chain"]["n"] == 1
     assert activity.describe("filter", "pnl:state") == "State, on P&L statement"
     page = a.get("/admin/activity").get_data(as_text=True)
-    assert "Filters used" in page and "State" in page
+    assert "Selections used" in page and "State" in page
+
+
+def test_lever_use_counts_the_lever_name_only_never_the_value(world):
+    a = client("boss@example.com", "Boss-pass-12345")
+    post_json(a, "/api/usage", {"lever": "promo_add_pp", "value": 3.5})
+    post_json(a, "/api/usage", {"lever": "promo_add_pp"})
+    post_json(a, "/api/usage", {"lever": "volume_change_pct"})
+    post_json(a, "/api/usage", {"lever": "not_a_lever"})
+    events = [e for e in activity.recent(100)[0] if e["action"] == "lever"]
+    assert sorted(e["detail"] for e in events) == ["promo_add_pp", "promo_add_pp", "volume_change_pct"]
+    assert "3.5" not in json.dumps(events)
+    rows = {l["name"]: l for l in activity.summary()["levers"]}
+    assert rows["Extra promo discount"]["n"] == 2 and rows["Volume change"]["people"] == 1
+    assert activity.describe("lever", "promo_add_pp") == "Extra promo discount"
+    assert "Sliders used" in a.get("/admin/activity").get_data(as_text=True)
