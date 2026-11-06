@@ -135,3 +135,9 @@ API (all JSON): `/api/meta`, `/api/simulate`, `/api/pnl`, `/api/export`, and for
 - `python app.py` runs Flask's development server. Do not use it as a shared production deployment.
 - Volume is your input. The elasticities and response constants only feed the suggestion. The rate effects are exact arithmetic on the inputs.
 - Scope is the customers and SKUs present in the offer file, within Modern Formats and E-Commerce.
+
+## Activity log
+
+`engine/activity.py` keeps an event log in `data/users.db` (git-ignored) and the admin reads it on the Activity page (`/admin/activity`, with a CSV download). It records who did what and when: sign-ins, failed sign-ins, sign-outs, password changes, links sent, people added, enabled or disabled, role and mapping changes, KAM file uploads, cluster matches, screens opened (once per five minutes per person and screen, and only when the page was really shown), Excel exports (and whether they were limited to contribution), and Data page steps. It never records numbers (levers, prices, volumes, chain figures) or passwords; text typed into the email box that is not an email address is replaced before saving. Events older than 400 days are dropped. Nothing is logged until the first login account exists. Writing the log can never break a request: errors are swallowed.
+
+The page shows people active this week, sign-ins, exports and failed sign-ins, active people per day, the most-used screens, one line per person (last active, sign-ins, screens, exports; a person who has never signed in is flagged) and the event list with type and person filters.

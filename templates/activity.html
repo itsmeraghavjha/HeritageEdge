@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}Activity | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head users-head">
+  <div>
+    <h1>Activity</h1>
+    <p class="lede">Who signed in, which screens they opened, who exported and what the admin changed. The log records events only: no prices, volumes, chain figures or passwords. It is kept for {{ 400 }} days.</p>
+  </div>
+  <div class="head-actions">
+    <a class="btn" href="/admin/activity.csv?type={{ group }}{% if person %}&amp;person={{ person }}{% endif %}">Download CSV</a>
+  </div>
+</header>
+
+<div class="stats">
+  <div class="stat"><span class="stat-num">{{ stats.tiles.active_7 }}</span><span class="stat-label">People active this week</span></div>
+  <div class="stat"><span class="stat-num">{{ stats.tiles.logins_7 }}</span><span class="stat-label">Sign-ins this week</span></div>
+  <div class="stat"><span class="stat-num">{{ stats.tiles.exports_7 }}</span><span class="stat-label">Excel exports this week</span></div>
+  <div class="stat{{ ' stat-warn' if stats.tiles.failed_7 >= 5 }}"><span class="stat-num">{{ stats.tiles.failed_7 }}</span><span class="stat-label">Failed sign-ins this week</span></div>
+</div>
+
+<div class="act-grid">
+  <section class="panel drawer">
+    <div class="drawer-head"><h2>Active people per day</h2><span class="sub">Last {{ stats.series|length }} days</span></div>
+    <div class="bars" role="img" aria-label="People active on each of the last {{ stats.series|length }} days">
+      {% for d in stats.series %}
+      <div class="bar-col" title="{{ d.day|day }}: {{ d.people }} active, {{ d.logins }} sign-in{{ '' if d.logins == 1 else 's' }}">
+        <span class="bar-num">{{ d.people or '' }}</span>
+        <span class="bar" style="height: {{ [d.pct, 3]|max }}%"></span>
+        <span class="bar-label">{{ d.day|day if loop.index0 % 2 == 0 or loop.last else '' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="panel drawer">
+    <div class="drawer-head"><h2>Screens opened</h2><span class="sub">Last 30 days</span></div>
+    {% set top = (stats.screens|map(attribute='n')|max) if stats.screens else 1 %}
+    {% for s in stats.screens %}
+    <div class="hbar"><span class="hbar-name">{{ s.name }}</span><span class="hbar-track"><span style="width: {{ (100 * s.n / top)|round|int }}%"></span></span><span class="hbar-n">{{ s.n }}</span></div>
+    {% else %}<p class="muted empty-cell">Nothing yet.</p>{% endfor %}
+  </section>
+</div>
+
+<section class="panel table-panel">
+  <div class="drawer-head people-head"><h2>People</h2><span class="sub">Last 30 days</span></div>
+  <div class="table-scroll">
+    <table class="data people">
+      <thead><tr><th class="left">Person</th><th class="left">Role</th><th class="left">Last active</th><th>Sign-ins</th><th>Screens opened</th><th>Exports</th><th class="left"></th></tr></thead>
+      <tbody>
+      {% for p in people %}
+        <tr>
+          <td class="left"><div class="who-cell"><span class="avatar a{{ loop.index0 % 5 }}" aria-hidden="true">{{ ((p.name or p.email)[:1])|upper }}</span>
+            <div><strong>{{ p.name or p.email }}</strong><span class="sub">{{ p.email }}</span></div></div></td>
+          <td class="left"><span class="badge badge-{{ p.role }}">{{ role_names.get(p.role, p.role) }}</span></td>
+          <td class="left">{% if p.last_seen %}{{ p.last_seen|ago }}{% elif p.last_login %}{{ p.last_login|ago }}{% else %}<span class="badge badge-wait">Never signed in</span>{% endif %}</td>
+          <td>{{ p.logins_30 }}</td><td>{{ p.views_30 }}</td><td>{{ p.exports_30 }}</td>
+          <td class="left"><div class="row-actions"><a class="btn btn-small" href="/admin/activity?person={{ p.id }}">See activity</a></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel table-panel" id="log">
+  <div class="table-tools">
+    <div class="pills" role="group" aria-label="Filter by type">
+      {% for key, name in groups %}<a class="pill{{ ' is-on' if key == group }}" href="/admin/activity?type={{ key }}{% if person %}&amp;person={{ person }}{% endif %}#log">{{ name }}</a>{% endfor %}
+    </div>
+    <form method="get" action="/admin/activity#log" class="person-filter">
+      <input type="hidden" name="type" value="{{ group }}">
+      <select name="person" class="text" onchange="this.form.submit()" aria-label="Filter by person">
+        <option value="">Everyone</option>
+        {% for p in people %}<option value="{{ p.id }}" {{ 'selected' if person == p.id }}>{{ p.name or p.email }}</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+  <div class="table-scroll">
+    <table class="data people">
+      <thead><tr><th class="left">When</th><th class="left">Person</th><th class="left">Event</th><th class="left">Detail</th></tr></thead>
+      <tbody>
+      {% for e in events %}
+        <tr>
+          <td class="left muted nowrap" title="{{ e.ts|datetime }}">{{ e.ts|ago }}<span class="sub">{{ e.ts|datetime }}</span></td>
+          <td class="left">{{ e.email or 'Not signed in' }}</td>
+          <td class="left"><span class="badge ev-{{ e.group }}{{ ' ev-bad' if e.action == 'login_failed' }}">{{ e.label }}</span></td>
+          <td class="left muted">{% if e.action == 'view' %}{{ screens.get(e.detail, e.detail) }}{% else %}{{ e.detail }}{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td class="left muted empty-cell" colspan="4">Nothing has been recorded{{ ' for this filter' if group or person }} yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if total > per_page %}
+  <div class="pager">
+    <span class="muted">{{ (page - 1) * per_page + 1 }} to {{ [page * per_page, total]|min }} of {{ total }}</span>
+    <span>
+      {% if page > 1 %}<a class="btn btn-small" href="/admin/activity?type={{ group }}{% if person %}&amp;person={{ person }}{% endif %}&amp;page={{ page - 1 }}#log">Newer</a>{% endif %}
+      {% if page * per_page < total %}<a class="btn btn-small" href="/admin/activity?type={{ group }}{% if person %}&amp;person={{ person }}{% endif %}&amp;page={{ page + 1 }}#log">Older</a>{% endif %}
+    </span>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

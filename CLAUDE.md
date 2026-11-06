@@ -40,6 +40,7 @@ SQL Server also needs `pip install pyodbc` and the Microsoft ODBC driver. Copy `
 - `engine/datastore.py`: uploads and background jobs for the Data page.
 - `engine/simulate.py`: all the maths. `calc_row` computes one row's P&L; `simulate`, `pnl` and `bridge` aggregate. Levers are a frozen dataclass; `LIMITS` clamps API input.
 - `engine/export.py`: Excel export (openpyxl).
+- `engine/activity.py`: the activity log (who signed in, opened a screen, exported or changed access). Events only: never log numbers or passwords. A new route that exports data or changes access should call `log(...)` in `app.py`.
 - `app.py`: thin routes and the optional login. Keep logic in `engine/`.
 - `config/assumptions.csv`: elasticity per product family (feeds only the volume suggestion; volume itself is a user input). `config/attribution.csv`: whether each MIS cost is spread per pack (`volume`) or as a % of net revenue (`revenue`).
 - `static/js/common.js` defines lever definitions (`GROUPS`), defaults, presets, selectors and number formatting, shared through `window.HE`.

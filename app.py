@@ -8,7 +8,7 @@ from functools import wraps
 from flask import (Flask, g, jsonify, redirect, render_template, request, send_file, session, url_for)
 
 from engine import env  # noqa: F401  (loads .env before anything reads settings)
-from engine import access, data, datastore, export, mailer, network, prepare, simulate, sql_source, users
+from engine import access, activity, data, datastore, export, mailer, network, prepare, simulate, sql_source, users
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 ** 3          # the MIS workbook can be large
@@ -79,6 +79,34 @@ def require_login():
     return redirect(url_for("login"))
 
 
+_seen = {}
+SCREEN_OF = {"simulator_page": "simulator", "pnl_page": "pnl", "data_page": "data", "admin_users": "users",
+             "admin_activity": "activity"}
+
+
+def log(action, detail="", user=None, email=None):
+    """Records an event in the activity log. Only when people have logins, so a one-person local run stays quiet."""
+    if auth_enabled():
+        activity.record(user or g.get("user"), action, detail, email)
+
+
+def _target(uid):
+    person = users.get(uid)
+    return person["email"] if person else f"#{uid}"
+
+
+@app.after_request
+def log_screen_views(response):
+    """Counts a screen only when it was really shown: a refused page (a KAM opening Data) is not a view."""
+    screen = SCREEN_OF.get(request.endpoint)
+    if screen and request.method == "GET" and response.status_code == 200 and g.get("user"):
+        key, now = (g.user["id"], screen), time.time()
+        if now - _seen.get(key, 0) > 300:          # a reload is not a new visit
+            _seen[key] = now
+            log("view", screen)
+    return response
+
+
 def admin_only(view):
     @wraps(view)
     def wrapper(*args, **kwargs):
@@ -147,10 +175,12 @@ def login():
         except users.UserError as exc:
             time.sleep(0.5)
             error = str(exc)
+            log("login_failed", error, email=request.form.get("email", "").strip().lower())
         else:
             session.clear()
             session.permanent = True
             session["uid"] = user["id"]
+            log("login", user=user)
             return redirect(url_for("simulator_page"))
     return render_template("login.html", error=error, notice=request.args.get("notice"),
                            email=request.form.get("email", ""))
@@ -163,6 +193,7 @@ def forgot():
         user = users.get_by_email(request.form.get("email", ""))
         if user and user["active"]:
             send_link(user, "reset")
+            log("link_sent", "from Forgot password", user=user)
         sent = True          # the same answer whether or not the email has an account
     return render_template("forgot.html", sent=sent)
 
@@ -184,12 +215,14 @@ def set_password(token):
                 error = str(exc)
             else:
                 session.clear()
+                log("password_set", user=user)
                 return redirect(url_for("login", notice="Password saved. Log in with your new password."))
     return render_template("set_password.html", error=error, email=user["email"], min_length=users.MIN_PASSWORD)
 
 
 @app.post("/logout")
 def logout():
+    log("logout")
     session.clear()
     return redirect(url_for("login"))
 
@@ -207,6 +240,48 @@ def admin_users():
     return render_template("users.html", active="users", people=people, counts=counts, email_ready=mailer.configured(),
                            message=session.pop("people_msg", None), unmatched=access.unmatched_clusters(),
                            chains=access.chain_names(), aliases=_alias_view())
+
+
+# ---------- admin: activity ----------
+PAGE = 40
+
+
+@app.get("/admin/activity")
+@admin_only
+def admin_activity():
+    group = request.args.get("type", "")
+    if group not in dict(activity.GROUPS):
+        group = ""
+    uid = request.args.get("person", type=int)
+    page = max(request.args.get("page", 1, type=int), 1)
+    events, total = activity.recent(PAGE, (page - 1) * PAGE, group, uid)
+    stats = activity.summary()
+    people = users.list_users()
+    rows = []
+    for p in people:
+        s = stats["people"].get(p["id"], {})
+        rows.append({**dict(p), "last_seen": s.get("last_seen"), "logins_30": s.get("logins_30", 0),
+                     "exports_30": s.get("exports_30", 0), "views_30": s.get("views_30", 0)})
+    return render_template("activity.html", active="activity", events=events, total=total, page=page, per_page=PAGE,
+                           group=group, groups=activity.GROUPS, person=uid, people=rows, stats=stats,
+                           labels=activity.ACTIONS, screens=activity.SCREENS)
+
+
+@app.get("/admin/activity.csv")
+@admin_only
+def admin_activity_csv():
+    import csv
+    import io
+    group = request.args.get("type", "")
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(["time", "email", "role", "action", "detail"])
+    for r in activity.csv_rows(group if group in dict(activity.GROUPS) else "", request.args.get("person", type=int)):
+        w.writerow([datetime.fromtimestamp(r["ts"]).strftime("%Y-%m-%d %H:%M:%S"), r["email"], r["role"],
+                    activity.ACTIONS.get(r["action"], (r["action"],))[0], r["detail"]])
+    log("export", "activity log")
+    return app.response_class(out.getvalue(), mimetype="text/csv",
+                              headers={"Content-Disposition": "attachment; filename=heritageedge-activity.csv"})
 
 
 def _alias_view():
@@ -233,6 +308,7 @@ def admin_users_new():
     except users.UserError as exc:
         return _done(str(exc))
     user = users.get(uid)
+    log("user_created", f"{user['email']} as {users.ROLE_NAMES.get(role, role)}")
     sent, link = send_link(user, "invite")
     if sent:
         return _done(f"Account created. A link to set a password was emailed to {user['email']}.")
@@ -250,6 +326,7 @@ def admin_users_upload():
         report = access.import_mapping(file, request.form.get("starting_password", ""))
     except users.UserError as exc:
         return _done(str(exc))
+    log("mapping_uploaded", str(report).splitlines()[0] if report else "")
     return _done(report)
 
 
@@ -288,6 +365,7 @@ def admin_user_details(uid):
             users.set_role(uid, role)
     except users.UserError as exc:
         return _back(uid, str(exc))
+    log("role_changed", f"{_target(uid)}, role {role or 'unchanged'}")
     return _back(uid, "Saved.")
 
 
@@ -298,6 +376,7 @@ def admin_user_scope_add(uid):
         users.add_scope(uid, request.form.get("state", ""), request.form.get("cluster", ""))
     except users.UserError as exc:
         return _back(uid, str(exc))
+    log("mapping_added", f"{_target(uid)}: {request.form.get('state', '')} / {request.form.get('cluster', '')}")
     return _back(uid, "Mapping added.")
 
 
@@ -305,6 +384,7 @@ def admin_user_scope_add(uid):
 @admin_only
 def admin_user_scope_remove(uid, sid):
     users.remove_scope(uid, sid)
+    log("mapping_removed", _target(uid))
     return _back(uid, "Mapping removed.")
 
 
@@ -316,6 +396,7 @@ def admin_alias():
     if not cluster:
         return _done("Choose a cluster.")
     users.set_alias(cluster, chain)
+    log("alias_changed", f"{request.form.get('cluster', '')} to {request.form.get('chain', '') or 'nothing'}")
     return _done("Alias saved." if chain else "Alias removed.")
 
 
@@ -333,6 +414,7 @@ def change_password():
             except users.UserError as exc:
                 error = str(exc)
             else:
+                log("password_changed")
                 return redirect(url_for("simulator_page"))
     return render_template("change_password.html", error=error, forced=bool(g.user["must_change"]),
                            min_length=users.MIN_PASSWORD)
@@ -347,6 +429,7 @@ def admin_users_active(uid):
     except users.UserError as exc:
         return _done(str(exc))
     user = users.get(uid)
+    log("user_enabled" if on else "user_disabled", user["email"])
     return _done(f"{user['email']} is now {'enabled' if on else 'disabled'}.")
 
 
@@ -357,6 +440,7 @@ def admin_users_link(uid):
     if not user or not user["active"]:
         return _done("Enable the account first.")
     sent, link = send_link(user, "invite")
+    log("link_sent", user["email"])
     if sent:
         return _done(f"A new link was emailed to {user['email']}.")
     return _done(f"The email could not be sent. Send {user['email']} this link yourself:", link)
@@ -380,6 +464,25 @@ def inject_globals():
 @app.template_filter("datetime")
 def _datetime(ts):
     return datetime.fromtimestamp(ts).strftime("%d %b %Y, %H:%M")
+
+
+@app.template_filter("day")
+def _day(ts):
+    return datetime.fromtimestamp(ts).strftime("%d %b")
+
+
+@app.template_filter("ago")
+def _ago(ts):
+    if not ts:
+        return "Never"
+    secs = max(time.time() - ts, 0)
+    if secs < 90:
+        return "Just now"
+    for size, unit in ((86400, "day"), (3600, "hour"), (60, "minute")):
+        if secs >= size:
+            n = int(secs // size)
+            return f"{n} {unit}{'' if n == 1 else 's'} ago"
+    return "Just now"
 
 
 # ---------- pages ----------
@@ -438,6 +541,7 @@ def api_export():
     levers, scope, dims, flt = _payload()
     allowed, limited = visible()
     buf = export.build_workbook(levers, scope, dims, flt, allowed, limited)
+    log("export", "to contribution only" if limited else "full P&L")
     return send_file(buf, as_attachment=True, download_name="heritageedge-pnl.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -459,6 +563,7 @@ def data_upload(kind):
         info = datastore.save_upload(kind, file)
     except prepare.DataError as exc:
         return jsonify(error=str(exc)), 400
+    log("data_upload", kind)
     return jsonify(info)
 
 
@@ -475,6 +580,7 @@ def data_sql_pull():
     start = (request.get_json(silent=True) or {}).get("start") or sql_source.default_start().isoformat()
     if not datastore.pull_billing(start):
         return jsonify(error="Another step is still running."), 409
+    log("data_pull", f"from {start}")
     return jsonify(started=True)
 
 
@@ -484,6 +590,7 @@ def data_build():
     months = (request.get_json(silent=True) or {}).get("months") or []
     if not datastore.build(months):
         return jsonify(error="Another step is still running."), 409
+    log("data_build", f"{len(months)} base month{'' if len(months) == 1 else 's'}")
     return jsonify(started=True)
 
 

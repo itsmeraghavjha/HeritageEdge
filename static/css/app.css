@@ -717,3 +717,31 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 @media (max-width: 900px) { .drawer .add-map { grid-template-columns: 1fr; } }
 .drawer .details-grid { grid-template-columns: 1.3fr 1fr 1.2fr auto; }
 @media (max-width: 900px) { .drawer .details-grid { grid-template-columns: 1fr; } }
+
+/* ---------- activity page ---------- */
+.act-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: 16px; margin-bottom: 16px; }
+.act-grid .drawer { margin: 0; }
+.bars { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: 8px; }
+.bar-col { flex: 1; height: 100%; display: grid; grid-template-rows: 16px 1fr 18px; justify-items: center; align-items: end; min-width: 0; }
+.bar { width: 100%; max-width: 28px; background: var(--green); border-radius: 4px 4px 0 0; min-height: 3px; opacity: .9; }
+.bar-col:hover .bar { opacity: 1; }
+.bar-num { font-size: 11px; color: var(--muted); align-self: end; }
+.bar-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.hbar { display: grid; grid-template-columns: 120px 1fr 32px; gap: 10px; align-items: center; padding: 8px 0; font-size: 13px; }
+.hbar-track { height: 8px; background: var(--line-soft); border-radius: 4px; overflow: hidden; }
+.hbar-track span { display: block; height: 100%; background: var(--green); border-radius: 4px; }
+.hbar-n { text-align: right; color: var(--muted); }
+.people-head { padding: 16px 16px 0; }
+.person-filter .text { height: 34px; min-width: 200px; }
+.pills a.pill { display: inline-flex; align-items: center; text-decoration: none; }
+.nowrap { white-space: nowrap; }
+.pager { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-top: 1px solid var(--line-soft); font-size: 13px; }
+.pager span:last-child { display: flex; gap: 8px; }
+.ev-access { background: #dfeaf5; color: #1f4f7a; }
+.ev-admin { background: #efe1f1; color: #5d2f66; }
+.ev-export { background: #fbecc8; color: #7a5300; }
+.ev-use { background: #eceeea; color: #566a5d; }
+.ev-data { background: #e6f2e2; color: #1d5f1b; }
+.ev-bad { background: #fadfd9; color: #8d2c1d; }
+.table-panel th:not(.left), .table-panel td:not(.left) { text-align: right; }
+@media (max-width: 1000px) { .act-grid { grid-template-columns: 1fr; } }
