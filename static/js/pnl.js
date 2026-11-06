@@ -12,7 +12,7 @@
   // [header, key, kind, good when up]
   const COLS_ALL = [
     ['Volume (’000 packs)', 'units', 'k', true],
-    ['Litres or kg (’000)', 'qty', 'q', true],
+    ['Litres and kg per day', 'qty', 'q', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
     ['Other deductions', 'rebates', 'l', false],
@@ -33,19 +33,25 @@
   const COLS = COLS_ALL.filter((c) => HE.allowedKey(c[1]));
   const STRONG = new Set(['net', 'gm', 'cm', 'nm']);
 
-  // Litres and kg stay in their own units, side by side in one cell: "675 L + 307 kg".
+  // Litres and kg stay in their own units, side by side in one cell, as a daily rate: "37,500 LPD + 15,400 KGPD".
+  // The monthly run-rate is divided by the days in the base months (meta.days).
   function qtyCell(node) {
-    const pick = () => [['litres', ' L'], ['kg', ' kg']];
-    const part = (v, u, signed) => (Math.abs(v) < 0.5 ? '' : HE.thousands(v, signed) + u);
+    const days = (meta && meta.days) || 30;
+    const num = (v, signed) => {
+      const t = Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+      return signed ? (v > 0 ? '+' : HE.MINUS) + t : t;
+    };
+    const part = (v, u, signed) => (Math.abs(v) < 0.5 ? '' : num(v, signed) + u);
     const join = (a) => a.filter(Boolean).join(' + ') || '–';
-    const val = (m, signed) => join(pick().map(([k, u]) => part(m[k], u, signed)));
+    const perDay = (m, signed) => join([part(m.litres / days, ' LPD', signed), part(m.kg / days, ' KGPD', signed)]);
     if (mode === 'delta') {
-      const d = ['litres', 'kg'].map((k) => node.sim[k] - node.base[k]);
-      const text = join([part(d[0], ' L', true), part(d[1], ' kg', true)]);
-      return `<td class="${HE.tone(d[0] + d[1], true, 50)}">${text}</td>`;
+      const d = ['litres', 'kg'].map((k) => (node.sim[k] - node.base[k]) / days);
+      return `<td class="${HE.tone(d[0] + d[1], true, 2)}">${join([part(d[0], ' LPD', true), part(d[1], ' KGPD', true)])}</td>`;
     }
-    return `<td>${val(mode === 'base' ? node.base : node.sim, false)}</td>`;
+    return `<td>${perDay(mode === 'base' ? node.base : node.sim, false)}</td>`;
   }
+
+  const daysText = () => { const d = (meta && meta.days) || 30; return Number.isInteger(d) ? d : d.toFixed(1); };
 
   function cell(node, col) {
     const [, key, kind, goodUp] = col;
@@ -93,8 +99,8 @@
     $('pnlTable').innerHTML = head + '<tbody>' + totalRow +
       data.tree.map((n) => rowHtml(n, 0)).join('') + '</tbody>';
     $('tableFoot').textContent = mode === 'delta'
-      ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand packs, litres and kg, percentages in points.'
-      : 'Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs, litres (ML and L packs) and kg (GM and KG packs) in one column, never added together.';
+      ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand packs, litres and kg per day, percentages in points.'
+      : `Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs. Litres (ML and L packs) and kg (GM and KG packs) are shown per day (LPD, KGPD) in one column, never added together: monthly volume divided by ${daysText()} days.`;
   }
 
   function allIds(nodes, out) {

@@ -511,6 +511,7 @@ def meta():
         "status": data.status() if not limited else {"mode": data.MODE, "title": data.status()["title"]},
         "dims": [{"id": d, "name": name, "options": options[d]} for d, name in data.DIM_DEFS],
         "combos": combos,
+        "days": data.days_per_month(),
         "user": {"role": g.user["role"] if g.get("user") else None, "limited": limited},
     })
 

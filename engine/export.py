@@ -89,7 +89,13 @@ PIVOT_STEPS = [
 
 def _columns(limited):
     """The P&L columns; a KAM gets none of the lines below contribution."""
-    return [c for c in COLUMNS if not (limited and c[1] in sim.BELOW_CONTRIBUTION)]
+    from . import data
+    days = data.days_per_month()
+    cols = list(COLUMNS)
+    # per-day figures (LPD, KGPD): monthly volume divided by the days in the base months
+    cols[3:3] = [("Litres per day (LPD)", "litres", days, "#,##0;[Red]-#,##0"),
+                 ("Kg per day (KGPD)", "kg", days, "#,##0;[Red]-#,##0")]
+    return [c for c in cols if not (limited and c[1] in sim.BELOW_CONTRIBUTION)]
 
 
 def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw, allowed=None, limited=False):

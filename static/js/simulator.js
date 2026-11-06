@@ -121,11 +121,12 @@
     $('kpis').innerHTML = cards.join('');
   }
 
-  // Litres and kg are kept apart: nothing is converted between them.
+  // Litres and kg are kept apart (nothing is converted between them) and shown per day: monthly volume / days.
   function qtyText(m) {
-    const parts = [];
-    if (m.litres > 0) parts.push(`${(m.litres / 1e5).toFixed(2)} lakh litres`);
-    if (m.kg > 0) parts.push(`${(m.kg / 1e5).toFixed(2)} lakh kg`);
+    const days = (meta && meta.days) || 30, parts = [];
+    const n = (v) => Math.round(v / days).toLocaleString('en-IN');
+    if (m.litres > 0) parts.push(`${n(m.litres)} LPD`);
+    if (m.kg > 0) parts.push(`${n(m.kg)} KGPD`);
     return parts.join(' + ');
   }
 
