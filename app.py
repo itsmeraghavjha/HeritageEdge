@@ -193,7 +193,10 @@ def admin_users():
     people = users.list_users()
     for p in people:
         p["scope_count"] = len(users.scope_rows(p["id"])) if p["role"] == "kam" else 0
-    return render_template("users.html", active="users", people=people, email_ready=mailer.configured(),
+    counts = {"all": len(people), "kam": sum(1 for p in people if p["role"] == "kam"),
+              "leadership": sum(1 for p in people if p["role"] == "leadership"),
+              "pending": sum(1 for p in people if p["active"] and (p["must_change"] or not p["pw_hash"]) and not p["last_login"])}
+    return render_template("users.html", active="users", people=people, counts=counts, email_ready=mailer.configured(),
                            message=session.pop("people_msg", None), unmatched=access.unmatched_clusters(),
                            chains=access.chain_names(), aliases=_alias_view())
 

@@ -1,97 +1,155 @@
 {% extends "base.html" %}
 {% block title %}Users | HeritageEdge{% endblock %}
 {% block content %}
-<header class="page-head">
+<header class="page-head users-head">
   <div>
-  <h1>Users</h1>
-  <p class="lede">Admin and leadership see all data. A KAM sees only the states and chains they are mapped to, and the P&amp;L only down to contribution. Disable someone to stop them logging in at once; their account stays.</p>
+    <h1>Users</h1>
+    <p class="lede">Choose who can open HeritageEdge and what they see. A KAM sees only their own states and chains, and the P&amp;L down to contribution. Leadership and the admin see everything.</p>
+  </div>
+  <div class="head-actions">
+    <button type="button" class="btn" data-open="addPanel">Add a person</button>
+    <button type="button" class="btn btn-primary" data-open="uploadPanel">Upload KAM file</button>
   </div>
 </header>
 
 {% if message %}
-<div class="panel people-note" role="status">
+<div class="banner banner-ok" role="status">
   <p class="report">{{ message.text }}</p>
   {% if message.link %}<input class="text" readonly value="{{ message.link }}" onclick="this.select()" aria-label="Set-password link">{% endif %}
 </div>
 {% endif %}
+
+<div class="stats">
+  <div class="stat"><span class="stat-num">{{ counts.all }}</span><span class="stat-label">People with access</span></div>
+  <div class="stat"><span class="stat-num">{{ counts.kam }}</span><span class="stat-label">KAMs</span></div>
+  <div class="stat"><span class="stat-num">{{ counts.leadership }}</span><span class="stat-label">Leadership</span></div>
+  <div class="stat{{ ' stat-warn' if counts.pending }}"><span class="stat-num">{{ counts.pending }}</span><span class="stat-label">Not signed in yet</span></div>
+</div>
+
+{% if unmatched %}
+<a class="banner banner-warn" href="#aliases">
+  <strong>{{ unmatched|length }} cluster{{ '' if unmatched|length == 1 else 's' }} in the mapping match no chain in the data.</strong>
+  <span>Those KAMs see nothing for {{ 'it' if unmatched|length == 1 else 'them' }} yet. Fix {{ 'it' if unmatched|length == 1 else 'them' }} below.</span>
+</a>
+{% endif %}
 {% if not email_ready %}
-<p class="sub people-warn">Email is not set up on this computer (SMTP_* in .env), so people will not get an email. Use the starting password for KAMs, or copy the link shown here and send it yourself.</p>
+<p class="note">Email is not set up on this computer (SMTP in .env), so nobody gets an email. Give KAMs the starting password, or copy a link from here and send it yourself.</p>
 {% endif %}
 
-<section class="panel people-add">
-  <h2>Upload the KAM mapping</h2>
-  <p class="sub">An Excel file with the columns State, Cluster Name, Employee ID, Employee Name and Email, one row per state and cluster. It creates a KAM for each email with the starting password below; they must choose their own at first login. Uploading again updates names and mappings and leaves passwords alone.</p>
-  <form method="post" action="/admin/users/upload" enctype="multipart/form-data" class="people-form">
+<section class="panel drawer" id="uploadPanel" hidden>
+  <div class="drawer-head"><h2>Upload the KAM file</h2><button type="button" class="link-btn" data-close="uploadPanel">Close</button></div>
+  <p class="sub">An Excel file with State, Cluster Name, Employee ID, Employee Name and Email, one row per state and cluster. Every email becomes a KAM with the starting password below, and must choose their own password at first login. Uploading again updates names and mappings and leaves passwords alone.</p>
+  <form method="post" action="/admin/users/upload" enctype="multipart/form-data" class="form-grid">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label>KAM file (.xlsx) <input name="file" type="file" accept=".xlsx" class="text" required></label>
-    <label>Starting password <input name="starting_password" type="text" class="text" autocomplete="off" minlength="10" required placeholder="10+ characters, letters and numbers"></label>
+    <label>KAM file (.xlsx)<input name="file" type="file" accept=".xlsx" class="text" required></label>
+    <label>Starting password<input name="starting_password" type="text" class="text" autocomplete="off" minlength="10" required placeholder="10 or more characters, with letters and numbers"></label>
     <button type="submit" class="btn btn-primary">Upload and create users</button>
   </form>
-  <p class="sub">Anyone who knows the starting password can sign in as a KAM who has not logged in yet. Share it only with the KAMs, and use "Send password link" for anyone you are unsure about.</p>
+  <p class="note">Anyone who knows the starting password can sign in as a KAM who has not signed in yet. Share it only with the KAMs.</p>
 </section>
 
-<section class="panel people-add">
-  <h2>Add one person</h2>
-  <form method="post" action="/admin/users/new" class="people-form">
+<section class="panel drawer" id="addPanel" hidden>
+  <div class="drawer-head"><h2>Add a person</h2><button type="button" class="link-btn" data-close="addPanel">Close</button></div>
+  <p class="sub">They get an email with a link to set their password. Add a KAM's states and chains afterwards with Edit.</p>
+  <form method="post" action="/admin/users/new" class="form-grid">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label>Name <input name="name" class="text" autocomplete="off" maxlength="100"></label>
-    <label>Email <input name="email" type="email" class="text" autocomplete="off" required></label>
-    <label>Role <select name="role" class="text"><option value="kam">KAM</option><option value="leadership">Leadership (sees everything)</option></select></label>
+    <label>Name<input name="name" class="text" autocomplete="off" maxlength="100"></label>
+    <label>Email<input name="email" type="email" class="text" autocomplete="off" required></label>
+    <label>Role<select name="role" class="text"><option value="kam">KAM</option><option value="leadership">Leadership, sees everything</option></select></label>
     <button type="submit" class="btn btn-primary">Add and send link</button>
   </form>
 </section>
 
 <section class="panel table-panel">
+  <div class="table-tools">
+    <input type="search" id="peopleSearch" class="text search" placeholder="Search name or email" aria-label="Search people">
+    <div class="pills" role="group" aria-label="Filter by role">
+      <button type="button" class="pill is-on" data-role="">All</button>
+      <button type="button" class="pill" data-role="kam">KAMs</button>
+      <button type="button" class="pill" data-role="leadership">Leadership</button>
+      <button type="button" class="pill" data-role="admin">Admin</button>
+    </div>
+  </div>
   <div class="table-scroll">
-    <table class="data people">
-      <thead><tr><th class="left">Name</th><th class="left">Email</th><th class="left">Role</th><th class="left">Mapping</th><th class="left">Status</th><th class="left">Last login</th><th class="left">Actions</th></tr></thead>
+    <table class="data people" id="peopleTable">
+      <thead><tr><th class="left">Person</th><th class="left">Role</th><th class="left">Sees</th><th class="left">Status</th><th class="left">Last signed in</th><th class="left"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for p in people %}
-        <tr>
-          <td class="left">{{ p.name or '–' }}{% if p.employee_id %}<br><span class="sub">{{ p.employee_id }}</span>{% endif %}</td>
-          <td class="left">{{ p.email }}</td>
-          <td class="left">{{ role_names.get(p.role, p.role) }}</td>
-          <td class="left">{% if p.role == 'kam' %}{{ p.scope_count }} mapping{{ '' if p.scope_count == 1 else 's' }}{% else %}Everything{% endif %}</td>
-          <td class="left">{% if not p.active %}Disabled{% elif p.must_change %}Starting password{% elif not p.pw_hash %}Waiting to set password{% else %}Active{% endif %}</td>
-          <td class="left">{{ p.last_login | datetime if p.last_login else 'Never' }}</td>
-          <td class="left actions">
+        <tr data-role="{{ p.role }}" data-text="{{ (p.name ~ ' ' ~ p.email ~ ' ' ~ p.employee_id)|lower }}">
+          <td class="left"><div class="who-cell"><span class="avatar a{{ loop.index0 % 5 }}" aria-hidden="true">{{ ((p.name or p.email)[:1])|upper }}</span>
+            <div><strong>{{ p.name or p.email }}</strong><span class="sub">{{ p.email }}{% if p.employee_id %} &middot; {{ p.employee_id }}{% endif %}</span></div></div></td>
+          <td class="left"><span class="badge badge-{{ p.role }}">{{ role_names.get(p.role, p.role) }}</span></td>
+          <td class="left">{% if p.role == 'kam' %}{% if p.scope_count %}{{ p.scope_count }} state and chain mapping{{ '' if p.scope_count == 1 else 's' }}{% else %}<span class="warn-text">Nothing mapped yet</span>{% endif %}{% else %}Everything{% endif %}</td>
+          <td class="left">{% if not p.active %}<span class="badge badge-off">Disabled</span>
+            {% elif p.must_change %}<span class="badge badge-wait">Starting password</span>
+            {% elif not p.pw_hash %}<span class="badge badge-wait">Waiting for link</span>
+            {% else %}<span class="badge badge-on">Active</span>{% endif %}</td>
+          <td class="left muted">{{ p.last_login | datetime if p.last_login else 'Never' }}</td>
+          <td class="left"><div class="row-actions">
             {% if p.role != 'admin' %}<a class="btn btn-small" href="/admin/users/{{ p.id }}">Edit</a>{% endif %}
-            {% if p.active %}
-            <form method="post" action="/admin/users/{{ p.id }}/link"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">Send password link</button></form>
-            {% endif %}
-            {% if p.role != 'admin' %}
-            <form method="post" action="/admin/users/{{ p.id }}/active"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="active" value="{{ 0 if p.active else 1 }}"><button class="btn btn-small" type="submit">{{ 'Disable' if p.active else 'Enable' }}</button></form>
-            {% endif %}
-          </td>
+            {% if p.active %}<form method="post" action="/admin/users/{{ p.id }}/link"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">Send link</button></form>{% endif %}
+            {% if p.role != 'admin' %}<form method="post" action="/admin/users/{{ p.id }}/active"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="active" value="{{ 0 if p.active else 1 }}"><button class="btn btn-small {{ 'btn-quiet' if p.active else '' }}" type="submit">{{ 'Disable' if p.active else 'Enable' }}</button></form>{% endif %}
+          </div></td>
         </tr>
       {% endfor %}
+        <tr class="empty-row" hidden><td colspan="6" class="left muted">No one matches.</td></tr>
       </tbody>
     </table>
   </div>
 </section>
 
 {% if unmatched or aliases %}
-<section class="panel people-add">
-  <h2>Clusters that do not match a chain</h2>
-  <p class="sub">A KAM sees nothing for a cluster whose name matches no chain in the data. Point it at the right chain here, or correct the name in the mapping.</p>
+<section class="panel drawer open" id="aliases">
+  <div class="drawer-head"><h2>Clusters that match no chain</h2></div>
+  <p class="sub">A cluster name has to match a chain in the data to show anything. Choose the right chain for each one, or correct the name in the mapping.</p>
   {% for c in unmatched %}
-  <form method="post" action="/admin/aliases" class="people-form alias-row">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <input type="hidden" name="cluster" value="{{ c }}">
-    <strong class="alias-name">{{ c }}</strong>
-    <label>is the chain <select name="chain" class="text" required><option value="">Choose a chain</option>{% for ch in chains %}<option>{{ ch }}</option>{% endfor %}</select></label>
-    <button type="submit" class="btn btn-small">Save alias</button>
+  <form method="post" action="/admin/aliases" class="alias-row">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="cluster" value="{{ c }}">
+    <strong class="alias-name">{{ c }}</strong><span class="sub">is the chain</span>
+    <select name="chain" class="text" required><option value="">Choose a chain</option>{% for ch in chains %}<option>{{ ch }}</option>{% endfor %}</select>
+    <button type="submit" class="btn btn-small btn-primary">Save</button>
   </form>
   {% endfor %}
   {% for cluster, chain, key in aliases %}
-  <form method="post" action="/admin/aliases" class="people-form alias-row">
-    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <input type="hidden" name="cluster" value="{{ cluster }}">
-    <input type="hidden" name="chain" value="">
-    <span class="alias-name">{{ cluster }}</span><span class="sub">is the chain {{ chain }}</span>
-    <button type="submit" class="btn btn-small">Remove alias</button>
+  <form method="post" action="/admin/aliases" class="alias-row">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="cluster" value="{{ cluster }}"><input type="hidden" name="chain" value="">
+    <strong class="alias-name">{{ cluster }}</strong><span class="sub">is the chain {{ chain }}</span>
+    <button type="submit" class="btn btn-small">Remove</button>
   </form>
   {% endfor %}
 </section>
 {% endif %}
+
+<script>
+(function () {
+  var q = document.getElementById('peopleSearch'), rows = [].slice.call(document.querySelectorAll('#peopleTable tbody tr[data-role]'));
+  var empty = document.querySelector('.empty-row'), role = '';
+  function apply() {
+    var t = (q.value || '').toLowerCase().trim(), shown = 0;
+    rows.forEach(function (r) {
+      var ok = (!role || r.dataset.role === role) && (!t || r.dataset.text.indexOf(t) > -1);
+      r.hidden = !ok; if (ok) shown++;
+    });
+    empty.hidden = shown > 0;
+  }
+  q.addEventListener('input', apply);
+  [].forEach.call(document.querySelectorAll('.pill'), function (b) {
+    b.addEventListener('click', function () {
+      role = b.dataset.role;
+      [].forEach.call(document.querySelectorAll('.pill'), function (x) { x.classList.toggle('is-on', x === b); });
+      apply();
+    });
+  });
+  function toggle(id, on) {
+    var el = document.getElementById(id); el.hidden = !on;
+    if (on) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); var f = el.querySelector('input:not([type=hidden])'); if (f) f.focus({ preventScroll: true }); }
+  }
+  [].forEach.call(document.querySelectorAll('[data-open]'), function (b) {
+    b.addEventListener('click', function () { var id = b.dataset.open; toggle(id, document.getElementById(id).hidden); });
+  });
+  [].forEach.call(document.querySelectorAll('[data-close]'), function (b) {
+    b.addEventListener('click', function () { toggle(b.dataset.close, false); });
+  });
+})();
+</script>
 {% endblock %}
