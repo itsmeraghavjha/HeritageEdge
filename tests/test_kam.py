@@ -280,3 +280,15 @@ def test_old_user_role_becomes_leadership(env):
     con.commit()
     con.close()
     assert users.get_by_email("old@example.com")["role"] == "leadership"
+
+
+def test_a_kam_with_no_accounts_gets_an_explanation_not_a_page_of_zeros(world):
+    """Meera's only cluster matches no chain, so she sees an explanation on both screens; others see the real screens."""
+    c = client_for("meera@example.com", "Own-pass-12345")
+    for path in ("/", "/pnl"):
+        html = c.get(path).get_data(as_text=True)
+        assert "No accounts are assigned to you yet" in html
+        assert "scenarioPanel" not in html and "pnlTable" not in html
+    ok = client_for("asha@example.com", "Own-pass-12345").get("/").get_data(as_text=True)
+    assert "No accounts are assigned to you yet" not in ok
+    assert "All my accounts" in ok

@@ -71,7 +71,7 @@
   }
 
   function updateScopeSummary(res) {
-    let text = HE.describeSelection(state.scope, meta.dims) || 'Everything';
+    let text = HE.describeSelection(state.scope, meta.dims) || (HE.LIMITED ? 'All my accounts' : 'Everything');
     if (res && res.rows_in_scope !== res.rows_total) {
       text += ` (${res.rows_in_scope.toLocaleString('en-IN')} of ${res.rows_total.toLocaleString('en-IN')} lines)`;
     }

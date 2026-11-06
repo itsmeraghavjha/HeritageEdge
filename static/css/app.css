@@ -696,3 +696,24 @@ html.side-collapsed .account-actions { grid-template-columns: 1fr; }
 html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 @media (max-width: 860px) { .status-card { display: none; } .side-foot { margin-top: 0; margin-left: auto; } .account-text { display: none; } .account { display: flex; align-items: center; border: 0; padding: 0; } }
 .acct-btn { white-space: nowrap; padding: 0 6px; gap: 5px; } .account-actions { gap: 6px; }
+.empty-state { max-width: 520px; margin: 12vh auto 0; padding: 36px 32px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+.empty-state h1 { font-size: 20px; }
+.empty-state p { color: var(--muted); max-width: 44ch; }
+.empty-icon { width: 56px; height: 56px; border-radius: 50%; background: var(--green-tint); color: var(--green-text); display: grid; place-items: center; }
+.empty-icon svg { width: 28px; height: 28px; }
+.back-link { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 14px; color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; }
+.back-link svg { width: 16px; height: 16px; }
+.back-link:hover { color: var(--green-text); }
+.person-head { align-items: center; }
+.person-head h1 { margin: 0; }
+.person-head .sub { margin: 2px 0 8px; color: var(--muted); }
+.person-head .badges { display: flex; gap: 6px; margin: 0; }
+.avatar-lg { width: 60px; height: 60px; font-size: 22px; }
+.head-actions form { margin: 0; }
+.map-head { margin: 0; border-radius: 12px 12px 0 0; padding-bottom: 12px; border-bottom: 1px solid var(--line-soft); }
+.map-head .drawer-head { gap: 12px; justify-content: flex-start; }
+.drawer .add-map { grid-template-columns: 1fr 1.4fr auto; }
+.empty-cell { padding: 28px 16px; text-align: center; }
+@media (max-width: 900px) { .drawer .add-map { grid-template-columns: 1fr; } }
+.drawer .details-grid { grid-template-columns: 1.3fr 1fr 1.2fr auto; }
+@media (max-width: 900px) { .drawer .details-grid { grid-template-columns: 1fr; } }

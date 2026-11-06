@@ -1,55 +1,77 @@
 {% extends "base.html" %}
 {% block title %}{{ person.name or person.email }} | HeritageEdge{% endblock %}
 {% block content %}
-<header class="page-head">
-  <div>
-  <h1>{{ person.name or person.email }}</h1>
-  <p class="lede">{{ person.email }}. <a href="/admin/users">Back to all users</a></p>
+<a class="back-link" href="/admin/users">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>All users
+</a>
+<header class="page-head person-head">
+  <div class="who-cell">
+    <span class="avatar avatar-lg a{{ person.id % 5 }}" aria-hidden="true">{{ (person.name or person.email)[:1]|upper }}</span>
+    <div>
+      <h1>{{ person.name or person.email }}</h1>
+      <p class="sub">{{ person.email }}{% if person.employee_id %} &middot; {{ person.employee_id }}{% endif %}</p>
+      <p class="badges">
+        <span class="badge badge-{{ person.role }}">{{ role_names.get(person.role, person.role) }}</span>
+        {% if not person.active %}<span class="badge badge-off">Disabled</span>{% else %}<span class="badge badge-on">Active</span>{% endif %}
+      </p>
+    </div>
+  </div>
+  <div class="head-actions">
+    {% if person.active %}
+    <form method="post" action="/admin/users/{{ person.id }}/link"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn" type="submit">Send password link</button></form>
+    {% endif %}
+    <form method="post" action="/admin/users/{{ person.id }}/active"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="active" value="{{ 0 if person.active else 1 }}"><button class="btn {{ 'btn-quiet' if person.active }}" type="submit">{{ 'Disable access' if person.active else 'Enable access' }}</button></form>
   </div>
 </header>
 
-{% if message %}<div class="panel people-note" role="status"><p>{{ message.text }}</p></div>{% endif %}
+{% if message %}
+<div class="banner banner-ok" role="status"><p class="report">{{ message.text }}</p>
+  {% if message.link %}<input class="text" readonly value="{{ message.link }}" onclick="this.select()" aria-label="Set-password link">{% endif %}</div>
+{% endif %}
 
-<section class="panel people-add">
-  <h2>Details</h2>
-  <form method="post" action="/admin/users/{{ person.id }}/details" class="people-form">
+<section class="panel drawer">
+  <div class="drawer-head"><h2>Details</h2></div>
+  <p class="sub">The role decides what this person can see. Leadership sees every chain and the whole P&amp;L. A KAM sees only the accounts mapped below, and the P&amp;L down to contribution.</p>
+  <form method="post" action="/admin/users/{{ person.id }}/details" class="form-grid details-grid">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label>Name <input name="name" class="text" value="{{ person.name }}" maxlength="100"></label>
-    <label>Employee ID <input name="employee_id" class="text" value="{{ person.employee_id }}" maxlength="40"></label>
-    <label>Role <select name="role" class="text">
-      <option value="kam" {{ 'selected' if person.role == 'kam' }}>KAM (only their accounts, P&amp;L to contribution)</option>
-      <option value="leadership" {{ 'selected' if person.role == 'leadership' }}>Leadership (sees everything)</option></select></label>
-    <button type="submit" class="btn btn-primary">Save</button>
+    <label>Name<input name="name" class="text" value="{{ person.name }}" maxlength="100"></label>
+    <label>Employee ID<input name="employee_id" class="text" value="{{ person.employee_id }}" maxlength="40"></label>
+    <label>Role<select name="role" class="text">
+      <option value="kam" {{ 'selected' if person.role == 'kam' }}>KAM, own accounts only</option>
+      <option value="leadership" {{ 'selected' if person.role == 'leadership' }}>Leadership, sees everything</option></select></label>
+    <button type="submit" class="btn btn-primary">Save changes</button>
   </form>
 </section>
 
 {% if person.role == 'kam' %}
 <section class="panel table-panel">
-  <div class="people-add">
-    <h2>What this KAM can see</h2>
-    <p class="sub">A KAM sees the rows for each state and cluster below, and nothing else. With no rows they see nothing.</p>
-    <form method="post" action="/admin/users/{{ person.id }}/scope/add" class="people-form">
+  <div class="drawer map-head">
+    <div class="drawer-head"><h2>Accounts this KAM can see</h2><span class="badge badge-kam">{{ scope|length }} mapping{{ '' if scope|length == 1 else 's' }}</span></div>
+    <p class="sub">One row per state and cluster. With no rows, this person sees nothing.</p>
+    <form method="post" action="/admin/users/{{ person.id }}/scope/add" class="form-grid add-map">
       <input type="hidden" name="csrf" value="{{ csrf_token() }}">
-      <label>State <select name="state" class="text" required><option value="">Choose a state</option>{% for s in states %}<option>{{ s }}</option>{% endfor %}</select></label>
-      <label>Cluster name <input name="cluster" class="text" list="chainlist" required autocomplete="off" placeholder="A chain name"></label>
+      <label>State<select name="state" class="text" required><option value="">Choose a state</option>{% for s in states %}<option>{{ s }}</option>{% endfor %}</select></label>
+      <label>Cluster name<input name="cluster" class="text" list="chainlist" required autocomplete="off" placeholder="Start typing a chain"></label>
       <datalist id="chainlist">{% for c in chains %}<option value="{{ c }}">{% endfor %}</datalist>
-      <button type="submit" class="btn btn-primary">Add</button>
+      <button type="submit" class="btn btn-primary">Add mapping</button>
     </form>
   </div>
   <div class="table-scroll">
     <table class="data people">
-      <thead><tr><th class="left">State</th><th class="left">Cluster</th><th class="left">Matches the data</th><th class="left"></th></tr></thead>
+      <thead><tr><th class="left">State</th><th class="left">Cluster</th><th class="left">Data</th><th class="left"><span class="sr-only">Actions</span></th></tr></thead>
       <tbody>
       {% for sc in scope %}
-        <tr><td class="left">{{ sc.state }}</td><td class="left">{{ sc.cluster }}</td>
-          <td class="left">{{ 'Yes' if sc.matched else 'No chain with this name' }}</td>
-          <td class="left actions"><form method="post" action="/admin/users/{{ person.id }}/scope/{{ sc.id }}/remove"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">Remove</button></form></td></tr>
+        <tr><td class="left"><strong>{{ sc.state }}</strong></td><td class="left">{{ sc.cluster }}</td>
+          <td class="left">{% if sc.matched %}<span class="badge badge-on">Matches a chain</span>{% else %}<span class="badge badge-wait">No chain with this name</span>{% endif %}</td>
+          <td class="left"><div class="row-actions"><form method="post" action="/admin/users/{{ person.id }}/scope/{{ sc.id }}/remove"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small btn-quiet" type="submit">Remove</button></form></div></td></tr>
       {% else %}
-        <tr><td class="left" colspan="4">No mapping yet.</td></tr>
+        <tr><td class="left muted empty-cell" colspan="4">No mapping yet. Add a state and cluster above.</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </section>
+{% else %}
+<p class="note">{{ role_names.get(person.role, person.role) }} users see every account, so there is nothing to map.</p>
 {% endif %}
 {% endblock %}

@@ -40,7 +40,7 @@
     },
     {
       title: 'Costs',
-      note: 'Costs apply to every chain, state and SKU.',
+      note: window.HE_LIMITED ? 'Costs apply to all your accounts.' : 'Costs apply to every chain, state and SKU.',
       levers: [
         { key: 'cogs_change_pct', label: 'COGS change', min: -10, max: 15, step: 0.5, unit: '%', signed: true,
           hint: 'Moves the whole COGS line from the MIS, for example a milk, packing or other input cost change.' },

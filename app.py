@@ -107,6 +107,14 @@ def visible():
     return access.allowed_indices(user), access.limited(user)
 
 
+def _no_accounts(active):
+    """A KAM with no mapped accounts gets an explanation instead of a screen of zeros."""
+    allowed, limited = visible()
+    if limited and allowed is not None and len(allowed) == 0:
+        return render_template("no_accounts.html", active=active)
+    return None
+
+
 def set_password_link(token):
     base = (os.environ.get("APP_BASE_URL") or request.host_url).rstrip("/")
     return base + url_for("set_password", token=token)
@@ -377,12 +385,12 @@ def _datetime(ts):
 # ---------- pages ----------
 @app.get("/")
 def simulator_page():
-    return render_template("simulator.html", active="simulator")
+    return _no_accounts("simulator") or render_template("simulator.html", active="simulator")
 
 
 @app.get("/pnl")
 def pnl_page():
-    return render_template("pnl.html", active="pnl")
+    return _no_accounts("pnl") or render_template("pnl.html", active="pnl")
 
 
 @app.get("/data")
