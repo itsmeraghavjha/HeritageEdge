@@ -351,7 +351,14 @@
       .map((l) => ({ key: l.key, label: l.label, text: leverText(l, levers[l.key]) }));
   }
 
+  // A KAM never sees the lines below contribution. The server removes them from every answer; this only keeps the
+  // screens from drawing empty rows and columns.
+  const LIMITED = !!window.HE_LIMITED;
+  const BELOW_CM = new Set(['pa', 'interest', 'mktg', 'nm', 'nm_pct', 'd_nm']);
+  const allowedKey = (key) => !(LIMITED && BELOW_CM.has(key));
+
   window.HE = {
+    LIMITED, allowedKey,
     DEFAULTS, GROUPS, FLAT, PRESETS,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,

@@ -87,14 +87,19 @@ PIVOT_STEPS = [
 ]
 
 
-def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw):
+def _columns(limited):
+    """The P&L columns; a KAM gets none of the lines below contribution."""
+    return [c for c in COLUMNS if not (limited and c[1] in sim.BELOW_CONTRIBUTION)]
+
+
+def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw, allowed=None, limited=False):
     """A flat sheet, one line per dataset row, that a PivotTable can be built on in a few clicks."""
     from openpyxl.worksheet.table import Table, TableStyleInfo
     from . import data
 
-    items = sim.pnl_items(levers_raw, scope_raw, filter_raw)
+    items = sim.pnl_items(levers_raw, scope_raw, filter_raw, allowed)
     ws = wb.create_sheet(PIVOT_SHEET)
-    metric_cols = [c for c in COLUMNS if not c[1].endswith("_pct")]
+    metric_cols = [c for c in _columns(limited) if not c[1].endswith("_pct")]
     header = [title for _, title in data.DIM_DEFS]
     header += [f"{side} {name}" for side in ("Baseline", "Scenario") for name, _, _, _ in metric_cols]
     ws.append(header)
@@ -124,8 +129,9 @@ def _pivot_sheet(wb, levers_raw, scope_raw, filter_raw):
     ws.column_dimensions[get_column_letter(note_col)].width = 70
 
 
-def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
-    res = sim.pnl(levers_raw, scope_raw, dims, filter_raw)
+def build_workbook(levers_raw, scope_raw, dims, filter_raw=None, allowed=None, limited=False):
+    res = sim.pnl(levers_raw, scope_raw, dims, filter_raw, allowed)
+    COLUMNS_ = _columns(limited)
     lv, adjust = sim.split_levers(levers_raw)
     wb = Workbook()
 
@@ -134,16 +140,16 @@ def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
         ws.title = title
         ws.append([f"Amounts in Rs lakh unless stated. {_basis_text()} "
                    f"Filters: {_filter_text(filter_raw)}"])
-        ws.append(["Name"] + [c[0] for c in COLUMNS])
+        ws.append(["Name"] + [c[0] for c in COLUMNS_])
         for cell in ws[2]:
             cell.fill, cell.font = HEADER_FILL, HEADER_FONT
             cell.alignment = Alignment(horizontal="center", wrap_text=True)
 
         def emit(label, metrics, depth, bold=False):
             ws.append(["    " * depth + label] +
-                      [metrics[k] / scale for _, k, scale, _ in COLUMNS])
+                      [metrics[k] / scale for _, k, scale, _ in COLUMNS_])
             row = ws.max_row
-            for i, (_, _, _, fmt) in enumerate(COLUMNS, start=2):
+            for i, (_, _, _, fmt) in enumerate(COLUMNS_, start=2):
                 ws.cell(row=row, column=i).number_format = fmt
             if bold:
                 for cell in ws[row]:
@@ -157,12 +163,12 @@ def build_workbook(levers_raw, scope_raw, dims, filter_raw=None):
             emit(node["label"], node[side], depth, bold=depth == 0)
         ws.sheet_properties.outlinePr.summaryBelow = False   # the + / - button sits on the parent row, above its children
         ws.column_dimensions["A"].width = 44
-        for i in range(2, len(COLUMNS) + 2):
+        for i in range(2, len(COLUMNS_) + 2):
             ws.column_dimensions[get_column_letter(i)].width = 15
         ws.row_dimensions[2].height = 32
         ws.freeze_panes = "B3"
 
-    _pivot_sheet(wb, levers_raw, scope_raw, filter_raw)
+    _pivot_sheet(wb, levers_raw, scope_raw, filter_raw, allowed, limited)
 
     ws = wb.create_sheet("Scenario levers")
     ws.append(["Lever", "Value", "Unit"])

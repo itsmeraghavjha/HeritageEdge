@@ -229,10 +229,15 @@ def refresh():
 refresh()
 
 
-def view_rows(scope):
-    """The rows the simulator screen reports: the ones inside the selection (all rows when nothing is selected).
-    Returns (rows, baseline metrics for those rows)."""
-    keep = [i for i, r in enumerate(data.ROWS) if in_scope(r, scope)]
+def _visible(allowed):
+    """Positions of the rows this person may see: every row when `allowed` is None."""
+    return range(len(data.ROWS)) if allowed is None else allowed
+
+
+def view_rows(scope, allowed=None):
+    """The rows the simulator screen reports: the ones inside the selection (all rows when nothing is selected),
+    out of the rows the person is allowed to see. Returns (rows, baseline metrics for those rows)."""
+    keep = [i for i in _visible(allowed) if in_scope(data.ROWS[i], scope)]
     return [data.ROWS[i] for i in keep], [BASE_METRICS[i] for i in keep]
 
 
@@ -436,19 +441,21 @@ def _tree(items, dims, level, path):
     return nodes
 
 
-def _items(lv, scope, flt=None, sims=None, adjust=None):
-    sims = sims if sims is not None else scenario_metrics(lv, scope, None, adjust)
+def _items(lv, scope, flt=None, sims=None, adjust=None, allowed=None):
+    idx = list(_visible(allowed))
+    rows, base = [data.ROWS[i] for i in idx], [BASE_METRICS[i] for i in idx]
+    sims = sims if sims is not None else scenario_metrics(lv, scope, rows, adjust)
     return [{"row": r, "base": b, "sim": s}
-            for r, b, s in zip(data.ROWS, BASE_METRICS, sims)
+            for r, b, s in zip(rows, base, sims)
             if flt is None or passes(r, flt)]
 
 
-def simulate(levers_raw, scope_raw):
+def simulate(levers_raw, scope_raw, allowed=None):
     """Everything on the simulator screen is for the selected rows only (all rows when nothing is selected).
     So the cost levers, which apply to every row in the view, change only the selection's numbers too."""
     lv, adjust = split_levers(levers_raw)
     scope = parse_scope(scope_raw)
-    rows, base = view_rows(scope)
+    rows, base = view_rows(scope, allowed)
     sims = scenario_metrics(lv, scope, rows, adjust)
     resolve = make_resolver(lv, adjust)
     items = [{"row": r, "base": b, "sim": m, "fixed_cm": calc_row(r, resolve(r), True, fixed_volume=True)["cm"]}
@@ -462,29 +469,42 @@ def simulate(levers_raw, scope_raw):
         "suggested_volume": suggested_volume_change(lv, scope, rows, adjust),
         "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
         "rows_in_scope": len(rows),
-        "rows_total": len(data.ROWS),
-        "whole": derive(total(BASE_METRICS)),     # the whole business at baseline, to show the selection's share
+        "rows_total": len(_visible(allowed)),
+        "whole": derive(total(BASE_METRICS[i] for i in _visible(allowed))),   # everything this person may see, at baseline
     }
 
 
-def pnl_items(levers_raw, scope_raw, filter_raw=None):
+def pnl_items(levers_raw, scope_raw, filter_raw=None, allowed=None):
     """One entry per dataset row that passes the filters: {"row", "base", "sim"}. Used by the Excel export."""
     lv, adjust = split_levers(levers_raw)
-    return _items(lv, parse_scope(scope_raw), parse_filter(filter_raw), adjust=adjust)
+    return _items(lv, parse_scope(scope_raw), parse_filter(filter_raw), adjust=adjust, allowed=allowed)
 
 
-def pnl(levers_raw, scope_raw, dims, filter_raw=None):
+def pnl(levers_raw, scope_raw, dims, filter_raw=None, allowed=None):
     lv, adjust = split_levers(levers_raw)
     scope = parse_scope(scope_raw)
     flt = parse_filter(filter_raw)
     dims = [d for d in (dims or []) if d in DIMS]
     dims = list(dict.fromkeys(dims)) or ["chain", "state", "sku"]
-    items = _items(lv, scope, flt, adjust=adjust)
+    items = _items(lv, scope, flt, adjust=adjust, allowed=allowed)
     return {
         "dims": dims,
         "rows_shown": len(items),
-        "rows_total": len(data.ROWS),
+        "rows_total": len(_visible(allowed)),
         "total": {"base": derive(total(i["base"] for i in items)),
                   "sim": derive(total(i["sim"] for i in items))},
         "tree": _tree(items, dims, 0, ""),
     }
+
+
+# What a KAM never sees: everything below contribution in the P&L.
+BELOW_CONTRIBUTION = frozenset({"pa", "interest", "mktg", "nm", "nm_pct", "d_nm"})
+
+
+def strip_below_cm(obj):
+    """A copy of a response without the lines below contribution, at any depth."""
+    if isinstance(obj, dict):
+        return {k: strip_below_cm(v) for k, v in obj.items() if k not in BELOW_CONTRIBUTION}
+    if isinstance(obj, list):
+        return [strip_below_cm(v) for v in obj]
+    return obj

@@ -18,6 +18,8 @@ from . import data
 INVITE_HOURS = 72          # a link for a new user
 RESET_HOURS = 2            # a link from "Forgot password"
 MIN_PASSWORD = 10
+ROLES = ("admin", "leadership", "kam")     # admin manages users; leadership sees everything; a KAM sees only their accounts
+ROLE_NAMES = {"admin": "Admin", "leadership": "Leadership", "kam": "KAM"}
 MAX_FAILS = 5              # wrong passwords allowed ...
 LOCK_MINUTES = 15          # ... in this many minutes before the account waits
 
@@ -43,7 +45,18 @@ def _db():
             id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, hash TEXT UNIQUE NOT NULL,
             purpose TEXT NOT NULL, expires REAL NOT NULL, used INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS fails (email TEXT NOT NULL, at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS kam_scope (
+            id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, state TEXT NOT NULL, cluster TEXT NOT NULL,
+            UNIQUE (user_id, state, cluster));
+        CREATE TABLE IF NOT EXISTS cluster_alias (cluster_norm TEXT PRIMARY KEY, chain_norm TEXT NOT NULL);
     """)
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(users)")}
+    if "employee_id" not in cols:
+        con.execute("ALTER TABLE users ADD COLUMN employee_id TEXT NOT NULL DEFAULT ''")
+    if "must_change" not in cols:
+        con.execute("ALTER TABLE users ADD COLUMN must_change INTEGER NOT NULL DEFAULT 0")
+    con.execute("UPDATE users SET role='leadership' WHERE role='user'")   # the earlier plain user role
+    con.commit()
     return con
 
 
@@ -89,18 +102,23 @@ def list_users():
         return [dict(r) for r in con.execute("SELECT * FROM users ORDER BY role='admin' DESC, lower(email)")]
 
 
-def create(email, name="", role="user"):
-    """Adds a person with no password yet. There is only ever one admin."""
+def create(email, name="", role="kam", employee_id="", password=None, must_change=False):
+    """Adds a person. With no password they get a set-password link instead. There is only ever one admin."""
     email = clean_email(email)
-    if role not in ("admin", "user"):
+    if role not in ROLES:
         raise UserError("Unknown role.")
+    if password is not None:
+        check_password(password, email)
     with closing(_db()) as con:
         if con.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
             raise UserError("That email already has an account.")
         if role == "admin" and con.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
             raise UserError("There is already an admin.")
-        cur = con.execute("INSERT INTO users (email, name, role, created) VALUES (?,?,?,?)",
-                          (email, (name or "").strip()[:100], role, time.time()))
+        cur = con.execute("INSERT INTO users (email, name, role, employee_id, pw_hash, must_change, created) "
+                          "VALUES (?,?,?,?,?,?,?)",
+                          (email, (name or "").strip()[:100], role, str(employee_id or "").strip()[:40],
+                           generate_password_hash(password) if password is not None else None,
+                           1 if (must_change and password is not None) else 0, time.time()))
         con.commit()
         return cur.lastrowid
 
@@ -150,7 +168,7 @@ def set_password_with_token(token, password):
         raise UserError("This link has expired or was already used. Ask for a new one.")
     check_password(password, user["email"])
     with closing(_db()) as con:
-        con.execute("UPDATE users SET pw_hash=? WHERE id=?", (generate_password_hash(password), user["id"]))
+        con.execute("UPDATE users SET pw_hash=?, must_change=0 WHERE id=?", (generate_password_hash(password), user["id"]))
         con.execute("UPDATE tokens SET used=1 WHERE user_id=?", (user["id"],))
         con.execute("DELETE FROM fails WHERE email=?", (user["email"],))
         con.commit()
@@ -182,3 +200,88 @@ def login(email, password):
         con.execute("UPDATE users SET last_login=? WHERE id=?", (time.time(), row["id"]))
         con.commit()
         return dict(row)
+
+
+# ---------- passwords chosen while logged in ----------
+def change_password(user_id, current, new):
+    user = get(user_id)
+    if not user or not user["pw_hash"] or not check_password_hash(user["pw_hash"], current or ""):
+        raise UserError("The current password is not right.")
+    if current == new:
+        raise UserError("Choose a password that is different from the current one.")
+    check_password(new, user["email"])
+    with closing(_db()) as con:
+        con.execute("UPDATE users SET pw_hash=?, must_change=0 WHERE id=?", (generate_password_hash(new), user_id))
+        con.commit()
+
+
+# ---------- roles and what a KAM may see ----------
+def set_role(user_id, role):
+    if role not in ("leadership", "kam"):
+        raise UserError("Choose Leadership or KAM.")
+    with closing(_db()) as con:
+        row = con.execute("SELECT role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not row:
+            raise UserError("No such user.")
+        if row["role"] == "admin":
+            raise UserError("The admin's role cannot be changed.")
+        con.execute("UPDATE users SET role=? WHERE id=?", (role, user_id))
+        con.commit()
+
+
+def update_details(user_id, name, employee_id):
+    with closing(_db()) as con:
+        con.execute("UPDATE users SET name=?, employee_id=? WHERE id=?",
+                    ((name or "").strip()[:100], str(employee_id or "").strip()[:40], user_id))
+        con.commit()
+
+
+def scope_rows(user_id):
+    with closing(_db()) as con:
+        return [dict(r) for r in con.execute(
+            "SELECT * FROM kam_scope WHERE user_id=? ORDER BY lower(state), lower(cluster)", (user_id,))]
+
+
+def all_scope_clusters():
+    """Every distinct cluster name used in any mapping, for the unmatched-cluster report."""
+    with closing(_db()) as con:
+        return sorted({r["cluster"] for r in con.execute("SELECT cluster FROM kam_scope")}, key=str.lower)
+
+
+def add_scope(user_id, state, cluster):
+    state, cluster = (state or "").strip(), (cluster or "").strip()
+    if not state or not cluster:
+        raise UserError("Enter both a state and a cluster.")
+    with closing(_db()) as con:
+        con.execute("INSERT OR IGNORE INTO kam_scope (user_id, state, cluster) VALUES (?,?,?)",
+                    (user_id, state[:80], cluster[:120]))
+        con.commit()
+
+
+def remove_scope(user_id, scope_id):
+    with closing(_db()) as con:
+        con.execute("DELETE FROM kam_scope WHERE id=? AND user_id=?", (scope_id, user_id))
+        con.commit()
+
+
+def replace_scope(user_id, pairs):
+    with closing(_db()) as con:
+        con.execute("DELETE FROM kam_scope WHERE user_id=?", (user_id,))
+        con.executemany("INSERT OR IGNORE INTO kam_scope (user_id, state, cluster) VALUES (?,?,?)",
+                        [(user_id, st[:80], cl[:120]) for st, cl in pairs])
+        con.commit()
+
+
+def aliases():
+    with closing(_db()) as con:
+        return {r["cluster_norm"]: r["chain_norm"] for r in con.execute("SELECT * FROM cluster_alias")}
+
+
+def set_alias(cluster_norm, chain_norm):
+    with closing(_db()) as con:
+        if chain_norm:
+            con.execute("INSERT OR REPLACE INTO cluster_alias (cluster_norm, chain_norm) VALUES (?,?)",
+                        (cluster_norm, chain_norm))
+        else:
+            con.execute("DELETE FROM cluster_alias WHERE cluster_norm=?", (cluster_norm,))
+        con.commit()

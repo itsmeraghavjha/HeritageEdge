@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}{{ person.name or person.email }} | HeritageEdge{% endblock %}
+{% block content %}
+<header class="page-head">
+  <div>
+  <h1>{{ person.name or person.email }}</h1>
+  <p class="lede">{{ person.email }}. <a href="/admin/users">Back to all users</a></p>
+  </div>
+</header>
+
+{% if message %}<div class="panel people-note" role="status"><p>{{ message.text }}</p></div>{% endif %}
+
+<section class="panel people-add">
+  <h2>Details</h2>
+  <form method="post" action="/admin/users/{{ person.id }}/details" class="people-form">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Name <input name="name" class="text" value="{{ person.name }}" maxlength="100"></label>
+    <label>Employee ID <input name="employee_id" class="text" value="{{ person.employee_id }}" maxlength="40"></label>
+    <label>Role <select name="role" class="text">
+      <option value="kam" {{ 'selected' if person.role == 'kam' }}>KAM (only their accounts, P&amp;L to contribution)</option>
+      <option value="leadership" {{ 'selected' if person.role == 'leadership' }}>Leadership (sees everything)</option></select></label>
+    <button type="submit" class="btn btn-primary">Save</button>
+  </form>
+</section>
+
+{% if person.role == 'kam' %}
+<section class="panel table-panel">
+  <div class="people-add">
+    <h2>What this KAM can see</h2>
+    <p class="sub">A KAM sees the rows for each state and cluster below, and nothing else. With no rows they see nothing.</p>
+    <form method="post" action="/admin/users/{{ person.id }}/scope/add" class="people-form">
+      <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+      <label>State <select name="state" class="text" required><option value="">Choose a state</option>{% for s in states %}<option>{{ s }}</option>{% endfor %}</select></label>
+      <label>Cluster name <input name="cluster" class="text" list="chainlist" required autocomplete="off" placeholder="A chain name"></label>
+      <datalist id="chainlist">{% for c in chains %}<option value="{{ c }}">{% endfor %}</datalist>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  </div>
+  <div class="table-scroll">
+    <table class="data people">
+      <thead><tr><th class="left">State</th><th class="left">Cluster</th><th class="left">Matches the data</th><th class="left"></th></tr></thead>
+      <tbody>
+      {% for sc in scope %}
+        <tr><td class="left">{{ sc.state }}</td><td class="left">{{ sc.cluster }}</td>
+          <td class="left">{{ 'Yes' if sc.matched else 'No chain with this name' }}</td>
+          <td class="left actions"><form method="post" action="/admin/users/{{ person.id }}/scope/{{ sc.id }}/remove"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn btn-small" type="submit">Remove</button></form></td></tr>
+      {% else %}
+        <tr><td class="left" colspan="4">No mapping yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

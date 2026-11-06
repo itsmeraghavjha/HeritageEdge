@@ -8,7 +8,7 @@ from functools import wraps
 from flask import (Flask, g, jsonify, redirect, render_template, request, send_file, session, url_for)
 
 from engine import env  # noqa: F401  (loads .env before anything reads settings)
-from engine import data, datastore, export, mailer, network, prepare, simulate, sql_source, users
+from engine import access, data, datastore, export, mailer, network, prepare, simulate, sql_source, users
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 ** 3          # the MIS workbook can be large
@@ -66,6 +66,10 @@ def require_login():
     user = users.get(uid) if uid else None
     if user and user["active"]:       # looked up on every request, so disabling someone takes effect at once
         g.user = user
+        if user["must_change"] and request.endpoint not in ("change_password", "logout", "static"):
+            if request.path.startswith("/api/"):
+                return jsonify(error="Choose a new password first."), 403
+            return redirect(url_for("change_password"))
         return None
     session.pop("uid", None)
     if request.endpoint in OPEN_PAGES:
@@ -83,6 +87,24 @@ def admin_only(view):
                                    text="Only the admin can manage users."), 403
         return view(*args, **kwargs)
     return wrapper
+
+
+def data_admin_only(view):
+    """The Data page builds the dataset from confidential sources: the admin only (anyone, while no logins exist)."""
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if auth_enabled() and (not g.user or g.user["role"] != "admin"):
+            if request.path.startswith("/api/"):
+                return jsonify(error="Only the admin can do this."), 403
+            return render_template("message.html", title="Admins only", text="Only the admin can open the Data page."), 403
+        return view(*args, **kwargs)
+    return wrapper
+
+
+def visible():
+    """(allowed row positions or None, limited): what the signed-in person may see. Used by every numbers route."""
+    user = g.get("user")
+    return access.allowed_indices(user), access.limited(user)
 
 
 def set_password_link(token):
@@ -168,8 +190,19 @@ def logout():
 @app.get("/admin/users")
 @admin_only
 def admin_users():
-    return render_template("users.html", active="users", people=users.list_users(),
-                           email_ready=mailer.configured(), message=session.pop("people_msg", None))
+    people = users.list_users()
+    for p in people:
+        p["scope_count"] = len(users.scope_rows(p["id"])) if p["role"] == "kam" else 0
+    return render_template("users.html", active="users", people=people, email_ready=mailer.configured(),
+                           message=session.pop("people_msg", None), unmatched=access.unmatched_clusters(),
+                           chains=access.chain_names(), aliases=_alias_view())
+
+
+def _alias_view():
+    """Aliases as (cluster as typed, chain) pairs for display."""
+    names = {access.norm(c): c for c in users.all_scope_clusters()}
+    chains = {access.norm(c): c for c in access.chain_names()}
+    return [(names.get(k, k), chains.get(v, v), k) for k, v in sorted(users.aliases().items())]
 
 
 def _done(text, link=None):
@@ -181,7 +214,11 @@ def _done(text, link=None):
 @admin_only
 def admin_users_new():
     try:
-        uid = users.create(request.form.get("email", ""), request.form.get("name", ""))
+        role = request.form.get("role", "kam")
+        if role not in ("kam", "leadership"):
+            role = "kam"
+        uid = users.create(request.form.get("email", ""), request.form.get("name", ""), role,
+                           request.form.get("employee_id", ""))
     except users.UserError as exc:
         return _done(str(exc))
     user = users.get(uid)
@@ -190,6 +227,104 @@ def admin_users_new():
         return _done(f"Account created. A link to set a password was emailed to {user['email']}.")
     return _done(f"Account created, but the email could not be sent. Send {user['email']} this link yourself "
                  f"(it works once and expires in {users.INVITE_HOURS} hours):", link)
+
+
+@app.post("/admin/users/upload")
+@admin_only
+def admin_users_upload():
+    file = request.files.get("file")
+    if not file or not file.filename:
+        return _done("Choose the KAM Excel file first.")
+    try:
+        report = access.import_mapping(file, request.form.get("starting_password", ""))
+    except users.UserError as exc:
+        return _done(str(exc))
+    return _done(report)
+
+
+@app.get("/admin/users/<int:uid>")
+@admin_only
+def admin_user_detail(uid):
+    user = users.get(uid)
+    if not user:
+        return redirect(url_for("admin_users"))
+    matched = {access.norm(c) for c in chains_in_data()}
+    alias = users.aliases()
+    scope = users.scope_rows(uid)
+    for sc in scope:
+        cn = access.norm(sc["cluster"])
+        sc["matched"] = alias.get(cn, cn) in matched
+    return render_template("user_detail.html", active="users", person=user, scope=scope, states=access.state_names(),
+                           chains=access.chain_names(), message=session.pop("people_msg", None))
+
+
+def chains_in_data():
+    return access.chain_names()
+
+
+def _back(uid, text):
+    session["people_msg"] = {"text": text, "link": None}
+    return redirect(url_for("admin_user_detail", uid=uid))
+
+
+@app.post("/admin/users/<int:uid>/details")
+@admin_only
+def admin_user_details(uid):
+    try:
+        users.update_details(uid, request.form.get("name", ""), request.form.get("employee_id", ""))
+        role = request.form.get("role")
+        if role:
+            users.set_role(uid, role)
+    except users.UserError as exc:
+        return _back(uid, str(exc))
+    return _back(uid, "Saved.")
+
+
+@app.post("/admin/users/<int:uid>/scope/add")
+@admin_only
+def admin_user_scope_add(uid):
+    try:
+        users.add_scope(uid, request.form.get("state", ""), request.form.get("cluster", ""))
+    except users.UserError as exc:
+        return _back(uid, str(exc))
+    return _back(uid, "Mapping added.")
+
+
+@app.post("/admin/users/<int:uid>/scope/<int:sid>/remove")
+@admin_only
+def admin_user_scope_remove(uid, sid):
+    users.remove_scope(uid, sid)
+    return _back(uid, "Mapping removed.")
+
+
+@app.post("/admin/aliases")
+@admin_only
+def admin_alias():
+    cluster = access.norm(request.form.get("cluster", ""))
+    chain = access.norm(request.form.get("chain", ""))
+    if not cluster:
+        return _done("Choose a cluster.")
+    users.set_alias(cluster, chain)
+    return _done("Alias saved." if chain else "Alias removed.")
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+def change_password():
+    if not g.user:
+        return redirect(url_for("login"))
+    error = None
+    if request.method == "POST":
+        if request.form.get("password") != request.form.get("again"):
+            error = "The two new passwords are not the same."
+        else:
+            try:
+                users.change_password(g.user["id"], request.form.get("current", ""), request.form.get("password", ""))
+            except users.UserError as exc:
+                error = str(exc)
+            else:
+                return redirect(url_for("simulator_page"))
+    return render_template("change_password.html", error=error, forced=bool(g.user["must_change"]),
+                           min_length=users.MIN_PASSWORD)
 
 
 @app.post("/admin/users/<int:uid>/active")
@@ -227,7 +362,7 @@ def no_store(response):
 @app.context_processor
 def inject_globals():
     return {"data_status": data.status(), "auth_enabled": auth_enabled(), "current_user": g.get("user"),
-            "csrf_token": csrf_token,
+            "csrf_token": csrf_token, "role_names": users.ROLE_NAMES, "limited": access.limited(g.get("user")),
             "network_svg": lambda: network.svg(network.labels(), url_for("static", filename="img/heritage-logo.png"))}
 
 
@@ -248,6 +383,7 @@ def pnl_page():
 
 
 @app.get("/data")
+@data_admin_only
 def data_page():
     return render_template("data.html", active="data")
 
@@ -255,10 +391,13 @@ def data_page():
 # ---------- numbers ----------
 @app.get("/api/meta")
 def meta():
+    allowed, limited = visible()
+    options, combos = access.options_for(allowed)
     return jsonify({
-        "status": data.status(),
-        "dims": [{"id": d, "name": name, "options": data.OPTIONS[d]} for d, name in data.DIM_DEFS],
-        "combos": data.COMBOS,
+        "status": data.status() if not limited else {"mode": data.MODE, "title": data.status()["title"]},
+        "dims": [{"id": d, "name": name, "options": options[d]} for d, name in data.DIM_DEFS],
+        "combos": combos,
+        "user": {"role": g.user["role"] if g.get("user") else None, "limited": limited},
     })
 
 
@@ -270,30 +409,37 @@ def _payload():
 @app.post("/api/simulate")
 def api_simulate():
     levers, scope, _, _ = _payload()
-    return jsonify(simulate.simulate(levers, scope))
+    allowed, limited = visible()
+    out = simulate.simulate(levers, scope, allowed)
+    return jsonify(simulate.strip_below_cm(out) if limited else out)
 
 
 @app.post("/api/pnl")
 def api_pnl():
     levers, scope, dims, flt = _payload()
-    return jsonify(simulate.pnl(levers, scope, dims, flt))
+    allowed, limited = visible()
+    out = simulate.pnl(levers, scope, dims, flt, allowed)
+    return jsonify(simulate.strip_below_cm(out) if limited else out)
 
 
 @app.post("/api/export")
 def api_export():
     levers, scope, dims, flt = _payload()
-    buf = export.build_workbook(levers, scope, dims, flt)
+    allowed, limited = visible()
+    buf = export.build_workbook(levers, scope, dims, flt, allowed, limited)
     return send_file(buf, as_attachment=True, download_name="heritageedge-pnl.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 # ---------- data page ----------
 @app.get("/api/data/status")
+@data_admin_only
 def data_status():
     return jsonify(datastore.status())
 
 
 @app.post("/api/data/upload/<kind>")
+@data_admin_only
 def data_upload(kind):
     file = request.files.get("file")
     if not file or not file.filename:
@@ -306,12 +452,14 @@ def data_upload(kind):
 
 
 @app.post("/api/data/sql/test")
+@data_admin_only
 def data_sql_test():
     ok, message = sql_source.test_connection()
     return jsonify(ok=ok, message=message)
 
 
 @app.post("/api/data/sql/pull")
+@data_admin_only
 def data_sql_pull():
     start = (request.get_json(silent=True) or {}).get("start") or sql_source.default_start().isoformat()
     if not datastore.pull_billing(start):
@@ -320,6 +468,7 @@ def data_sql_pull():
 
 
 @app.post("/api/data/build")
+@data_admin_only
 def data_build():
     months = (request.get_json(silent=True) or {}).get("months") or []
     if not datastore.build(months):

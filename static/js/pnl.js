@@ -10,7 +10,7 @@
   let requestId = 0;
 
   // [header, key, kind, good when up]
-  const COLS = [
+  const COLS_ALL = [
     ['Volume (’000 packs)', 'units', 'k', true],
     ['Litres or kg (’000)', 'qty', 'q', true],
     ['Gross sales', 'gross', 'l', true],
@@ -30,6 +30,7 @@
     ['Net margin', 'nm', 'l', true],
     ['NM %', 'nm_pct', 'p', true],
   ];
+  const COLS = COLS_ALL.filter((c) => HE.allowedKey(c[1]));
   const STRONG = new Set(['net', 'gm', 'cm', 'nm']);
 
   // Litres and kg stay in their own units, side by side in one cell: "675 L + 307 kg".

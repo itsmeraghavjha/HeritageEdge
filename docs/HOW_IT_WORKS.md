@@ -82,6 +82,15 @@ There is no built-in "realistic uplift" threshold; judge the breakeven against w
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. The two are never converted into each other and never added together, so a total shows litres and kg as separate columns. Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
 
+## Who sees what
+
+There are three roles. The **admin** (one) manages users and the Data page and sees everything. **Leadership** sees all data and the full P&L. A **KAM** sees only the rows for the states and chains they are mapped to, and the P&L only down to contribution.
+
+- **Mapping.** The admin uploads the KAM sheet (State, Cluster Name, Employee ID, Employee Name, Email; one row per state and cluster) on the Users page, with a starting password. That creates a KAM per email, who must choose their own password at first login. Uploading again updates names and mappings and leaves passwords alone. The admin can also edit one KAM's mapping rows, change a role, or add a person.
+- **Matching.** A mapping row matches the data rows with the same state and a chain of the same name once case, spaces and punctuation are ignored ("V-Mart" matches "V-MART"). A cluster that matches no chain is listed on the Users page, where the admin can alias it to a chain; names are never guessed. A KAM with no matching rows sees nothing.
+- **Enforced on the server.** Rows are cut before any calculation, so the simulator, the P&L, the Excel export and the lists of chains, states and SKUs all hold only the KAM's own rows, and "whole business" figures are their own rows too. For a KAM, P&A, interest, marketing, net margin and NM % are removed from every answer and from the export. The screens also hide those lines, but only the server cut counts. A scope or filter that names other chains returns nothing.
+- **Same numbers.** A KAM's figures equal what leadership gets by selecting the same states and chains.
+
 ## Row adjustments
 
 Under "Where it lands", a chain, product category, SKU or state can carry its own price, promo, trade margin, other deductions and volume change (the **Adjust** button on each row). They are the five commercial levers; the two cost levers stay global.

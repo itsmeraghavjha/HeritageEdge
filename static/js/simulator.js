@@ -98,6 +98,11 @@
   function renderKpis(r) {
     const b = r.base, s = r.sim;
     const dNet = s.net - b.net, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
+    $('kpis').classList.toggle('kpis-4', HE.LIMITED);
+    const netMarginCard = HE.LIMITED ? '' :
+      kpi('Net margin', HE.inr(s.nm),
+          `${HE.inrSigned(dNm)} (${HE.pp(s.nm_pct - b.nm_pct)})`, HE.tone(dNm, true, 500),
+          `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`);
     $('kpis').innerHTML =
       kpi('Net revenue', HE.inr(s.net),
           `${HE.inrSigned(dNet)} (${HE.relText(HE.rel(b.net, s.net))})`, HE.tone(dNet, true, 500),
@@ -108,9 +113,7 @@
       kpi('Contribution', HE.inr(s.cm),
           `${HE.inrSigned(dCm)} (${HE.relText(HE.rel(b.cm, s.cm))})`, HE.tone(dCm, true, 500),
           `${HE.pct(s.cm_pct)} of net revenue, baseline ${HE.pct(b.cm_pct)}`, true) +
-      kpi('Net margin', HE.inr(s.nm),
-          `${HE.inrSigned(dNm)} (${HE.pp(s.nm_pct - b.nm_pct)})`, HE.tone(dNm, true, 500),
-          `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`) +
+      netMarginCard +
       kpi('Volume in packs', (s.units / 1e5).toFixed(1) + ' lakh',
           HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
           `Baseline ${(b.units / 1e5).toFixed(1)} lakh packs. ${qtyText(s)}`);
@@ -187,7 +190,7 @@
       : '';
   }
 
-  const SUMMARY_ROWS = [
+  const SUMMARY_ALL = [
     ['Volume (’000 packs)', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
     ['Promo', 'promo', 'l', false],
@@ -206,6 +209,8 @@
     ['Contribution %', 'cm_pct', 'p', true],
     ['Net margin %', 'nm_pct', 'p', true],
   ];
+
+  const SUMMARY_ROWS = SUMMARY_ALL.filter((row) => HE.allowedKey(row[1]));
 
   function renderSummary(r) {
     const rows = SUMMARY_ROWS.map(([label, key, kind, goodUp, strong]) => {
@@ -406,14 +411,14 @@
       <th scope="row">${sg(c.volume_pct)}${c.entered ? ' (your input)' : ''}</th>
       <td>${HE.thousands(c.d_units, true)}</td>
       <td><span class="chg ${HE.tone(c.d_cm, true, 5e3)}">${HE.lakhSigned(c.d_cm)}</span></td>
-      <td><span class="chg ${HE.tone(c.d_nm, true, 5e3)}">${HE.lakhSigned(c.d_nm)}</span></td></tr>`).join('');
+      ${HE.LIMITED ? '' : `<td><span class="chg ${HE.tone(c.d_nm, true, 5e3)}">${HE.lakhSigned(c.d_nm)}</span></td>`}</tr>`).join('');
     const sug = Math.round(r.suggested_volume * 1000) / 10;
     const hint = Math.abs(sug) < 0.05 ? ''
       : `<p class="chart-note">For these levers the model suggests about ${sg(sug)} volume. That is an assumption from past
         price elasticities, not a forecast. <button type="button" class="link-btn" id="useSuggested">Use ${sg(sug)}</button></p>`;
     el.innerHTML = `<div class="vol-lead ${t.tone}"><strong>${HE.esc(t.head)}</strong><span>${HE.esc(t.body)}</span></div>
       <table class="table vol-table"><thead><tr><th scope="col">If volume in scope changes by</th>
-        <th scope="col">Volume (thousand packs)</th><th scope="col">Contribution change (₹ L)</th><th scope="col">Net margin change (₹ L)</th></tr></thead>
+        <th scope="col">Volume (thousand packs)</th><th scope="col">Contribution change (₹ L)</th>${HE.LIMITED ? '' : '<th scope="col">Net margin change (₹ L)</th>'}</tr></thead>
         <tbody>${rows}</tbody></table>${hint}`;
     const btn = $('useSuggested');
     if (btn) btn.addEventListener('click', () => {
@@ -437,7 +442,8 @@
     const share = r.whole.units ? r.base.units / r.whole.units : 0;
     $('viewNote').textContent = sel
       ? `Showing your selection only: ${r.rows_in_scope.toLocaleString('en-IN')} of ${r.rows_total.toLocaleString('en-IN')} lines, ${HE.pct(share)} of today’s volume.`
-      : 'Showing the whole business. Pick chains, states or SKUs on the left to see just those.';
+      : (HE.LIMITED ? 'Showing all your accounts. Pick chains, states or SKUs on the left to see just those.'
+                    : 'Showing the whole business. Pick chains, states or SKUs on the left to see just those.');
     const rc = HE.adjustCount(state.adjust);
     if (rc) $('viewNote').textContent += ` ${rc} row${rc > 1 ? 's are' : ' is'} adjusted on ${rc > 1 ? 'their' : 'its'} own.`;
   }
