@@ -49,4 +49,4 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 
 ## More
 
-`docs/STATUS.md` (handoff), `docs/HOW_IT_WORKS.md` (formulas, who sees what, activity log), `docs/DATA.md` (pipeline), `docs/DECISIONS.md` (why, open questions), `docs/ROADMAP.md` (next).
+`docs/STATUS.md` (handoff), `docs/HOW_IT_WORKS.md` (formulas, who sees what, activity log), `docs/DATA.md` (pipeline), `docs/DECISIONS.md` (why, open questions), `docs/ROADMAP.md` (next), `docs/ERROR_REGISTER.md` (what can make the numbers wrong, in fix order).
