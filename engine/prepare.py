@@ -529,7 +529,14 @@ def mrp_in_force(b):
                       "n": (e_new * b["packs"])[ok], "o": (e_old * b["packs"])[ok]})
     t = x.groupby(["sku", "m"]).sum()
     use_old = ((t["rev"] / t["o"] - 1).abs() < (t["rev"] / t["n"] - 1).abs())
-    keys = set(use_old[use_old].index)
+    # A new MRP cannot go back to the old one: once a SKU follows the new MRP in a month, later months do too.
+    keys = set()
+    for sku, grp in use_old.groupby(level=0):
+        seen_new = False
+        for (sk, month), old in grp.sort_index(level=1).items():
+            seen_new = seen_new or not old
+            if old and not seen_new:
+                keys.add((sk, month))
     if not keys:
         return b, report
     hit = pd.Series([(k in keys) for k in zip(b["sku"], b["BillMonth"])], index=b.index) & ok

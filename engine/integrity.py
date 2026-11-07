@@ -615,16 +615,23 @@ def _trade_gst(c):
     d["x_b"] = d["mrp"] * (1 / (1 + d["gst"]) - d["trade"]) * d["packs"]
     d = d[d["x_b"] > 0]
     ga, gb = _gap(d, "x_used"), _gap(d, "x_b")
+    fam = d.groupby("family").apply(lambda x: pd.Series({"rev": x["rev"].sum(), "a": _gap(x, "x_used"), "b": _gap(x, "x_b")}),
+                                     include_groups=False).sort_values("rev", ascending=False)
+    tot = float(fam["rev"].sum())
+    a_ok = float(fam.loc[fam["a"].abs() <= 0.005, "rev"].sum() / tot)
+    b_ok = float(fam.loc[fam["b"].abs() <= 0.005, "rev"].sum() / tot)
     ev = [("Lines with GST and no offer", f"{pct(float(d['rev'].sum()) / float(_priced(c)['rev'].sum()))} of revenue"),
           ("Billed against A: margin off the MRP, then ex-GST (the file's Basic cost)", pct(ga)),
-          ("Billed against B: ex-GST MRP less margin on the GST-inclusive MRP", pct(gb))]
-    for fam, x in d.groupby("family"):
-        ev.append((f"Family: {fam}", f"A {pct(_gap(x, 'x_used'))}, B {pct(_gap(x, 'x_b'))}"))
-    b_better = abs(gb) + 0.005 < abs(ga)
-    head = (f"With GST and no offer, billing is {pct(ga)} against A and {pct(gb)} against B. "
-            + ("B fits better, so the trade margin is probably taken off the GST-inclusive MRP." if b_better else "A fits at least as well."))
-    return (WARN if b_better and abs(ga) >= 0.005 else PASS), head, ev, \
-        "If B is right, tell us and the build will use it for products with GST." if b_better else ""
+          ("Billed against B: ex-GST MRP less margin on the GST-inclusive MRP", pct(gb)),
+          ("Revenue in families within 0.5% of A", pct(a_ok)), ("Revenue in families within 0.5% of B", pct(b_ok))]
+    for f, r in fam.iterrows():
+        ev.append((f"Family: {f}", f"A {pct(r['a'])}, B {pct(r['b'])}"))
+    b_better = b_ok > a_ok + 0.1
+    head = (f"With GST and no offer, billing is {pct(ga)} against A and {pct(gb)} against B overall. A is exact (within 0.5%) for families with "
+            f"{pct(a_ok)} of this revenue and B for {pct(b_ok)}. "
+            + ("B fits more families, so the margin is probably taken off the GST-inclusive MRP." if b_better else
+               "B only looks better overall because it adds about 1% to every family; A is the rule where billing is exact, so the gap is specific to the families above, not to GST."))
+    return (WARN if b_better else PASS), head, ev, "If B is right, tell us and the build will use it for products with GST." if b_better else ""
 
 
 @check("no_offer_gap", "Price against the offer file", "A price gap with no offer involved",
@@ -647,6 +654,11 @@ def _no_offer_gap(c):
         for k, r in grp.sort_values("rev", ascending=False).head(5 if col != "gst" else 3).iterrows():
             name = f"{k:.0%}" if col == "gst" else str(k)
             ev.append((f"{label}: {name}", f"{pct(r['gap'])} ({pct(r['rev'] / float(d['rev'].sum()))} of these lines)"))
+    n = max(int(c.get("n") or 1), 1)
+    sk = d.groupby("sku").apply(lambda x: pd.Series({"name": x["name"].iloc[0], "rev": x["rev"].sum(), "gap": _gap(x),
+                                                     "diff": x["rev"].sum() - x["x_used"].sum()}), include_groups=False)
+    for _, r in sk.reindex(sk["diff"].abs().sort_values(ascending=False).index).head(8).iterrows():
+        ev.append((f"SKU: {r['name']}", f"{pct(r['gap'])}, {lakh(r['diff'] / n)} a month"))
     flat = float(d.loc[d["line_gap"].abs() >= 0.005, "rev"].sum() / d["rev"].sum()) > 0.6
     head = (f"With no offer involved, billing is {pct(gap)} against the file's price. "
             + ("Most lines are off by a similar small amount, which looks like a standing deduction or a definition difference, not one chain or SKU."
@@ -687,7 +699,10 @@ def _gap_by_month(c):
     share = float(flips["rev"].sum() / tot_all) if tot_all else 0.0
     for sku, r in flips.head(6).iterrows():
         fits = s[s["sku"] == sku].sort_values("BillMonth")
-        ev.append((str(r["name"]), ", ".join(f"{str(m)[:7]} {'old' if o else 'new'} MRP" for m, o in zip(fits["BillMonth"], fits["old_fits"]))))
+        order = list(fits["old_fits"])
+        back = any(order[i] and not all(order[:i + 1]) for i in range(len(order)))    # old again after a month at the new MRP
+        text = ", ".join(f"{str(m)[:7]} {'old' if o else 'new'} MRP" for m, o in zip(fits["BillMonth"], fits["old_fits"]))
+        ev.append((str(r["name"]), text + (" (an MRP does not go back, so the build uses the new MRP)" if back else "")))
     spread = max(gaps) - min(gaps)
     handled = (c.get("mrp_used") or {}).get("sku_months_priced_old", 0) > 0
     head = (f"The gap, after pricing each month with the MRP in force, runs from {pct(min(gaps))} to {pct(max(gaps))} across the base months. "

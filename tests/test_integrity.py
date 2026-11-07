@@ -364,6 +364,29 @@ def test_margin_taken_off_the_gst_inclusive_mrp_is_detected():
     d["gst"] = 0.05
     d["rev"] = 100.0 * 100.0 * (1 / 1.05 - 0.2)             # billing follows B
     out = integrity._trade_gst({"lines": d})
-    assert out["status"] == "warn" and "B fits better" in out["headline"]
+    assert out["status"] == "warn" and "B fits more families" in out["headline"]
     d["rev"] = 100.0 * 100.0 * 0.8 / 1.05                   # billing follows A
     assert integrity._trade_gst({"lines": d})["status"] == "pass"
+
+
+def test_a_formula_that_is_exact_for_some_families_is_not_replaced_by_one_that_is_only_better_overall():
+    d = pd.concat([priced([("2026-08-01", 1, 100.0, 0.0, 100.0, 100.0, 0.0, 0.0)]).assign(family="Exact"),
+                   priced([("2026-08-01", 2, 100.0, 0.0, 100.0, 100.0, 0.0, 0.0)]).assign(family="Under", sku=2)])
+    d["gst"] = 0.05
+    d.loc[d["family"] == "Exact", "rev"] = 100.0 * 100.0 * 0.8 / 1.05          # exactly A
+    d.loc[d["family"] == "Under", "rev"] = 100.0 * 100.0 * 0.8 / 1.05 * 0.98   # 2% under A, close to B
+    out = integrity._trade_gst({"lines": d})
+    assert out["status"] == "pass" and "A is exact" in out["headline"]
+
+
+def test_the_top_skus_by_rupees_are_listed_for_a_no_offer_gap():
+    d = priced([("2026-08-01", 1, 100.0, 7600.0, 100.0, 100.0, 0.0, 0.0), ("2026-08-01", 2, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0)])
+    out = integrity._no_offer_gap({"lines": d, "n": 1})
+    assert any(k.startswith("SKU: ") for k, _ in out["evidence"])
+
+
+def test_a_new_mrp_does_not_go_back_to_the_old_one():
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0),      # July follows the new MRP
+                       (1, "2026-08-01", 100.0, 7200.0, 100.0, 90.0)])     # August looks like the old one: noise, not a rollback
+    out, rep = prepare.mrp_in_force(d)
+    assert list(out["mrp"]) == [100.0, 100.0] and rep["sku_months_priced_old"] == 0
