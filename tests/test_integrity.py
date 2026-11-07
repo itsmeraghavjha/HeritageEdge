@@ -290,3 +290,40 @@ def test_billing_that_follows_the_old_mrp_is_flagged():
 def test_billing_that_follows_the_new_mrp_passes():
     g = lines(76.0, mrp_old=[90.0] * 2, off_rs=[0.0] * 2, on_rs=[4.0] * 2)
     assert integrity._mrp_revision({"g": g})["status"] == "pass"
+
+
+# ---------- price gap checks ----------
+def priced(rows):
+    d = pd.DataFrame(rows, columns=["BillMonth", "sku", "packs", "rev", "mrp", "mrp_old", "on_rs", "off_rs"])
+    d["name"], d["family"], d["chain"] = "x", "Milk", "ALPHA"
+    d["trade"], d["gst"], d["offer_rs"] = 0.2, 0.0, d["on_rs"] + d["off_rs"]
+    return d
+
+
+def test_a_flat_gap_with_no_offer_is_reported():
+    # list price 100 x 0.8 = 80; billed 79.2 (-1%) on lines with no offer
+    d = priced([("2026-08-01", 1, 100.0, 7920.0, 100.0, 100.0, 0.0, 0.0), ("2026-08-01", 2, 100.0, 7920.0, 100.0, 100.0, 0.0, 0.0)])
+    out = integrity._no_offer_gap({"lines": d})
+    assert out["status"] == "warn" and "-1.0%" in out["headline"]
+
+
+def test_billing_at_the_file_price_with_no_offer_passes():
+    d = priced([("2026-08-01", 1, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0)])
+    assert integrity._no_offer_gap({"lines": d})["status"] == "pass"
+
+
+def test_one_base_month_cannot_show_movement():
+    d = priced([("2026-08-01", 1, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0)])
+    assert integrity._gap_by_month({"lines": d})["status"] == "skipped"
+
+
+def test_a_sku_that_switches_from_old_to_new_mrp_is_flagged():
+    rows = [("2026-07-01", 1, 100.0, 7200.0, 100.0, 90.0, 0.0, 0.0),     # July billed at the old MRP (90 x 0.8 = 72)
+            ("2026-08-01", 1, 100.0, 8000.0, 100.0, 90.0, 0.0, 0.0)]     # August at the new MRP (100 x 0.8 = 80)
+    out = integrity._gap_by_month({"lines": priced(rows)})
+    assert out["status"] == "fail" and "old MRP" in out["evidence"][-1][1] and "new MRP" in out["evidence"][-1][1]
+
+
+def test_steady_prices_in_every_month_pass():
+    rows = [(m, 1, 100.0, 8000.0, 100.0, 90.0, 0.0, 0.0) for m in ("2026-07-01", "2026-08-01")]
+    assert integrity._gap_by_month({"lines": priced(rows)})["status"] == "pass"

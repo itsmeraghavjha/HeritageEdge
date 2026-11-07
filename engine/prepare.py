@@ -649,7 +649,9 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             "raw": raw, "off": off, "g": g.loc[final.index], "mis": mis, "everyone": everyone, "n": n, "stages": stages,
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
-            "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months})
+            "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months,
+            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "mrp_old", "trade", "gst",
+                                    "offer_rs", "on_rs", "off_rs") if c in b.columns]]})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
     meta = {

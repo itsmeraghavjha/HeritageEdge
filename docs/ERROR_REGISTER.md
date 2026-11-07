@@ -75,3 +75,5 @@ How to read the size: **High** can move a chain or line by several points of mar
 - 44% of offer rows have an OLD MRP different from New MRP (avg +6%); the build uses New for all months. Open: needs the month the new MRP started, or the check's answer.
 - Off-invoice offers (about a quarter of rows) are not on the invoice: open, the check measures whether billing includes them.
 - The same customer x SKU repeats once per sales district; the build averages districts. Open: match on district to sales office.
+- Real data, Aug base: billing is about 1% under the offer file even on lines with no offer, so a standing deduction exists outside offers (check "A price gap with no offer involved"). Off-invoice offers ARE inside billed price (billing sits within 0.1 pts of the offer-deducted price), so the model counts them correctly. Billing follows the new MRP.
+- Jul+Aug: gap moves between months on some SKUs (ghee, milk sachets, butter at q-commerce chains). Check "The gap in each base month" shows which MRP fits each month.
