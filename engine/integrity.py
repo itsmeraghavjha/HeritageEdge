@@ -455,6 +455,7 @@ def _mrp_by_sku(c):
     o["m"] = pd.to_numeric(o["New MRP"], errors="coerce")
     o = o[o["m"] > 0]
     dm = c["dm"]
+    o = o[o["cid"].isin(set(dm["cid"]))]        # customers with no billing cannot affect any number
     # the state each customer mostly bills in; MRPs differ by state for milk and curd, which is not an error
     if "STATE" in dm.columns and len(dm):
         st = dm.groupby(["cid", dm["STATE"].astype(str).str.strip().str.title()])["rev"].sum().reset_index()
@@ -482,7 +483,10 @@ def _mrp_by_sku(c):
     head = (f"{len(overall)} SKUs carry more than one MRP across the offer file, which is normal when states price differently. "
             f"{len(skus_within)} still differ inside one state ({pct(share)} of revenue): that is usually a price revision caught "
             "mid-file, and the build then averages the old and new MRP.")
-    return grade(share, 0.02, 0.20), head, ev, "Use the MRP that was in force during the base months for every row of the SKU." if share >= 0.02 else ""
+    # Terms are taken per customer and SKU, so different MRPs for different customers do no harm by themselves; the
+    # harm is inside one customer x SKU (the check above) and in which MRP billing follows (the MRP revision check).
+    return min(grade(share, 0.02, 0.20), WARN, key=lambda x: _ORDER[x]), head, ev, \
+        "Only matters if the MRP check below says billing does not follow the file." if share >= 0.02 else ""
 
 
 @check("offer_months", "Tax and offer file", "The offer is read from the base months",
