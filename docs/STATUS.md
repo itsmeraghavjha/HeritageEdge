@@ -26,6 +26,8 @@ Read this first in a new chat. It is the one place that says where the project s
 
 Numbers were reconciled to the MIS for Aug 2026 (net margin 2.3% vs 2.2%).
 
+Branch `other-deductions` (not merged) also holds: the "Where other deductions come from" panel and the 19 Data checks (`engine/integrity.py`). Next: run them on real data, then fix what turns red, in `docs/ERROR_REGISTER.md` order.
+
 ## Not done yet (priority order)
 
 1. **Hosting.** Still Flask's dev server on HTTP. IT should host it behind HTTPS with Waitress or Gunicorn. Other computers need `HOST=0.0.0.0` and `APP_BASE_URL`.

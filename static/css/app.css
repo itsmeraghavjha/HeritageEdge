@@ -750,3 +750,25 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .hbar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hbar-wide { grid-template-columns: 220px 1fr 40px 260px; }
 .data th .fix { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); margin-top: 2px; white-space: normal; }
+
+/* Data page: data checks */
+#integrity { padding: 0 20px 8px; }
+#integrity .chk-summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 6px; }
+#integrity .chk-count { padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 500; }
+#integrity .chk-count.chk-fail, #integrity .chk.chk-fail .chk-badge { background: #f8dcd8; color: #8a1f14; }
+#integrity .chk-count.chk-warn, #integrity .chk.chk-warn .chk-badge { background: #fbecc8; color: #7a5300; }
+#integrity .chk-count.chk-pass, #integrity .chk.chk-pass .chk-badge { background: #e6f2e2; color: #1d5f1b; }
+#integrity .chk-count.chk-skipped, #integrity .chk.chk-skipped .chk-badge { background: #eceeea; color: #566a5d; }
+#integrity .chk-area { font-size: 13px; text-transform: none; color: var(--muted); font-weight: 600; margin: 16px 0 6px; }
+#integrity .chk { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; background: var(--paper); }
+#integrity .chk summary { display: flex; align-items: center; gap: 10px; padding: 9px 12px; cursor: pointer; list-style: none; }
+#integrity .chk summary::-webkit-details-marker { display: none; }
+#integrity .chk-badge { flex: none; min-width: 84px; text-align: center; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+#integrity .chk-title { font-weight: 500; }
+#integrity .chk-body { padding: 0 14px 12px 14px; font-size: 14px; }
+#integrity .chk-q { color: var(--muted); margin: 0 0 6px; }
+#integrity .chk-body p { margin: 4px 0; }
+#integrity .chk-ev { width: 100%; border-collapse: collapse; margin: 8px 0 4px; font-size: 13.5px; }
+#integrity .chk-ev th, #integrity .chk-ev td { text-align: left; padding: 4px 8px; border-top: 1px solid var(--line); font-weight: 400; vertical-align: top; }
+#integrity .chk-ev th { width: 52%; }
+#integrity .chk-fix { color: var(--green); font-weight: 500; }

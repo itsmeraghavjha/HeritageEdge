@@ -173,6 +173,7 @@
     renderPriceCheck(data.price_check);
     renderOfferCheck(data.offer_price_check);
     renderGapCheck(data.gap_breakdown);
+    renderIntegrity(data.integrity);
     $('reconTable').innerHTML = `<thead><tr><th scope="col">Cost line</th><th scope="col">In HeritageEdge</th>
       <th scope="col">In the MIS</th><th scope="col">Gap</th></tr></thead><tbody>${rows}</tbody>`;
   }
@@ -221,6 +222,27 @@
       Below it by more than 10%: ${pc(b.below_over_10pct)}. Above it: ${pc(b.above)}.</p>
       <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Chain and SKU with the largest difference</th>
       <th scope="col">Billed less offer-file price</th><th scope="col">Gap</th></tr></thead><tbody>${top}</tbody></table></div>`;
+  }
+
+  const STATUS_TEXT = { pass: 'OK', warn: 'Look at this', fail: 'Problem', skipped: 'Not checked' };
+  function renderIntegrity(rep) {
+    const el = $('integrity');
+    if (!rep) { el.innerHTML = '<p class="sub pad">Rebuild the dataset to see these checks.</p>'; return; }
+    const s = rep.summary;
+    const pill = (k, n) => `<span class="chk-count chk-${k}">${n} ${STATUS_TEXT[k].toLowerCase()}</span>`;
+    const areas = [...new Set(rep.checks.map((c) => c.area))];
+    const body = areas.map((area) => {
+      const items = rep.checks.filter((c) => c.area === area).map((c) => {
+        const ev = c.evidence.length ? `<table class="chk-ev"><tbody>${c.evidence.map(([a, b]) =>
+          `<tr><th scope="row">${HE.esc(a)}</th><td>${HE.esc(b)}</td></tr>`).join('')}</tbody></table>` : '';
+        const fix = c.fix ? `<p class="chk-fix">What to do: ${HE.esc(c.fix)}</p>` : '';
+        return `<details class="chk chk-${c.status}"${c.status === 'fail' ? ' open' : ''}>
+          <summary><span class="chk-badge">${STATUS_TEXT[c.status]}</span><span class="chk-title">${HE.esc(c.title)}</span></summary>
+          <div class="chk-body"><p class="chk-q">${HE.esc(c.question)}</p><p>${HE.esc(c.headline)}</p>${ev}${fix}</div></details>`;
+      }).join('');
+      return `<h3 class="chk-area">${HE.esc(area)}</h3>${items}`;
+    }).join('');
+    el.innerHTML = `<div class="chk-summary">${pill('fail', s.fail)}${pill('warn', s.warn)}${pill('pass', s.pass)}${s.skipped ? pill('skipped', s.skipped) : ''}</div>${body}`;
   }
 
   const CAUSE_FIX = {

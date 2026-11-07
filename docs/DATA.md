@@ -82,3 +82,14 @@ The Data page also compares, for each chain and SKU, the price the offer file im
 5. **A steady gap**: the same every month. A scheme, credit note or free goods the offer file does not hold.
 
 The page also lists the ten chain and SKU pairs with the largest gap left, each with its likely cause. Shares are of billed revenue; "net" adds to the total gap and "absolute" ignores sign. This check only explains the gap; it never changes the numbers. Fixes follow the cause: causes 1 and 3 are data fixes, 2 and 4 need a better offer file (one row per customer and SKU, with dates), and 5 is a real deduction to add to the offer file.
+
+## Data checks (Data page, after a build)
+
+`engine/integrity.py` runs 19 checks on the data already loaded and stores them in `meta.json` under `integrity`. Each has a status (ok, look at this, problem, not checked), the question it answers, evidence rows and what to do. A check that cannot run is "not checked"; no check can stop a build. Real data will show whichever the data earns; synthetic data trips some on purpose.
+
+- Units: unit of sale is litres or kg only; packs are whole numbers; pack text agrees with the offer-file product name; the same SKU is priced alike across chains (a pack counted in the wrong unit shows as a constant gap).
+- Coverage: where every rupee of billing went (waterfall: unreadable pack size, not in offer file, outside MIS groups, dropped at the end); returns and zero-quantity lines; repeated lines; each base month full; one chain and one group per customer; no covered customer missing.
+- MIS match: same SKU x office x group cells on both sides; costs come from the cell, not a fallback; packs billed against packs in the MIS per SKU (same revenue with different packs = unit slip, both moving = volume difference); same months (steady ratio = definition, jump = partial month).
+- Tax and offer file: billing tax is a real GST rate; GST and trade margin in the right units (5 not 0.05); one set of terms per customer x SKU; one MRP per SKU; no offer line dropped for missing terms.
+
+Each check has a test in `tests/test_integrity.py`. Add a check by writing a `_function(c)` decorated with `check(...)` and adding it to `CHECKS`.

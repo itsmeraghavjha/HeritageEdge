@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import data, gapcheck
+from . import data, gapcheck, integrity
 
 LINES = list(data.LINES)
 LINE_LABELS = {"cogs": "COGS", "sd": "S&D / freight", "pa": "P&A", "interest": "Interest",
@@ -466,6 +466,8 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean")).reset_index()
     complete = terms[["mrp", "trade", "gst"]].notna().all(axis=1) & (terms["mrp"] > 0)
     terms_dropped = int((~complete).sum())
+    dropped_pairs = terms.loc[~complete, ["cid", "sku"]]
+    sku_names = dict(zip(terms["sku"], terms["name"]))
     terms = terms[complete]
 
     say("Reading billing volumes", 0.12)
@@ -478,6 +480,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     absent = [m for m in base_months if m not in set(b["BillMonth"])]
     if absent:
         raise DataError("Billing has no data for: " + ", ".join(absent) + ". Refresh from SQL or choose other months.")
+    monthly = pd.to_numeric(b["InvoiceValue_exTax"], errors="coerce").fillna(0.0).groupby(b["BillMonth"]).sum()
     b = b[b["BillMonth"].isin(base_months)].copy()
     b["rev"] = pd.to_numeric(b["InvoiceValue_exTax"], errors="coerce").fillna(0.0)
     total_rev, mf_rev = b["rev"].sum(), b.loc[b["CustomerGroup"].isin(MIS_GROUPS), "rev"].sum()
@@ -488,7 +491,9 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     redo = packs.isna() & (size > 0)
     packs[redo] = pd.to_numeric(b["Qty_LtrKg"], errors="coerce")[redo] / size[redo]
     b["packs"] = packs
+    raw = b.copy()          # every base-month billing line, before anything is left out (for the integrity checks)
     unreadable = b["packs"].isna() | (b["packs"] <= 0)
+    unreadable_rev = float(b.loc[unreadable, "rev"].sum())
     unreadable_pct = float(b.loc[unreadable, "rev"].sum() / total_rev) if total_rev else 0.0
     b = b[~unreadable].copy()
 
@@ -505,12 +510,14 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     b = b.merge(terms, on=["cid", "sku"], how="inner")      # offer-file scope only
     if b.empty:
         raise DataError("No billing lines match the offer file. Check that both cover the same customers and SKUs.")
+    in_offer_rev = float(b["rev"].sum())
     in_scope_pct = float(b["rev"].sum() / total_rev) if total_rev else 0.0
     in_scope_mf_pct = float(b.loc[b["grp"].isin(MIS_GROUPS), "rev"].sum() / mf_rev) if mf_rev else 0.0
     # The MIS only covers Modern Formats and E-Commerce. A line from any other group would get no costs and look
     # far more profitable than it is, so leave those lines out and say how much revenue that was.
     outside = ~b["grp"].astype(str).str.strip().isin(MIS_GROUPS)
     outside_pct = float(b.loc[outside, "rev"].sum() / total_rev) if total_rev else 0.0
+    outside_rev = float(b.loc[outside, "rev"].sum())
     b = b[~outside].copy()
     if b.empty:
         raise DataError("Every billing line left after matching the offer file belongs to a customer group the MIS "
@@ -571,6 +578,19 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
     check["mix"] = mix_check(everyone, mis)
     offer_check = offer_price_check(g.loc[final.index])
+    stages = {"total": float(total_rev), "unreadable": unreadable_rev,
+              "not_in_offer": float(total_rev) - unreadable_rev - in_offer_rev, "outside_groups": outside_rev,
+              "in_mis_scope": in_offer_rev - outside_rev,
+              "modelled": float((final["units"] * final["net_px"]).sum() * n)}
+    stages["end_drop"] = stages["in_mis_scope"] - stages["modelled"]
+    try:
+        integrity_report = integrity.run({
+            "raw": raw, "off": off, "g": g.loc[final.index], "mis": mis, "everyone": everyone, "n": n, "stages": stages,
+            "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
+            "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
+            "cost_source": cost_source, "gap": gap_breakdown})
+    except Exception:       # a diagnostic must never stop a build
+        integrity_report = None
     meta = {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "base_months": base_months,
@@ -590,6 +610,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "price_check": check,
         "offer_price_check": offer_check,
         "gap_breakdown": gap_breakdown,
+        "integrity": integrity_report,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     say("Done", 1.0)

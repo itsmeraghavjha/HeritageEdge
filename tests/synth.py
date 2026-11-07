@@ -57,7 +57,7 @@ def billing_rows(months=None, include_specials=True):
                         "BillMonth": month, "CustomerGroup": grp, "CustomerID": cid, "SalesOfficeID": so,
                         "SalesOfficeName": OFFICES[so][0], "CITY": OFFICES[so][1], "STATE": OFFICES[so][2],
                         "MaterialCode": code, "ProductFamily": family, "Variant": "Plain", "PackSize": pack,
-                        "SalesUnit": "L", "Qty_LtrKg": packs * size, "Packs": packs,
+                        "SalesUnit": "KG" if "GMS" in pack else "L", "Qty_LtrKg": packs * size, "Packs": packs,
                         "InvoiceValue_exTax": packs * net_price(sku), "Tax": 0.0, "InvoiceValue_inclTax": 0.0,
                         "BillingLines": 10})
     if include_specials:
