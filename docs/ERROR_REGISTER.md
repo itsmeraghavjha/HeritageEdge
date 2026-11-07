@@ -67,3 +67,11 @@ How to read the size: **High** can move a chain or line by several points of mar
 6. **D2:** show a fixed-cost view for volume changes.
 7. **D1:** record promo outcomes and calibrate.
 8. **C1:** ask operations for cost-to-serve data (needs input, not code).
+
+
+## Found on real data (Nov 2026)
+
+- Offer numbers were the latest month's (Aug) even for a Jul base: fixed by reading the base month columns (`monthly_offers`).
+- 44% of offer rows have an OLD MRP different from New MRP (avg +6%); the build uses New for all months. Open: needs the month the new MRP started, or the check's answer.
+- Off-invoice offers (about a quarter of rows) are not on the invoice: open, the check measures whether billing includes them.
+- The same customer x SKU repeats once per sales district; the build averages districts. Open: match on district to sales office.

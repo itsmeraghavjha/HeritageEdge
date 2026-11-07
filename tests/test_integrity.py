@@ -208,3 +208,85 @@ def test_pack_text_helpers():
 def test_a_check_that_cannot_run_is_skipped_not_fatal():
     out = integrity._whole_packs({})
     assert out["status"] == "skipped"
+
+
+# ---------- the offer for the base months ----------
+def offer_rows(**cols):
+    n = 3
+    df = pd.DataFrame({"Customer": [1] * n, "Sku Code": [10, 11, 12], "New MRP": [100.0] * n, "TOT Margin on Invoice": [0.2] * n,
+                       "On Invoice offer": [5.0, 0.0, 0.0], "Off Invoice Offer in Value": [0.0, 3.0, 0.0]})
+    for k, v in cols.items():
+        df[k] = v
+    return df
+
+
+def test_month_text_gives_on_and_off_invoice_offers():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["NLC Rs. 70 On Invoice Promo- No Debit", "Rs. 4 Promo - Off Invoice claim", None]})
+    out, rep = prepare.monthly_offers(df, ["2026-07-01"])
+    assert list(out["on_rs"]) == pytest.approx([10.0, 0, 0])        # list price 80, chain pays 70
+    assert list(out["off_rs"]) == pytest.approx([0, 4.0, 0])
+    assert rep["source"] == "month columns" and rep["unreadable_cells"] == 0
+
+
+def test_two_base_months_average_their_offers():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["Rs. 2 Promo - Off Invoice claim"] * 3, "Aug'26 - Month Offer": ["Rs. 4 Promo - Off Invoice claim"] * 3})
+    out, _ = prepare.monthly_offers(df, ["2026-07-01", "2026-08-01"])
+    assert list(out["off_rs"]) == pytest.approx([3.0] * 3)
+
+
+def test_a_missing_month_column_falls_back_to_the_numeric_columns():
+    df = offer_rows(**{"Aug'26 - Month Offer": [None] * 3})
+    out, rep = prepare.monthly_offers(df, ["2026-07-01", "2026-08-01"])
+    assert rep["source"].startswith("numeric") and rep["missing"] == ["2026-07-01"]
+    assert list(out["on_rs"]) == [5.0, 0, 0] and list(out["off_rs"]) == [0, 3.0, 0]
+
+
+def test_unreadable_month_text_is_counted():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["something else", "Rs. 4 Promo - Off Invoice claim", None]})
+    _, rep = prepare.monthly_offers(df, ["2026-07-01"])
+    assert rep["unreadable_cells"] == 1
+
+
+def test_the_build_warns_when_a_base_month_has_no_offer_column(tmp_path):
+    checks, meta = build(tmp_path)
+    assert checks["offer_months"]["status"] == "warn" and meta["offer_months"]["missing"]
+
+
+def test_the_build_reads_month_columns_when_they_exist(tmp_path):
+    def add(d):
+        for m in ("Jul'26", "Aug'26", "Sep'26"):
+            d[f"{m} - Month Offer"] = None
+        return d
+    checks, meta = build(tmp_path, offer=add)
+    assert checks["offer_months"]["status"] == "pass" and meta["offer_months"]["source"] == "month columns"
+
+
+def lines(billed_px, **cols):
+    d = pd.DataFrame({"sku": [1, 2], "name": ["a", "b"], "packs": [100.0, 100.0], "net_px": [billed_px] * 2, "mrp": [100.0] * 2,
+                      "mrp_old": [100.0] * 2, "trade": [0.2] * 2, "gst": [0.0] * 2, "offer_rs": [4.0] * 2,
+                      "on_rs": [0.0] * 2, "off_rs": [4.0] * 2})
+    for k, v in cols.items():
+        d[k] = v
+    return d
+
+
+def test_billing_that_ignores_off_invoice_offers_is_flagged():
+    out = integrity._off_invoice({"g": lines(80.0)})        # list price 80, billed 80: the Rs 4 offer is not in the price
+    assert out["status"] == "warn" and "claimed later" in out["headline"]
+
+
+def test_billing_that_deducts_off_invoice_offers_passes():
+    assert integrity._off_invoice({"g": lines(76.0)})["status"] == "pass"
+
+
+def test_billing_that_follows_the_old_mrp_is_flagged():
+    g = lines(70.0, mrp=[100.0] * 2, mrp_old=[90.0] * 2, offer_rs=[4.0] * 2, off_rs=[0.0] * 2, on_rs=[4.0] * 2)
+    # old MRP 90: 90*0.8-4 = 68; new MRP 100: 100*0.8-4 = 76; billed 69 is closer to the old price
+    g["net_px"] = 69.0
+    out = integrity._mrp_revision({"g": g})
+    assert out["status"] == "warn" and "old MRP" in out["evidence"][-1][1]
+
+
+def test_billing_that_follows_the_new_mrp_passes():
+    g = lines(76.0, mrp_old=[90.0] * 2, off_rs=[0.0] * 2, on_rs=[4.0] * 2)
+    assert integrity._mrp_revision({"g": g})["status"] == "pass"

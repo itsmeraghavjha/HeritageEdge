@@ -485,6 +485,105 @@ def _mrp_by_sku(c):
     return grade(share, 0.02, 0.20), head, ev, "Use the MRP that was in force during the base months for every row of the SKU." if share >= 0.02 else ""
 
 
+@check("offer_months", "Tax and offer file", "The offer is read from the base months",
+       "Is the offer taken from each base month's own column, or from the file's latest-month numbers?")
+def _offer_months(c):
+    r = c.get("offer_months")
+    if not r:
+        raise ValueError("no offer report")
+    names = ", ".join(r["used"] or r["missing"])
+    if r["missing"]:
+        head = (f"The offer file has no month column for {', '.join(r['missing'])}, so the build used its latest-month offer numbers. "
+                "If those months had different offers, every price built from them is off by the difference.")
+        return WARN, head, [("Months asked for", names), ("Source", r["source"])], \
+            "Add the missing month column to the offer file, or choose base months it covers."
+    d = r["rows_differ_from_numeric_pct"] or 0.0
+    ev = [("Months read", names), ("Offer rows", f"{r['rows']:,}"),
+          ("Rows whose offer differs from the file's latest-month numbers", pct(d)),
+          ("Average offer per pack, base months and latest month", f"Rs {r['avg_offer_month']:.2f} and Rs {r['avg_offer_numeric']:.2f}"),
+          ("Cells that could not be read", str(r["unreadable_cells"]))]
+    head = (f"The offer comes from the {names} columns. {pct(d)} of offer rows differ from the file's latest-month numbers, "
+            "which is the error a build on an earlier month would have carried.")
+    bad = r["unreadable_cells"] > 0.01 * r["rows"]
+    return (WARN if bad else PASS), head, ev, "Check the month text in the offer file." if bad else ""
+
+
+@check("off_invoice", "Tax and offer file", "Off-invoice offers and the billed price",
+       "Does billing deduct off-invoice offers, or are they claimed later and left out of the billed price?")
+def _off_invoice(c):
+    g = c["g"]
+    if "on_rs" not in g.columns:
+        raise ValueError("no on/off split")
+    j = g[(g["packs"] > 0) & (g["net_px"] > 0)].copy()
+    base = j["mrp"] * (1 - j["trade"])
+    j["both"] = (base - j["on_rs"] - j["off_rs"]) / (1 + j["gst"])
+    j["on_only"] = (base - j["on_rs"]) / (1 + j["gst"])
+    j["billed"] = j["net_px"] * j["packs"]
+    tot = float(j["billed"].sum())
+
+    def gap(d, col):
+        e = float((d[col] * d["packs"]).sum())
+        return float(d["billed"].sum() / e - 1) if e > 0 else 0.0
+
+    groups = [("No offer", (j["on_rs"] <= 0) & (j["off_rs"] <= 0)), ("On-invoice offer only", (j["on_rs"] > 0) & (j["off_rs"] <= 0)),
+              ("Off-invoice offer only", (j["on_rs"] <= 0) & (j["off_rs"] > 0)), ("Both kinds", (j["on_rs"] > 0) & (j["off_rs"] > 0))]
+    ev = []
+    for label, m in groups:
+        d = j[m]
+        if d.empty:
+            continue
+        ev.append((label, f"{pct(float(d['billed'].sum()) / tot)} of revenue; billed price {pct(gap(d, 'both'))} against the price if the offer is deducted, "
+                          f"{pct(gap(d, 'on_only'))} if only on-invoice offers are"))
+    off_only = j[groups[2][1] | groups[3][1]]
+    share = float(off_only["billed"].sum() / tot) if tot else 0.0
+    if off_only.empty:
+        return PASS, "No line carries an off-invoice offer.", ev, ""
+    g_both, g_on = gap(off_only, "both"), gap(off_only, "on_only")
+    left_out = abs(g_on) + 0.01 < abs(g_both)
+    head = (f"{pct(share)} of revenue carries an off-invoice offer. Billing sits {pct(g_both)} from the price with the offer deducted and "
+            f"{pct(g_on)} from the price without it. ")
+    if left_out and share >= 0.02:
+        head += ("So billing does not deduct these offers: they are claimed later. The model counts them as promotion while net revenue "
+                 "stays at the billed value, so 'other deductions' is lower by the same amount and the claim cost may be missing from the P&L.")
+        return WARN, head, ev, "Find where the off-invoice claims are booked (credit notes, MIS promotion line) and make sure they are costed once."
+    return PASS, head + "Billing agrees with the offer file on these lines.", ev, ""
+
+
+@check("mrp_revision", "Tax and offer file", "New or old MRP: which one billing follows",
+       "For SKUs whose MRP was revised, is the billed price closer to the new MRP or the old one?")
+def _mrp_revision(c):
+    g = c["g"]
+    if "mrp_old" not in g.columns:
+        raise ValueError("no old MRP")
+    j = g[(g["packs"] > 0) & (g["net_px"] > 0) & g["mrp_old"].notna() & g["mrp"].notna()].copy()
+    j["billed"] = j["net_px"] * j["packs"]
+    j["ratio"] = j["mrp_old"] / j["mrp"]
+    rev = j[(j["ratio"] - 1).abs() > 0.005].copy()
+    tot = float(j["billed"].sum())
+    if rev.empty or not tot:
+        return PASS, "No SKU has an old MRP different from the new one.", [], ""
+    rev["e_new"] = (rev["mrp"] * (1 - rev["trade"]) - rev["offer_rs"]) / (1 + rev["gst"])
+    rev["e_old"] = (rev["mrp_old"] * (1 - rev["trade"]) - rev["offer_rs"]) / (1 + rev["gst"])
+    rev["g_new"], rev["g_old"] = rev["net_px"] / rev["e_new"] - 1, rev["net_px"] / rev["e_old"] - 1
+    rev = rev[(rev["e_new"] > 0) & (rev["e_old"] > 0)]
+    if rev.empty:
+        return SKIP, "Prices could not be compared.", [], ""
+    share = float(rev["billed"].sum() / tot)
+    old_fits = rev["g_old"].abs() < rev["g_new"].abs()
+    old_share = float(rev.loc[old_fits, "billed"].sum() / rev["billed"].sum())
+    w = rev["billed"]
+    mean_new, mean_old = float((rev["g_new"] * w).sum() / w.sum()), float((rev["g_old"] * w).sum() / w.sum())
+    by = rev.assign(old_fits=old_fits).groupby("sku").agg(name=("name", "first"), billed=("billed", "sum"), fits=("old_fits", "mean")).reset_index()
+    top = by.sort_values("billed", ascending=False).head(8)
+    ev = [("Revenue on SKUs with a revised MRP", pct(share)), ("Billed price against the new-MRP price", pct(mean_new)),
+          ("Billed price against the old-MRP price", pct(mean_old)), ("Revenue where the old MRP fits billing better", pct(old_share))]
+    ev += [(str(r.name), "billing follows the old MRP" if r.fits >= 0.5 else "billing follows the new MRP") for r in top.itertuples()]
+    head = (f"{pct(share)} of revenue is on SKUs whose MRP was revised. Billing sits {pct(mean_new)} from the price with the new MRP and "
+            f"{pct(mean_old)} with the old one; on {pct(old_share)} of that revenue the old MRP fits better. The build uses the new MRP for every month.")
+    status = WARN if old_share >= 0.2 and abs(mean_old) + 0.005 < abs(mean_new) else PASS
+    return status, head, ev, ("Tell the build the month the new MRP started, so earlier base months use the old MRP." if status == WARN else "")
+
+
 @check("dropped_terms", "Tax and offer file", "No offer line dropped for missing terms",
        "Is any offer line left out because it has no MRP, trade margin or GST?")
 def _dropped_terms(c):

@@ -85,7 +85,7 @@ The page also lists the ten chain and SKU pairs with the largest gap left, each 
 
 ## Data checks (Data page, after a build)
 
-`engine/integrity.py` runs 19 checks on the data already loaded and stores them in `meta.json` under `integrity`. Each has a status (ok, look at this, problem, not checked), the question it answers, evidence rows and what to do. A check that cannot run is "not checked"; no check can stop a build. Real data will show whichever the data earns; synthetic data trips some on purpose.
+`engine/integrity.py` runs 22 checks on the data already loaded and stores them in `meta.json` under `integrity`. Each has a status (ok, look at this, problem, not checked), the question it answers, evidence rows and what to do. A check that cannot run is "not checked"; no check can stop a build. Real data will show whichever the data earns; synthetic data trips some on purpose.
 
 - Units: unit of sale is litres or kg only; packs are whole numbers; pack text agrees with the offer-file product name; the same SKU is priced alike across chains (a pack counted in the wrong unit shows as a constant gap).
 - Coverage: where every rupee of billing went (waterfall: unreadable pack size, not in offer file, outside MIS groups, dropped at the end); returns and zero-quantity lines; repeated lines; each base month full; one chain and one group per customer; no covered customer missing.
@@ -93,3 +93,7 @@ The page also lists the ten chain and SKU pairs with the largest gap left, each 
 - Tax and offer file: billing tax is a real GST rate; GST and trade margin in the right units (5 not 0.05); one set of terms per customer x SKU; one MRP per SKU within a state (states may differ); no offer line dropped for missing terms.
 
 Each check has a test in `tests/test_integrity.py`. Add a check by writing a `_function(c)` decorated with `check(...)` and adding it to `CHECKS`.
+
+### The offer for the base months
+
+The offer file's numeric offer columns ("On Invoice offer", "Off Invoice Offer in Value") describe the latest month only. Each month also has a text column ("Jul'26 - Month Offer"): "NLC Rs. N On Invoice Promo" means the chain pays N against list price MRP x (1 - trade margin), so the on-invoice offer is the difference; "Rs. N Promo - Off Invoice claim" is a claim paid later; blank is no offer. `prepare.monthly_offers` reads the column of each base month and averages them. If a base month has no column it falls back to the numeric columns and the check "The offer is read from the base months" warns. Checks added: offer months, off-invoice offers against the billed price, new or old MRP (the file also holds "OLD MRP"; the build uses "New MRP" for every month, and the check shows which one billing follows).

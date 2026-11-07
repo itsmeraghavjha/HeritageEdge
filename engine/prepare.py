@@ -17,6 +17,7 @@ import re
 from datetime import date, datetime
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from . import data, gapcheck, integrity
@@ -444,6 +445,62 @@ def mix_check(everyone, mis):
                       "ratio": billing_packs / mis_packs if mis_packs else None}}
 
 
+
+# ---------- the offer for the base months ----------
+_MON = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+
+
+def month_offer_column(columns, key):
+    """The offer file's column for a month, e.g. "Aug'26 - Month Offer" for "2026-08-01", or None."""
+    year, month = int(key[:4]), int(key[5:7])
+    want = f"{_MON[month - 1]}'{str(year)[2:]}".lower()
+    for c in columns:
+        t = str(c).replace("\u2019", "'").strip().lower()
+        if t.startswith(want) and "offer" in t:
+            return c
+    return None
+
+
+def monthly_offers(off, base_months):
+    """Sets on_rs, off_rs and offer_rs (rupees per pack, GST-inclusive like the MRP) on the offer rows.
+
+    The offer file's numeric columns ("On Invoice offer", "Off Invoice Offer in Value") describe only the latest
+    month. Each month also has a text column: "NLC Rs. 16 On Invoice Promo" (the chain pays Rs 16 against list price
+    MRP x (1 - trade margin), so the on-invoice offer is the difference) or "Rs. 5 Promo - Off Invoice claim" (a
+    claim paid later), and blank for no offer. When every base month has its column, the offer is the average of those
+    months. If any is missing, the numeric columns are used and the report says so."""
+    mrp = pd.to_numeric(off["New MRP"], errors="coerce")
+    trade = pd.to_numeric(off["TOT Margin on Invoice"], errors="coerce")
+    num_on = pd.to_numeric(off["On Invoice offer"], errors="coerce").fillna(0.0)
+    num_off = pd.to_numeric(off["Off Invoice Offer in Value"], errors="coerce").fillna(0.0)
+    cols = {k: month_offer_column(off.columns, k) for k in base_months}
+    missing = [k for k, c in cols.items() if c is None]
+    report = {"source": "month columns", "used": [], "missing": missing, "unreadable_cells": 0,
+              "rows": int(len(off)), "rows_differ_from_numeric_pct": None}
+    if missing:
+        off["on_rs"], off["off_rs"] = num_on, num_off
+        report["source"] = "numeric columns (latest month)"
+    else:
+        on_sum, off_sum = np.zeros(len(off)), np.zeros(len(off))
+        for key, col in cols.items():
+            t = off[col].astype("string").fillna("").str.strip()
+            val = pd.to_numeric(t.str.extract(r"Rs\.?\s*([\d.]+)")[0], errors="coerce")
+            is_nlc = t.str.contains("NLC", case=False)
+            is_off = t.str.contains("off invoice", case=False) & ~is_nlc
+            report["unreadable_cells"] += int(((t != "") & (is_nlc | is_off) & val.isna()).sum()
+                                              + ((t != "") & ~is_nlc & ~is_off).sum())
+            on_sum += np.nan_to_num(np.where(is_nlc, np.maximum(mrp * (1 - trade) - val, 0.0), 0.0))
+            off_sum += np.nan_to_num(np.where(is_off, val, 0.0))
+            report["used"].append(key)
+        off["on_rs"], off["off_rs"] = on_sum / len(cols), off_sum / len(cols)
+        differ = ((off["on_rs"] + off["off_rs"]) - (num_on + num_off)).abs() > 0.5
+        report["rows_differ_from_numeric_pct"] = float(differ.mean()) if len(off) else 0.0
+        report["avg_offer_month"] = float((off["on_rs"] + off["off_rs"]).mean())
+        report["avg_offer_numeric"] = float((num_on + num_off).mean())
+    off["offer_rs"] = off["on_rs"] + off["off_rs"]
+    return off, report
+
+
 # ---------- the build ----------
 
 def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None):
@@ -460,10 +517,12 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     off["cid"] = pd.to_numeric(off["Customer"], errors="coerce")
     off["sku"] = pd.to_numeric(off["Sku Code"], errors="coerce")
     off["chain"] = off["Cluster"].astype(str).str.strip().str.upper()
-    off["offer_rs"] = off["On Invoice offer"].fillna(0) + off["Off Invoice Offer in Value"].fillna(0)
+    off, offer_months = monthly_offers(off, base_months)
+    off["mrp_old"] = pd.to_numeric(off["OLD MRP"], errors="coerce") if "OLD MRP" in off.columns else off["New MRP"]
     terms = off.groupby(["cid", "sku"]).agg(
         chain=("chain", "first"), name=("Material", "first"), mrp=("New MRP", "mean"),
-        trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean")).reset_index()
+        trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean"),
+        on_rs=("on_rs", "mean"), off_rs=("off_rs", "mean"), mrp_old=("mrp_old", "mean")).reset_index()
     complete = terms[["mrp", "trade", "gst"]].notna().all(axis=1) & (terms["mrp"] > 0)
     terms_dropped = int((~complete).sum())
     dropped_pairs = terms.loc[~complete, ["cid", "sku"]]
@@ -530,19 +589,21 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         gap_breakdown = gapcheck.explain(b, offer_rows, n)
     except Exception:       # a diagnostic must never stop a build
         gap_breakdown = None
-    for k in ("mrp", "trade", "offer_rs", "gst"):
+    for k in ("mrp", "trade", "offer_rs", "gst", "on_rs", "off_rs", "mrp_old"):
         b["w_" + k] = b[k] * b["packs"]
     keys = ["chain", "grp", "state", "city", "so_num", "so_name", "sku", "name", "family", "variant", "pack"]
     for k in ("state", "city", "so_name", "family", "variant", "pack", "grp"):
         b[k] = b[k].fillna("").astype(str).str.strip()
     g = b.groupby(keys, as_index=False).agg(
         packs=("packs", "sum"), rev=("rev", "sum"), w_mrp=("w_mrp", "sum"), w_trade=("w_trade", "sum"),
-        w_offer=("w_offer_rs", "sum"), w_gst=("w_gst", "sum"))
+        w_offer=("w_offer_rs", "sum"), w_gst=("w_gst", "sum"), w_on=("w_on_rs", "sum"),
+        w_offrs=("w_off_rs", "sum"), w_old=("w_mrp_old", "sum"))
     g = g[g["packs"] > 0].copy()
     g["units"] = (g["packs"] / n).round(1)
     g["net_px"] = g["rev"] / g["packs"]
     g["mrp"], g["trade"] = g["w_mrp"] / g["packs"], g["w_trade"] / g["packs"]
     g["offer_rs"], g["gst"] = g["w_offer"] / g["packs"], g["w_gst"] / g["packs"]
+    g["on_rs"], g["off_rs"], g["mrp_old"] = g["w_on"] / g["packs"], g["w_offrs"] / g["packs"], g["w_old"] / g["packs"]
     g["mrp_x"] = g["mrp"] / (1 + g["gst"])
     gross_u = g["mrp_x"] * (1 - g["trade"])
     raw_promo = g["offer_rs"] / (g["mrp"] * (1 - g["trade"]))
@@ -588,7 +649,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             "raw": raw, "off": off, "g": g.loc[final.index], "mis": mis, "everyone": everyone, "n": n, "stages": stages,
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
-            "cost_source": cost_source, "gap": gap_breakdown})
+            "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
     meta = {
@@ -610,6 +671,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "price_check": check,
         "offer_price_check": offer_check,
         "gap_breakdown": gap_breakdown,
+        "offer_months": offer_months,
         "integrity": integrity_report,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
