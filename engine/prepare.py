@@ -479,6 +479,8 @@ def monthly_offers(off, base_months):
               "rows": int(len(off)), "rows_differ_from_numeric_pct": None}
     if missing:
         off["on_rs"], off["off_rs"] = num_on, num_off
+        for key in base_months:
+            off[f"on_rs|{key}"], off[f"off_rs|{key}"] = num_on, num_off
         report["source"] = "numeric columns (latest month)"
     else:
         on_sum, off_sum = np.zeros(len(off)), np.zeros(len(off))
@@ -489,8 +491,11 @@ def monthly_offers(off, base_months):
             is_off = t.str.contains("off invoice", case=False) & ~is_nlc
             report["unreadable_cells"] += int(((t != "") & (is_nlc | is_off) & val.isna()).sum()
                                               + ((t != "") & ~is_nlc & ~is_off).sum())
-            on_sum += np.nan_to_num(np.where(is_nlc, np.maximum(mrp * (1 - trade) - val, 0.0), 0.0))
-            off_sum += np.nan_to_num(np.where(is_off, val, 0.0))
+            on_m = np.nan_to_num(np.where(is_nlc, np.maximum(mrp * (1 - trade) - val, 0.0), 0.0))
+            off_m = np.nan_to_num(np.where(is_off, val, 0.0))
+            off[f"on_rs|{key}"], off[f"off_rs|{key}"] = on_m, off_m      # each month keeps its own offer
+            on_sum += on_m
+            off_sum += off_m
             report["used"].append(key)
         off["on_rs"], off["off_rs"] = on_sum / len(cols), off_sum / len(cols)
         differ = ((off["on_rs"] + off["off_rs"]) - (num_on + num_off)).abs() > 0.5
@@ -499,6 +504,39 @@ def monthly_offers(off, base_months):
         report["avg_offer_numeric"] = float((num_on + num_off).mean())
     off["offer_rs"] = off["on_rs"] + off["off_rs"]
     return off, report
+
+
+
+def mrp_in_force(b):
+    """Which MRP was in force in each month: the new one, or the old one before the revision.
+
+    The offer file holds "OLD MRP" and "New MRP" but not the month the new one started. For a SKU whose two MRPs differ,
+    each base month is priced with whichever MRP puts the file's price closer to what billing charged across all chains
+    that month (the midpoint between the two MRPs is the dividing line, so a deduction of a few percent does not flip
+    it). `b` needs sku, BillMonth, packs, rev, mrp, mrp_old, trade, gst, offer_rs. Returns (b, report); b["mrp_new"]
+    keeps the new MRP and b["mrp"] is the one used."""
+    b = b.copy()
+    b["mrp_new"] = b["mrp"]
+    report = {"sku_months_priced_old": 0, "skus": 0, "revenue_pct": 0.0}
+    if "mrp_old" not in b.columns:
+        return b, report
+    e_new = (b["mrp"] * (1 - b["trade"]) - b["offer_rs"]) / (1 + b["gst"])
+    e_old = (b["mrp_old"] * (1 - b["trade"]) - b["offer_rs"]) / (1 + b["gst"])
+    ok = ((b["mrp_old"] / b["mrp"] - 1).abs() > 0.005) & (e_new > 0) & (e_old > 0) & (b["packs"] > 0)
+    if not ok.any():
+        return b, report
+    x = pd.DataFrame({"sku": b.loc[ok, "sku"], "m": b.loc[ok, "BillMonth"], "rev": b.loc[ok, "rev"],
+                      "n": (e_new * b["packs"])[ok], "o": (e_old * b["packs"])[ok]})
+    t = x.groupby(["sku", "m"]).sum()
+    use_old = ((t["rev"] / t["o"] - 1).abs() < (t["rev"] / t["n"] - 1).abs())
+    keys = set(use_old[use_old].index)
+    if not keys:
+        return b, report
+    hit = pd.Series([(k in keys) for k in zip(b["sku"], b["BillMonth"])], index=b.index) & ok
+    b.loc[hit, "mrp"] = b.loc[hit, "mrp_old"]
+    report = {"sku_months_priced_old": int(len(keys)), "skus": int(len({k[0] for k in keys})),
+              "revenue_pct": float(b.loc[hit, "rev"].sum() / b["rev"].sum()) if b["rev"].sum() else 0.0}
+    return b, report
 
 
 # ---------- the build ----------
@@ -519,13 +557,18 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     off["chain"] = off["Cluster"].astype(str).str.strip().str.upper()
     off, offer_months = monthly_offers(off, base_months)
     off["mrp_old"] = pd.to_numeric(off["OLD MRP"], errors="coerce") if "OLD MRP" in off.columns else off["New MRP"]
-    terms = off.groupby(["cid", "sku"]).agg(
-        chain=("chain", "first"), name=("Material", "first"), mrp=("New MRP", "mean"),
-        trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean"),
-        on_rs=("on_rs", "mean"), off_rs=("off_rs", "mean"), mrp_old=("mrp_old", "mean")).reset_index()
+    parts = []
+    for key in base_months:         # the offer is taken month by month, so a change between months is not averaged away
+        t = off.assign(on_rs=off[f"on_rs|{key}"], off_rs=off[f"off_rs|{key}"])
+        t["offer_rs"] = t["on_rs"] + t["off_rs"]
+        parts.append(t.groupby(["cid", "sku"]).agg(
+            chain=("chain", "first"), name=("Material", "first"), mrp=("New MRP", "mean"),
+            trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean"),
+            on_rs=("on_rs", "mean"), off_rs=("off_rs", "mean"), mrp_old=("mrp_old", "mean")).reset_index().assign(BillMonth=key))
+    terms = pd.concat(parts, ignore_index=True)
     complete = terms[["mrp", "trade", "gst"]].notna().all(axis=1) & (terms["mrp"] > 0)
-    terms_dropped = int((~complete).sum())
-    dropped_pairs = terms.loc[~complete, ["cid", "sku"]]
+    terms_dropped = int((~complete[terms["BillMonth"] == base_months[0]]).sum())
+    dropped_pairs = terms.loc[~complete, ["cid", "sku"]].drop_duplicates()
     sku_names = dict(zip(terms["sku"], terms["name"]))
     terms = terms[complete]
 
@@ -566,7 +609,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     everyone = b.loc[b["grp"].astype(str).str.strip().isin(MIS_GROUPS), ["sku", "so_num", "grp", "packs", "rev"]].copy()
     everyone["in_offer"] = in_offer[b["grp"].astype(str).str.strip().isin(MIS_GROUPS).to_numpy()]
     everyone = everyone.rename(columns={"so_num": "SalesOfficeID"})
-    b = b.merge(terms, on=["cid", "sku"], how="inner")      # offer-file scope only
+    b = b.merge(terms, on=["cid", "sku", "BillMonth"], how="inner")      # offer-file scope only
     if b.empty:
         raise DataError("No billing lines match the offer file. Check that both cover the same customers and SKUs.")
     in_offer_rev = float(b["rev"].sum())
@@ -582,6 +625,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         raise DataError("Every billing line left after matching the offer file belongs to a customer group the MIS "
                         "does not cover. The MIS must include Modern Formats or E-Commerce.")
 
+    b, mrp_report = mrp_in_force(b)
     n = len(base_months)
     offer_rows = off.rename(columns={"New MRP": "mrp", "TOT Margin on Invoice": "trade", "GST%": "gst"})[
         ["cid", "sku", "mrp", "trade", "offer_rs", "gst"]]
@@ -650,7 +694,8 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
             "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months,
-            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "mrp_old", "trade", "gst",
+            "mrp_used": mrp_report,
+            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "mrp_new", "mrp_old", "trade", "gst",
                                     "offer_rs", "on_rs", "off_rs") if c in b.columns]]})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
@@ -674,6 +719,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "offer_price_check": offer_check,
         "gap_breakdown": gap_breakdown,
         "offer_months": offer_months,
+        "mrp_in_force": mrp_report,
         "integrity": integrity_report,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

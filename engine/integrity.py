@@ -553,56 +553,78 @@ def _off_invoice(c):
     return PASS, head + "Billing agrees with the offer file on these lines.", ev, ""
 
 
-@check("mrp_revision", "Tax and offer file", "New or old MRP: which one billing follows",
-       "For SKUs whose MRP was revised, is the billed price closer to the new MRP or the old one?")
-def _mrp_revision(c):
-    g = c["g"]
-    if "mrp_old" not in g.columns:
-        raise ValueError("no old MRP")
-    j = g[(g["packs"] > 0) & (g["net_px"] > 0) & g["mrp_old"].notna() & g["mrp"].notna()].copy()
-    j["billed"] = j["net_px"] * j["packs"]
-    j["ratio"] = j["mrp_old"] / j["mrp"]
-    rev = j[(j["ratio"] - 1).abs() > 0.005].copy()
-    tot = float(j["billed"].sum())
-    if rev.empty or not tot:
-        return PASS, "No SKU has an old MRP different from the new one.", [], ""
-    rev["e_new"] = (rev["mrp"] * (1 - rev["trade"]) - rev["offer_rs"]) / (1 + rev["gst"])
-    rev["e_old"] = (rev["mrp_old"] * (1 - rev["trade"]) - rev["offer_rs"]) / (1 + rev["gst"])
-    rev["g_new"], rev["g_old"] = rev["net_px"] / rev["e_new"] - 1, rev["net_px"] / rev["e_old"] - 1
-    rev = rev[(rev["e_new"] > 0) & (rev["e_old"] > 0)]
-    if rev.empty:
-        return SKIP, "Prices could not be compared.", [], ""
-    share = float(rev["billed"].sum() / tot)
-    old_fits = rev["g_old"].abs() < rev["g_new"].abs()
-    old_share = float(rev.loc[old_fits, "billed"].sum() / rev["billed"].sum())
-    w = rev["billed"]
-    mean_new, mean_old = float((rev["g_new"] * w).sum() / w.sum()), float((rev["g_old"] * w).sum() / w.sum())
-    by = rev.assign(old_fits=old_fits).groupby("sku").agg(name=("name", "first"), billed=("billed", "sum"), fits=("old_fits", "mean")).reset_index()
-    top = by.sort_values("billed", ascending=False).head(8)
-    ev = [("Revenue on SKUs with a revised MRP", pct(share)), ("Billed price against the new-MRP price", pct(mean_new)),
-          ("Billed price against the old-MRP price", pct(mean_old)), ("Revenue where the old MRP fits billing better", pct(old_share))]
-    ev += [(str(r.name), "billing follows the old MRP" if r.fits >= 0.5 else "billing follows the new MRP") for r in top.itertuples()]
-    head = (f"{pct(share)} of revenue is on SKUs whose MRP was revised. Billing sits {pct(mean_new)} from the price with the new MRP and "
-            f"{pct(mean_old)} with the old one; on {pct(old_share)} of that revenue the old MRP fits better. The build uses the new MRP for every month.")
-    status = WARN if old_share >= 0.2 and abs(mean_old) + 0.005 < abs(mean_new) else PASS
-    return status, head, ev, ("Tell the build the month the new MRP started, so earlier base months use the old MRP." if status == WARN else "")
-
-
 def _priced(c):
-    """Billing lines in scope with the price the offer file implies (new MRP and old MRP), ex-GST, per pack."""
+    """Billing lines in scope with the price the offer file implies, ex-GST, per pack: with the MRP the build used for
+    that month (e_used), with the new MRP (e_new) and with the old MRP (e_old)."""
     d = c["lines"]
     d = d[(d["packs"] > 0) & (d["rev"] > 0)].copy()
     base = 1 - d["trade"]
-    d["e_new"] = (d["mrp"] * base - d["offer_rs"]) / (1 + d["gst"])
+    new = d["mrp_new"] if "mrp_new" in d.columns else d["mrp"]
+    d["e_used"] = (d["mrp"] * base - d["offer_rs"]) / (1 + d["gst"])
+    d["e_new"] = (new * base - d["offer_rs"]) / (1 + d["gst"])
     d["e_old"] = (d["mrp_old"] * base - d["offer_rs"]) / (1 + d["gst"])
     d = d[d["e_new"] > 0].copy()
-    d["x_new"], d["x_old"] = d["e_new"] * d["packs"], d["e_old"] * d["packs"]
+    d["x_used"], d["x_new"], d["x_old"] = d["e_used"] * d["packs"], d["e_new"] * d["packs"], d["e_old"] * d["packs"]
     return d
 
 
-def _gap(d, col="x_new"):
+def _gap(d, col="x_used"):
     e = float(d[col].sum())
     return float(d["rev"].sum() / e - 1) if e > 0 else 0.0
+
+
+@check("mrp_revision", "Tax and offer file", "New or old MRP: which one billing follows",
+       "For SKUs whose MRP was revised, is the billed price closer to the new MRP or the old one?")
+def _mrp_revision(c):
+    d = _priced(c)
+    new_col = d["mrp_new"] if "mrp_new" in d.columns else d["mrp"]
+    rev = d[((d["mrp_old"] / new_col - 1).abs() > 0.005) & (d["e_old"] > 0)].copy()
+    tot = float(d["rev"].sum())
+    if rev.empty or not tot:
+        return PASS, "No SKU has an old MRP different from the new one.", [], ""
+    share = float(rev["rev"].sum() / tot)
+    rev["g_new"], rev["g_old"] = rev["rev"] / rev["x_new"] - 1, rev["rev"] / rev["x_old"] - 1
+    old_fits = rev["g_old"].abs() < rev["g_new"].abs()
+    old_share = float(rev.loc[old_fits, "rev"].sum() / rev["rev"].sum())
+    mean_new, mean_old = _gap(rev, "x_new"), _gap(rev, "x_old")
+    by = rev.assign(old_fits=old_fits).groupby("sku").agg(name=("name", "first"), rev=("rev", "sum"), fits=("old_fits", "mean")).reset_index()
+    ev = [("Revenue on SKUs with a revised MRP", pct(share)), ("Billed price against the new-MRP price", pct(mean_new)),
+          ("Billed price against the old-MRP price", pct(mean_old)), ("Revenue where the old MRP fits billing better", pct(old_share))]
+    ev += [(str(r.name), "billing follows the old MRP" if r.fits >= 0.5 else "billing follows the new MRP")
+           for r in by.sort_values("rev", ascending=False).head(8).itertuples()]
+    used = (c.get("mrp_used") or {})
+    head = (f"{pct(share)} of revenue is on SKUs whose MRP was revised. Billing sits {pct(mean_new)} from the price with the new MRP and "
+            f"{pct(mean_old)} with the old one; on {pct(old_share)} of that revenue the old MRP fits better. ")
+    if used.get("sku_months_priced_old"):
+        head += (f"The build prices {used['sku_months_priced_old']} SKU-months ({pct(used['revenue_pct'])} of revenue) with the old MRP, "
+                 "where billing follows it.")
+        return WARN, head, ev, "Confirm with whoever sets the MRP the month each new MRP started; the build infers it from billing."
+    if old_share >= 0.2 and abs(mean_old) + 0.005 < abs(mean_new):
+        return WARN, head + "The build used the new MRP for every month.", ev, "Tell us the month the new MRP started so earlier months use the old MRP."
+    return PASS, head + "The build uses the new MRP for every month.", ev, ""
+
+
+@check("trade_gst", "Price against the offer file", "How trade margin and GST combine",
+       "On lines with GST and no offer, does billing follow MRP less trade margin, then ex-GST, or margin taken off the GST-inclusive MRP?")
+def _trade_gst(c):
+    d = _priced(c)
+    d = d[(d["on_rs"] <= 0) & (d["off_rs"] <= 0) & (d["gst"] > 0.01)].copy()
+    if d.empty:
+        return SKIP, "No line with GST and no offer to compare.", [], ""
+    # A: (MRP x (1 - trade)) / (1 + GST), the file's own "Basic cost".  B: MRP / (1 + GST) - trade x MRP.
+    d["x_b"] = d["mrp"] * (1 / (1 + d["gst"]) - d["trade"]) * d["packs"]
+    d = d[d["x_b"] > 0]
+    ga, gb = _gap(d, "x_used"), _gap(d, "x_b")
+    ev = [("Lines with GST and no offer", f"{pct(float(d['rev'].sum()) / float(_priced(c)['rev'].sum()))} of revenue"),
+          ("Billed against A: margin off the MRP, then ex-GST (the file's Basic cost)", pct(ga)),
+          ("Billed against B: ex-GST MRP less margin on the GST-inclusive MRP", pct(gb))]
+    for fam, x in d.groupby("family"):
+        ev.append((f"Family: {fam}", f"A {pct(_gap(x, 'x_used'))}, B {pct(_gap(x, 'x_b'))}"))
+    b_better = abs(gb) + 0.005 < abs(ga)
+    head = (f"With GST and no offer, billing is {pct(ga)} against A and {pct(gb)} against B. "
+            + ("B fits better, so the trade margin is probably taken off the GST-inclusive MRP." if b_better else "A fits at least as well."))
+    return (WARN if b_better and abs(ga) >= 0.005 else PASS), head, ev, \
+        "If B is right, tell us and the build will use it for products with GST." if b_better else ""
 
 
 @check("no_offer_gap", "Price against the offer file", "A price gap with no offer involved",
@@ -613,12 +635,13 @@ def _no_offer_gap(c):
     tot = float(_priced(c)["rev"].sum())
     if d.empty:
         return SKIP, "Every line carries an offer.", [], ""
-    d = d.assign(line_gap=d["rev"] / d["x_new"] - 1)
+    d = d.assign(line_gap=d["rev"] / d["x_used"] - 1)
     gap = _gap(d)
     ev = [("Lines with no offer", f"{pct(float(d['rev'].sum()) / tot)} of revenue"), ("Billed price against the file's price", pct(gap))]
     for lo, hi, label in ((0, 0.005, "within 0.5% of the file's price"), (0.005, 0.03, "0.5% to 3% away"), (0.03, 9, "more than 3% away")):
         m = (d["line_gap"].abs() >= lo) & (d["line_gap"].abs() < hi)
         ev.append((f"Revenue {label}", pct(float(d.loc[m, "rev"].sum() / d["rev"].sum()))))
+    d = d.assign(gst=d["gst"].round(3))
     for label, col in (("GST rate", "gst"), ("Family", "family"), ("Chain", "chain")):
         grp = d.groupby(col).apply(lambda x: pd.Series({"rev": x["rev"].sum(), "gap": _gap(x)}), include_groups=False)
         for k, r in grp.sort_values("rev", ascending=False).head(5 if col != "gst" else 3).iterrows():
@@ -642,22 +665,23 @@ def _gap_by_month(c):
         return SKIP, "Only one base month is built, so month-to-month movement cannot be seen. Build two or more months to test it.", [], ""
     ev, gaps = [], []
     tot_all = float(d["rev"].sum())
-    rev_sku = d[(d["mrp_old"] / d["mrp"] - 1).abs() > 0.005]
+    new_col = d["mrp_new"] if "mrp_new" in d.columns else d["mrp"]
+    rev_sku = d[(d["mrp_old"] / new_col - 1).abs() > 0.005]
     for m in months:
         x = d[d["BillMonth"] == m]
         r = rev_sku[rev_sku["BillMonth"] == m]
         gaps.append(_gap(x))
         extra = ""
         if len(r):
-            extra = f"; on revised SKUs ({pct(float(r['rev'].sum()) / float(x['rev'].sum()))} of the month) {pct(_gap(r))} against the new MRP, {pct(_gap(r, 'x_old'))} against the old"
-        ev.append((str(m)[:7], f"{pct(_gap(x))} against the file{extra}"))
+            extra = f"; on revised SKUs ({pct(float(r['rev'].sum()) / float(x['rev'].sum()))} of the month) {pct(_gap(r, 'x_new'))} against the new MRP, {pct(_gap(r, 'x_old'))} against the old"
+        ev.append((str(m)[:7], f"{pct(_gap(x))} against the file, using the MRP in force{extra}"))
     # SKUs whose best-fitting MRP changes between months: a revision that happened during the period
     if rev_sku.empty:
         s = pd.DataFrame(columns=["sku", "BillMonth", "old_fits", "rev", "name"])
         flips = pd.DataFrame(columns=["n", "rev", "name"])
     else:
         s = rev_sku.groupby(["sku", "BillMonth"]).apply(
-            lambda x: pd.Series({"old_fits": abs(_gap(x, "x_old")) < abs(_gap(x)), "rev": x["rev"].sum(), "name": x["name"].iloc[0]}),
+            lambda x: pd.Series({"old_fits": abs(_gap(x, "x_old")) < abs(_gap(x, "x_new")), "rev": x["rev"].sum(), "name": x["name"].iloc[0]}),
             include_groups=False).reset_index()
         flips = s.groupby("sku").agg(n=("old_fits", "nunique"), rev=("rev", "sum"), name=("name", "first")).query("n > 1").sort_values("rev", ascending=False)
     share = float(flips["rev"].sum() / tot_all) if tot_all else 0.0
@@ -665,12 +689,14 @@ def _gap_by_month(c):
         fits = s[s["sku"] == sku].sort_values("BillMonth")
         ev.append((str(r["name"]), ", ".join(f"{str(m)[:7]} {'old' if o else 'new'} MRP" for m, o in zip(fits["BillMonth"], fits["old_fits"]))))
     spread = max(gaps) - min(gaps)
-    head = (f"The gap runs from {pct(min(gaps))} to {pct(max(gaps))} across the base months. "
+    handled = (c.get("mrp_used") or {}).get("sku_months_priced_old", 0) > 0
+    head = (f"The gap, after pricing each month with the MRP in force, runs from {pct(min(gaps))} to {pct(max(gaps))} across the base months. "
             + (f"{len(flips)} revised SKUs ({pct(share)} of revenue) follow the old MRP in one month and the new one in another, so the MRP changed during the period."
+               + (" The build prices each of those months with the MRP billing follows." if handled else "")
                if len(flips) else "No SKU switches between the old and new MRP."))
-    status = worst(grade(spread, 0.005, 0.02), grade(share, 0.02, 0.10))
-    return status, head, ev, ("Tell us the month each revised SKU's new MRP started so every month is priced with the MRP in force."
-                              if status != PASS else "")
+    status = worst(grade(spread, 0.005, 0.02), (WARN if flips.shape[0] and handled else grade(share, 0.02, 0.10)))
+    return status, head, ev, ("The build infers each revision month from billing. Confirm the dates with whoever sets the MRP, "
+                              "or add them to the offer file." if status != PASS else "")
 
 
 @check("dropped_terms", "Tax and offer file", "No offer line dropped for missing terms",

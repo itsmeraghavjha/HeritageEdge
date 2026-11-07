@@ -280,16 +280,14 @@ def test_billing_that_deducts_off_invoice_offers_passes():
 
 
 def test_billing_that_follows_the_old_mrp_is_flagged():
-    g = lines(70.0, mrp=[100.0] * 2, mrp_old=[90.0] * 2, offer_rs=[4.0] * 2, off_rs=[0.0] * 2, on_rs=[4.0] * 2)
-    # old MRP 90: 90*0.8-4 = 68; new MRP 100: 100*0.8-4 = 76; billed 69 is closer to the old price
-    g["net_px"] = 69.0
-    out = integrity._mrp_revision({"g": g})
+    d = priced([("2026-07-01", 1, 100.0, 6900.0, 100.0, 90.0, 4.0, 0.0)])     # old MRP: 90 x 0.8 - 4 = 68; new: 76; billed 69
+    out = integrity._mrp_revision({"lines": d})
     assert out["status"] == "warn" and "old MRP" in out["evidence"][-1][1]
 
 
 def test_billing_that_follows_the_new_mrp_passes():
-    g = lines(76.0, mrp_old=[90.0] * 2, off_rs=[0.0] * 2, on_rs=[4.0] * 2)
-    assert integrity._mrp_revision({"g": g})["status"] == "pass"
+    d = priced([("2026-07-01", 1, 100.0, 7600.0, 100.0, 90.0, 4.0, 0.0)])
+    assert integrity._mrp_revision({"lines": d})["status"] == "pass"
 
 
 # ---------- price gap checks ----------
@@ -327,3 +325,45 @@ def test_a_sku_that_switches_from_old_to_new_mrp_is_flagged():
 def test_steady_prices_in_every_month_pass():
     rows = [(m, 1, 100.0, 8000.0, 100.0, 90.0, 0.0, 0.0) for m in ("2026-07-01", "2026-08-01")]
     assert integrity._gap_by_month({"lines": priced(rows)})["status"] == "pass"
+
+
+# ---------- the MRP in force, and the offer month by month ----------
+def lines_for_mrp(rows):
+    d = pd.DataFrame(rows, columns=["sku", "BillMonth", "packs", "rev", "mrp", "mrp_old"])
+    d["trade"], d["gst"], d["offer_rs"] = 0.2, 0.0, 0.0
+    return d
+
+
+def test_the_old_mrp_is_used_for_the_month_billing_follows_it():
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7200.0, 100.0, 90.0),      # billed at 72 = old MRP 90 x 0.8
+                       (1, "2026-08-01", 100.0, 8000.0, 100.0, 90.0)])     # billed at 80 = new MRP
+    out, rep = prepare.mrp_in_force(d)
+    assert list(out["mrp"]) == [90.0, 100.0] and list(out["mrp_new"]) == [100.0, 100.0]
+    assert rep["sku_months_priced_old"] == 1 and rep["skus"] == 1
+
+
+def test_a_small_deduction_does_not_flip_the_mrp():
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7840.0, 100.0, 90.0)])     # 2% under the new price, far from the old one
+    out, rep = prepare.mrp_in_force(d)
+    assert list(out["mrp"]) == [100.0] and rep["sku_months_priced_old"] == 0
+
+
+def test_a_sku_with_one_mrp_is_left_alone():
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7000.0, 100.0, 100.0)])
+    assert list(prepare.mrp_in_force(d)[0]["mrp"]) == [100.0]
+
+
+def test_each_month_keeps_its_own_offer():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["Rs. 2 Promo - Off Invoice claim"] * 3, "Aug'26 - Month Offer": ["Rs. 4 Promo - Off Invoice claim"] * 3})
+    out, _ = prepare.monthly_offers(df, ["2026-07-01", "2026-08-01"])
+    assert list(out["off_rs|2026-07-01"]) == [2.0] * 3 and list(out["off_rs|2026-08-01"]) == [4.0] * 3
+
+
+def test_margin_taken_off_the_gst_inclusive_mrp_is_detected():
+    d = priced([("2026-08-01", 1, 100.0, 0.0, 100.0, 100.0, 0.0, 0.0)])
+    d["gst"] = 0.05
+    d["rev"] = 100.0 * 100.0 * (1 / 1.05 - 0.2)             # billing follows B
+    out = integrity._trade_gst({"lines": d})
+    assert out["status"] == "warn" and "B fits better" in out["headline"]
+    d["rev"] = 100.0 * 100.0 * 0.8 / 1.05                   # billing follows A
+    assert integrity._trade_gst({"lines": d})["status"] == "pass"

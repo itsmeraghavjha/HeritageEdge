@@ -77,3 +77,5 @@ How to read the size: **High** can move a chain or line by several points of mar
 - The same customer x SKU repeats once per sales district; the build averages districts. Open: match on district to sales office.
 - Real data, Aug base: billing is about 1% under the offer file even on lines with no offer, so a standing deduction exists outside offers (check "A price gap with no offer involved"). Off-invoice offers ARE inside billed price (billing sits within 0.1 pts of the offer-deducted price), so the model counts them correctly. Billing follows the new MRP.
 - Jul+Aug: gap moves between months on some SKUs (ghee, milk sachets, butter at q-commerce chains). Check "The gap in each base month" shows which MRP fits each month.
+- Jul+Aug on real data: 21 SKUs (curd, milk FCM, paneer high protein, cheese slices ...) billed at the OLD MRP in Jul and the NEW in Aug. Fixed by `mrp_in_force` (inferred); open: dates from whoever sets the MRP.
+- Open: no-offer lines with 5% GST sit further under the file than 0% GST lines; check "How trade margin and GST combine" tests formula B.
