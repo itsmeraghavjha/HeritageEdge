@@ -103,6 +103,14 @@ def explain(lines, offer_rows, months):
            .reset_index())
     top["pct"] = top["rest"] / top["exp"]
     top = top.reindex(top["rest"].abs().sort_values(ascending=False).index).head(10)
+    # per month for those lines: what billing charged per pack against what the offer file implies
+    month = {}
+    pm = d.groupby(["chain", "sku", "BillMonth"]).agg(rev=("rev", "sum"), packs=("packs", "sum"), exp=("exp2", "sum")).reset_index()
+    for r in pm.itertuples():
+        if r.packs > 0 and r.exp > 0:
+            month.setdefault((r.chain, r.sku), []).append(
+                {"month": str(r.BillMonth)[:7], "billed_px": float(r.rev / r.packs), "file_px": float(r.exp / r.packs),
+                 "gap_pct": float(r.rev / r.exp - 1)})
     return {
         "billed_revenue_a_month": total_rev / months,
         "total_gap_pct": gap / total_rev,
@@ -112,5 +120,6 @@ def explain(lines, offer_rows, months):
         "lines_with_other_gst_rate_pct": float(d.loc[gst_differs, "rev"].sum() / total_rev),
         "lines_with_several_offer_rows_pct": float(d.loc[d["multi"], "rev"].sum() / total_rev),
         "left_after_causes": [{"chain": str(r.chain), "sku": str(r.sku), "name": str(r.name), "gap_pct": float(r.pct),
-                               "rupees_a_month": float(r.rest / months), "cause": r.cause} for r in top.itertuples()],
+                               "rupees_a_month": float(r.rest / months), "cause": r.cause,
+                               "months": sorted(month.get((r.chain, r.sku), []), key=lambda m: m["month"])} for r in top.itertuples()],
     }

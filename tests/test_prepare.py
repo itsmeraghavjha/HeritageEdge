@@ -403,3 +403,11 @@ def test_the_build_records_the_gap_breakdown(tmp_path):
     meta, _ = _build_with_mis(tmp_path)
     gb = meta["gap_breakdown"]
     assert gb is None or {"causes", "total_gap_pct", "left_after_causes"} <= set(gb)
+
+
+def test_gap_lines_carry_a_price_for_each_month(tmp_path):
+    meta, _ = _build_with_mis(tmp_path)
+    lines = meta["gap_breakdown"]["left_after_causes"]
+    assert lines and all(x["months"] for x in lines)
+    m = lines[0]["months"][0]
+    assert {"month", "billed_px", "file_px", "gap_pct"} <= set(m) and m["billed_px"] > 0 and m["file_px"] > 0

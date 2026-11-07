@@ -259,7 +259,8 @@
     const rows = gb.causes.map((c) => `<tr><th scope="row">${HE.esc(c.label)}<span class="sub fix">${HE.esc(CAUSE_FIX[c.key] || '')}</span></th>
       <td>${sg(c.net_pct)}</td><td>${(c.abs_pct * 100).toFixed(1)}%</td><td>${HE.inrSigned(c.rupees_a_month)}</td></tr>`).join('');
     const why = { steady: 'Same every month', moves: 'Moves between months', far: 'Far from the offer file' };
-    const top = gb.left_after_causes.map((s) => `<tr><th scope="row">${HE.esc(s.chain)}, ${HE.esc(s.name)} (${HE.esc(s.sku)})<span class="sub fix">${HE.esc(why[s.cause] || '')}</span></th>
+    const permonth = (s) => (s.months || []).map((m) => `${m.month}: billed ₹${m.billed_px.toFixed(2)} against ₹${m.file_px.toFixed(2)} (${sg(m.gap_pct)})`).join(' · ');
+    const top = gb.left_after_causes.map((s) => `<tr><th scope="row">${HE.esc(s.chain)}, ${HE.esc(s.name)} (${HE.esc(s.sku)})<span class="sub fix">${HE.esc(why[s.cause] || '')}</span><span class="sub fix">${HE.esc(permonth(s))}</span></th>
       <td>${sg(s.gap_pct)}</td><td></td><td>${HE.inrSigned(s.rupees_a_month)}</td></tr>`).join('');
     const notes = [];
     if (!gb.billing_has_tax) notes.push('Billing shows no tax, so the GST rate could not be checked. Add the Tax column to the billing pull.');
