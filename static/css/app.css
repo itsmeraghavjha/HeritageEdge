@@ -749,3 +749,4 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 @media (max-width: 1000px) { .hbar-wide { grid-template-columns: 110px 1fr 36px; } .hbar-sub { display: none; } }
 .hbar-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hbar-wide { grid-template-columns: 220px 1fr 40px 260px; }
+.data th .fix { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); margin-top: 2px; white-space: normal; }

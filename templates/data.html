@@ -77,6 +77,10 @@
     <p class="sub">For each chain and SKU, the price the offer file implies (MRP less trade margin less offer, ex-GST) next to what billing charged. Net revenue always follows billing, so a gap here does not move margin. It moves money between promo and other deductions. Common causes: an offer that changed during the month, several offer rows for one customer and SKU, or a scheme the offer file does not hold.</p>
   </div>
   <div id="offerCheck"></div>
+  <div class="panel-head"><h2>Where other deductions come from</h2>
+    <p class="sub">"Other deductions" is whatever the offer file does not explain. This splits it into causes we can test, in order, so the pieces add up to the whole gap. The fixes differ: a wrong GST rate or a data problem is a data fix, several offer rows or terms that moved need a better offer file, and a steady gap is a real deduction the offer file does not hold.</p>
+  </div>
+  <div id="gapCheck"></div>
 </section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/data.js') }}"></script>{% endblock %}

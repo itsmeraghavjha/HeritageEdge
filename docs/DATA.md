@@ -70,3 +70,15 @@ When new billing months arrive: *Refresh from SQL*, tick the months you want as 
 ## Billed price against the offer file
 
 The Data page also compares, for each chain and SKU, the price the offer file implies, `(MRP x (1 - trade) - offer) / (1 + GST)`, with the price billing charged. It shows the share of revenue billed at the offer-file price, below it and above it, and the ten chain and SKU pairs with the largest rupee difference. Net revenue follows billing, so the gap does not move margin. It moves money between promo and "other deductions". Typical causes are an offer that changed during the month, several offer rows for one customer and SKU (the build averages them), and a scheme that the offer file does not hold.
+
+## Where other deductions come from
+
+"Other deductions" is the plug: net revenue follows billing, so whatever the offer file does not explain lands there. After every build the Data page splits that gap (`engine/gapcheck.py`, saved as `gap_breakdown` in `meta.json`) into causes, in this order, so the pieces add up to the whole gap:
+
+1. **GST rate.** Billing's `Tax` column gives the rate it really charged; if it differs from the offer file's GST%, the offer price was converted to ex-GST with the wrong rate. Skipped (and said so) when billing has no tax.
+2. **Several offer rows** for one customer and SKU, which the build averages. The piece is what would disappear if the row best matching billing had been the one in force: an upper bound.
+3. **A price far from the offer file** (over 40% either way): usually a unit, pack-size or customer-mapping problem.
+4. **A gap that changes between base months**: terms moved during the period, and the offer file holds one set.
+5. **A steady gap**: the same every month. A scheme, credit note or free goods the offer file does not hold.
+
+The page also lists the ten chain and SKU pairs with the largest gap left, each with its likely cause. Shares are of billed revenue; "net" adds to the total gap and "absolute" ignores sign. This check only explains the gap; it never changes the numbers. Fixes follow the cause: causes 1 and 3 are data fixes, 2 and 4 need a better offer file (one row per customer and SKU, with dates), and 5 is a real deduction to add to the offer file.

@@ -349,3 +349,57 @@ def test_the_build_records_the_offer_price_check(tmp_path):
     meta, _ = _build_with_mis(tmp_path)
     oc = meta["offer_price_check"]
     assert oc is None or {"gap_pct", "revenue_by_gap", "largest_gaps"} <= set(oc)
+
+
+def _gap_lines(**over):
+    import pandas as pd
+    base = dict(cid=1, sku=7, BillMonth="2026-08-01", packs=1000.0, mrp=100.0, trade=0.2, offer_rs=5.0, gst=0.05,
+                chain="A", name="Ghee")
+    exact = (100 * 0.8 - 5) / 1.05
+    rows = [dict(base, rev=exact * 1000, **over)]
+    return pd.DataFrame(rows), exact
+
+
+def test_gap_check_attributes_each_cause_and_the_pieces_add_up_to_the_gap():
+    import pandas as pd
+    from engine import gapcheck
+    exact = (100 * 0.8 - 5) / 1.05
+    def line(cid, month, rev, **kw):
+        return dict(cid=cid, sku=7, BillMonth=month, packs=1000.0, mrp=100.0, trade=0.2, offer_rs=5.0, gst=0.05,
+                    chain=f"C{cid}", name="Ghee", rev=rev, **kw)
+    lines = pd.DataFrame([
+        line(1, "2026-08-01", exact * 1000),                                  # billed exactly: no gap
+        line(2, "2026-08-01", (100 * 0.8 - 5) / 1.12 * 1000, Tax=0.12 * (100 * 0.8 - 5) / 1.12 * 1000),   # billed at 12% GST
+        line(3, "2026-08-01", exact * 1000 * 0.97), line(3, "2026-09-01", exact * 1000 * 0.97),            # steady 3% gap
+        line(4, "2026-08-01", exact * 1000 * 0.99), line(4, "2026-09-01", exact * 1000 * 0.93),            # gap that moves
+        line(5, "2026-08-01", exact * 1000 * 0.4),                                                         # far from the file
+    ])
+    out = gapcheck.explain(lines, None, 1)
+    c = {x["key"]: x for x in out["causes"]}
+    total = sum(x["net_pct"] for x in out["causes"])
+    assert total == pytest.approx(out["total_gap_pct"])                   # nothing is lost between the causes
+    assert c["gst"]["net_pct"] < 0 and c["far"]["net_pct"] < 0
+    assert c["steady"]["net_pct"] == pytest.approx(-0.03 * exact * 2000 / lines["rev"].sum())
+    assert c["moves"]["net_pct"] == pytest.approx(-(0.01 + 0.07) * exact * 1000 / lines["rev"].sum())
+    assert out["billing_has_tax"] and out["lines_with_other_gst_rate_pct"] > 0
+
+
+def test_gap_check_credits_a_second_offer_row_and_ignores_zero_tax_columns():
+    import pandas as pd
+    from engine import gapcheck
+    lines, exact = _gap_lines(Tax=0.0)
+    other_px = (100 * 0.8 - 8) / 1.05
+    lines["rev"] = other_px * 1000                                       # billed at the *other* offer row's price
+    rows = pd.DataFrame([dict(cid=1, sku=7, mrp=100.0, trade=0.2, offer_rs=5.0, gst=0.05),
+                         dict(cid=1, sku=7, mrp=100.0, trade=0.2, offer_rs=8.0, gst=0.05)])
+    out = gapcheck.explain(lines, rows, 1)
+    c = {x["key"]: x for x in out["causes"]}
+    assert not out["billing_has_tax"]                                    # Tax of 0 says nothing about the rate
+    assert c["offer_rows"]["net_pct"] == pytest.approx(out["total_gap_pct"])
+    assert abs(c["steady"]["net_pct"]) < 1e-9 and out["lines_with_several_offer_rows_pct"] == pytest.approx(1.0)
+
+
+def test_the_build_records_the_gap_breakdown(tmp_path):
+    meta, _ = _build_with_mis(tmp_path)
+    gb = meta["gap_breakdown"]
+    assert gb is None or {"causes", "total_gap_pct", "left_after_causes"} <= set(gb)

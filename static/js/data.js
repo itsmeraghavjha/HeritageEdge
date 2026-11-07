@@ -172,6 +172,7 @@
     }).join('');
     renderPriceCheck(data.price_check);
     renderOfferCheck(data.offer_price_check);
+    renderGapCheck(data.gap_breakdown);
     $('reconTable').innerHTML = `<thead><tr><th scope="col">Cost line</th><th scope="col">In HeritageEdge</th>
       <th scope="col">In the MIS</th><th scope="col">Gap</th></tr></thead><tbody>${rows}</tbody>`;
   }
@@ -220,6 +221,32 @@
       Below it by more than 10%: ${pc(b.below_over_10pct)}. Above it: ${pc(b.above)}.</p>
       <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Chain and SKU with the largest difference</th>
       <th scope="col">Billed less offer-file price</th><th scope="col">Gap</th></tr></thead><tbody>${top}</tbody></table></div>`;
+  }
+
+  const CAUSE_FIX = {
+    gst: 'Data: use the tax billing really charged, or correct the GST% in the offer file.',
+    offer_rows: 'Offer file: keep one row per customer and SKU for the period, or add dates.',
+    far: 'Data: check the pack size, unit of sale and customer mapping for these lines.',
+    moves: 'Offer file: terms changed inside the period. Build one month at a time, or add dates.',
+    steady: 'A real deduction the offer file does not hold (scheme, credit note, free goods). Add it to the file.',
+  };
+  function renderGapCheck(gb) {
+    const el = $('gapCheck');
+    if (!gb) { el.innerHTML = '<p class="sub pad">Rebuild the dataset to see this check.</p>'; return; }
+    const sg = (v) => (v > 0.00005 ? '+' : v < -0.00005 ? HE.MINUS : '') + Math.abs(v * 100).toFixed(1) + '%';
+    const rows = gb.causes.map((c) => `<tr><th scope="row">${HE.esc(c.label)}<span class="sub fix">${HE.esc(CAUSE_FIX[c.key] || '')}</span></th>
+      <td>${sg(c.net_pct)}</td><td>${(c.abs_pct * 100).toFixed(1)}%</td><td>${HE.inrSigned(c.rupees_a_month)}</td></tr>`).join('');
+    const why = { steady: 'Same every month', moves: 'Moves between months', far: 'Far from the offer file' };
+    const top = gb.left_after_causes.map((s) => `<tr><th scope="row">${HE.esc(s.chain)}, ${HE.esc(s.name)} (${HE.esc(s.sku)})<span class="sub fix">${HE.esc(why[s.cause] || '')}</span></th>
+      <td>${sg(s.gap_pct)}</td><td></td><td>${HE.inrSigned(s.rupees_a_month)}</td></tr>`).join('');
+    const notes = [];
+    if (!gb.billing_has_tax) notes.push('Billing shows no tax, so the GST rate could not be checked. Add the Tax column to the billing pull.');
+    notes.push(`${(gb.lines_with_several_offer_rows_pct * 100).toFixed(0)}% of revenue is on a customer and SKU with several offer rows.`);
+    el.innerHTML = `<p class="sub pad">Billing is ${sg(gb.total_gap_pct)} against the offer file, ${HE.inrSigned(gb.total_gap_rupees_a_month)} a month.
+      Net adds up to that; absolute ignores sign, so gaps that cancel still show. ${HE.esc(notes.join(' '))}</p>
+      <div class="table-scroll"><table class="data"><thead><tr><th scope="col">Cause</th><th scope="col">Net, % of revenue</th>
+      <th scope="col">Absolute</th><th scope="col">Rupees a month</th></tr></thead><tbody>${rows}
+      <tr class="group"><th colspan="4" scope="colgroup">Largest gaps by chain and SKU, and the likely cause</th></tr>${top}</tbody></table></div>`;
   }
 
   /* ---------- status polling ---------- */

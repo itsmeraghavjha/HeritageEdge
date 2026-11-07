@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import data
+from . import data, gapcheck
 
 LINES = list(data.LINES)
 LINE_LABELS = {"cogs": "COGS", "sd": "S&D / freight", "pa": "P&A", "interest": "Interest",
@@ -517,6 +517,12 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                         "does not cover. The MIS must include Modern Formats or E-Commerce.")
 
     n = len(base_months)
+    offer_rows = off.rename(columns={"New MRP": "mrp", "TOT Margin on Invoice": "trade", "GST%": "gst"})[
+        ["cid", "sku", "mrp", "trade", "offer_rs", "gst"]]
+    try:
+        gap_breakdown = gapcheck.explain(b, offer_rows, n)
+    except Exception:       # a diagnostic must never stop a build
+        gap_breakdown = None
     for k in ("mrp", "trade", "offer_rs", "gst"):
         b["w_" + k] = b[k] * b["packs"]
     keys = ["chain", "grp", "state", "city", "so_num", "so_name", "sku", "name", "family", "variant", "pack"]
@@ -583,6 +589,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "reconciliation": rec,
         "price_check": check,
         "offer_price_check": offer_check,
+        "gap_breakdown": gap_breakdown,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     say("Done", 1.0)
