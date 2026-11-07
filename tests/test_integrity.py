@@ -126,6 +126,17 @@ def test_two_mrps_for_one_sku_are_flagged(tmp_path):
     assert checks["mrp_by_sku"]["status"] in ("warn", "fail")
 
 
+def test_an_mrp_that_differs_only_between_states_is_fine(tmp_path):
+    def revised(d):
+        d.loc[(d["Sku Code"] == 7001) & (d["Customer"] == 1002), "New MRP"] = 55.0
+        return d
+    b = synth.billing_rows()
+    b = b[~((b["CustomerID"] == 1002) & (b["SalesOfficeID"] == 2001))]      # customer 1002 now bills only in Telangana
+    checks, _ = build(tmp_path, billing=b, offer=revised)
+    assert checks["mrp_by_sku"]["status"] == "pass"
+    assert "differ across states" in checks["mrp_by_sku"]["evidence"][0][0] or "across states" in checks["mrp_by_sku"]["evidence"][0][0]
+
+
 def test_offer_rows_that_disagree_are_flagged(tmp_path):
     def twice(d):
         extra = d[(d["Customer"] == 1001) & (d["Sku Code"] == 7001)].copy()

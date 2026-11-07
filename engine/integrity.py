@@ -448,22 +448,40 @@ def _offer_conflicts(c):
     return grade(s_diff, 0.02, 0.10), head, ev, "Keep one row per customer and SKU for the period, or add a validity date." if s_diff >= 0.02 else ""
 
 
-@check("mrp_by_sku", "Tax and offer file", "One MRP per SKU",
-       "Does the same SKU carry different MRPs for different customers?")
+@check("mrp_by_sku", "Tax and offer file", "One MRP per SKU within a state",
+       "Does the same SKU carry different MRPs for customers in the same state?")
 def _mrp_by_sku(c):
-    o = c["off"].dropna(subset=["sku"]).copy()
+    o = c["off"].dropna(subset=["cid", "sku"]).copy()
     o["m"] = pd.to_numeric(o["New MRP"], errors="coerce")
     o = o[o["m"] > 0]
-    by = o.groupby("sku")["m"].agg(["min", "max", "nunique"])
-    mixed = by[(by["max"] / by["min"] - 1) > 0.01]
     dm = c["dm"]
+    # the state each customer mostly bills in; MRPs differ by state for milk and curd, which is not an error
+    if "STATE" in dm.columns and len(dm):
+        st = dm.groupby(["cid", dm["STATE"].astype(str).str.strip().str.title()])["rev"].sum().reset_index()
+        st = st.sort_values("rev").drop_duplicates("cid", keep="last").set_index("cid").iloc[:, 0]
+        o["state"] = o["cid"].map(st).fillna("(no billing)")
+    else:
+        o["state"] = "(unknown)"
+
+    def mixed_of(keys):
+        by = o.groupby(keys)["m"].agg(["min", "max", "nunique"])
+        return by[(by["max"] / by["min"] - 1) > 0.01]
+
+    overall = mixed_of(["sku"])
+    within = mixed_of(["sku", "state"])
+    skus_within = within.index.get_level_values("sku").unique()
     tot = dm["rev"].sum()
-    share = float(dm.loc[dm["sku"].isin(mixed.index), "rev"].sum() / tot)
+    share = float(dm.loc[dm["sku"].isin(skus_within), "rev"].sum() / tot) if tot else 0.0
     rev = dm.groupby("sku")["rev"].sum()
-    ev = [(_name(c, k), f"₹{r['min']:g} to ₹{r['max']:g} ({int(r['nunique'])} values)") for k, r in
-          mixed.assign(rev=rev.reindex(mixed.index).fillna(0)).sort_values("rev", ascending=False).head(8).iterrows()]
-    head = (f"{len(mixed)} SKUs have more than one MRP in the offer file ({pct(share)} of revenue). An MRP is set per SKU, so "
-            "this is usually a price revision caught mid-file, or a state-specific MRP.")
+    w = within.reset_index()
+    w["rev"] = w["sku"].map(rev).fillna(0)
+    ev = [("SKUs with different MRPs across states (normal)", f"{len(overall)} SKUs"),
+          ("SKUs with different MRPs inside one state", f"{len(skus_within)} SKUs ({pct(share)} of revenue)")]
+    for _, r in w.sort_values("rev", ascending=False).drop_duplicates("sku").head(8).iterrows():
+        ev.append((f"{_name(c, r['sku'])} ({r['state']})", f"₹{r['min']:g} to ₹{r['max']:g} ({int(r['nunique'])} values)"))
+    head = (f"{len(overall)} SKUs carry more than one MRP across the offer file, which is normal when states price differently. "
+            f"{len(skus_within)} still differ inside one state ({pct(share)} of revenue): that is usually a price revision caught "
+            "mid-file, and the build then averages the old and new MRP.")
     return grade(share, 0.02, 0.20), head, ev, "Use the MRP that was in force during the base months for every row of the SKU." if share >= 0.02 else ""
 
 

@@ -90,6 +90,6 @@ The page also lists the ten chain and SKU pairs with the largest gap left, each 
 - Units: unit of sale is litres or kg only; packs are whole numbers; pack text agrees with the offer-file product name; the same SKU is priced alike across chains (a pack counted in the wrong unit shows as a constant gap).
 - Coverage: where every rupee of billing went (waterfall: unreadable pack size, not in offer file, outside MIS groups, dropped at the end); returns and zero-quantity lines; repeated lines; each base month full; one chain and one group per customer; no covered customer missing.
 - MIS match: same SKU x office x group cells on both sides; costs come from the cell, not a fallback; packs billed against packs in the MIS per SKU (same revenue with different packs = unit slip, both moving = volume difference); same months (steady ratio = definition, jump = partial month).
-- Tax and offer file: billing tax is a real GST rate; GST and trade margin in the right units (5 not 0.05); one set of terms per customer x SKU; one MRP per SKU; no offer line dropped for missing terms.
+- Tax and offer file: billing tax is a real GST rate; GST and trade margin in the right units (5 not 0.05); one set of terms per customer x SKU; one MRP per SKU within a state (states may differ); no offer line dropped for missing terms.
 
 Each check has a test in `tests/test_integrity.py`. Add a check by writing a `_function(c)` decorated with `check(...)` and adding it to `CHECKS`.
