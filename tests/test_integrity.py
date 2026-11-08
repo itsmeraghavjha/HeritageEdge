@@ -408,3 +408,26 @@ def test_a_gap_that_differs_between_months_is_reported():
 def test_the_same_gap_in_every_month_passes():
     rows = [(m, 1, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0) for m in ("2026-07-01", "2026-08-01")]
     assert integrity._gap_by_month({"lines": priced(rows)})["status"] == "pass"
+
+
+# ---------- where the gap is concentrated ----------
+def test_the_sku_gap_table_ranks_skus_by_rupees():
+    d = priced([("2026-08-01", 1, 100.0, 7600.0, 100.0, 100.0, 0.0, 0.0),      # file 80 x 100 = 8000, billed 7600: -400
+                ("2026-08-01", 2, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0),      # exact
+                ("2026-08-01", 3, 100.0, 8100.0, 100.0, 100.0, 0.0, 0.0)])     # +100
+    d["name"] = ["one", "two", "three"]
+    t = integrity.sku_gap_table({"lines": d, "n": 1})
+    assert list(t["sku"]) == [1, 3, 2] and t["gap_rupees_a_month"].iloc[0] == pytest.approx(-400.0)
+    assert t["cumulative_share_of_gap"].iloc[-1] == pytest.approx(1.0)
+
+
+def test_a_gap_in_one_sku_is_reported_as_concentrated():
+    rows = [("2026-08-01", s, 100.0, 7600.0 if s == 1 else 8000.0, 100.0, 100.0, 0.0, 0.0) for s in range(1, 11)]
+    out = integrity._gap_concentration({"lines": priced(rows), "n": 1})
+    assert "1 of 10 SKUs make up half" in out["headline"]
+    assert dict(out["evidence"])["SKUs within 0.5% of the file's price"].startswith("9 SKUs")
+
+
+def test_the_build_writes_the_sku_list(tmp_path):
+    build(tmp_path)
+    assert (tmp_path / "out" / "sku_gap.csv").exists()

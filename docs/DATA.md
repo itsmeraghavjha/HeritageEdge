@@ -85,7 +85,7 @@ The page also lists the ten chain and SKU pairs with the largest gap left, each 
 
 ## Data checks (Data page, after a build)
 
-`engine/integrity.py` runs 25 checks on the data already loaded and stores them in `meta.json` under `integrity`. Each has a status (ok, look at this, problem, not checked), the question it answers, evidence rows and what to do. A check that cannot run is "not checked"; no check can stop a build. Real data will show whichever the data earns; synthetic data trips some on purpose.
+`engine/integrity.py` runs 26 checks on the data already loaded and stores them in `meta.json` under `integrity`. Each has a status (ok, look at this, problem, not checked), the question it answers, evidence rows and what to do. A check that cannot run is "not checked"; no check can stop a build. Real data will show whichever the data earns; synthetic data trips some on purpose.
 
 - Units: unit of sale is litres or kg only; packs are whole numbers; pack text agrees with the offer-file product name; the same SKU is priced alike across chains (a pack counted in the wrong unit shows as a constant gap).
 - Coverage: where every rupee of billing went (waterfall: unreadable pack size, not in offer file, outside MIS groups, dropped at the end); returns and zero-quantity lines; repeated lines; each base month full; one chain and one group per customer; no covered customer missing.
@@ -105,3 +105,5 @@ Terms (MRP, trade margin, offer, GST) are built per customer, SKU **and base mon
 **Taking "pack size could not be read" to zero.** Check "Lines left out for pack size, and why" splits those lines into two reasons: the pack text has no readable size (add a parsing rule in `prepare.pack_size`, or fix the product master), and the pack text is fine but the quantity is zero or negative (credit notes, returns, price adjustments: revenue with no packs, which has to be carried as an adjustment, not dropped). `pack_size` reads `700+700 ML` as 1.4 L and `6 X 200 ML` as 1.2 L.
 
 Where the pack text has no readable size (blank in the product master), the build now reads the size from the SKU's name in the offer file ("... 500 ML ..."), the same name the check "Pack size agrees in billing and the offer file" compares. `meta.quality.pack_size_taken_from_offer_name_pct` says how much revenue that rescued. Lines with no quantity (credit notes, returns) still cannot become packs and are left out; they net to a fraction of a percent.
+
+**Where the gap is concentrated.** Check "Where the gap is concentrated" ranks every SKU by its gap against the offer file (billed less the price the file implies, per month), and says how many SKUs make up half and 80% of it. Each build also writes `data/sku_gap.csv` (git-ignored) with all SKUs: rank, SKU, name, family, revenue a month, gap %, gap in rupees a month and the running share of the gap.

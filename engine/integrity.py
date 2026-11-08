@@ -643,6 +643,47 @@ def _trade_gst(c):
     return (WARN if b_better else PASS), head, ev, "If B is right, tell us and the build will use it for products with GST." if b_better else ""
 
 
+def sku_gap_table(c):
+    """Every SKU's gap against the offer file, biggest first: revenue and gap per month, gap % and the running share of
+    all the gap (ignoring sign). Used by the check below and written to sku_gap.csv at each build."""
+    d = _priced(c)
+    n = max(int(c.get("n") or 1), 1)
+    t = d.groupby("sku").agg(name=("name", "first"), family=("family", "first"), rev=("rev", "sum"), exp=("x_used", "sum")).reset_index()
+    t["diff"] = t["rev"] - t["exp"]
+    t = t.reindex(t["diff"].abs().sort_values(ascending=False).index).reset_index(drop=True)
+    total_abs = float(t["diff"].abs().sum()) or 1.0
+    out = pd.DataFrame({"rank": t.index + 1, "sku": t["sku"], "name": t["name"], "family": t["family"],
+                        "revenue_a_month": t["rev"] / n, "gap_pct": t["diff"] / t["exp"], "gap_rupees_a_month": t["diff"] / n,
+                        "cumulative_share_of_gap": t["diff"].abs().cumsum() / total_abs})
+    return out
+
+
+@check("gap_concentration", "Price against the offer file", "Where the gap is concentrated",
+       "Is the gap spread over every SKU, or sitting in a few?")
+def _gap_concentration(c):
+    t = sku_gap_table(c)
+    n = max(int(c.get("n") or 1), 1)
+    tot_rev = float(_priced(c)["rev"].sum())
+    if t.empty or not tot_rev:
+        return SKIP, "No lines to compare.", [], ""
+    net = float(t["gap_rupees_a_month"].sum())
+    neg, pos = float(t.loc[t["gap_rupees_a_month"] < 0, "gap_rupees_a_month"].sum()), float(t.loc[t["gap_rupees_a_month"] > 0, "gap_rupees_a_month"].sum())
+    k50 = int((t["cumulative_share_of_gap"] < 0.5).sum()) + 1
+    k80 = int((t["cumulative_share_of_gap"] < 0.8).sum()) + 1
+    clean = t[t["gap_pct"].abs() <= 0.005]
+    clean_rev = float(clean["revenue_a_month"].sum() * n / tot_rev)
+    ev = [("SKUs compared", f"{len(t):,}"), ("Net gap a month", lakh(net)),
+          ("Below the file's price, all SKUs together", lakh(neg)), ("Above the file's price, all SKUs together", lakh(pos)),
+          ("SKUs that make up half of all the gap", f"{k50}"), ("SKUs that make up 80% of all the gap", f"{k80}"),
+          ("SKUs within 0.5% of the file's price", f"{len(clean):,} SKUs, {pct(clean_rev)} of revenue")]
+    for r in t.head(15).itertuples():
+        ev.append((f"{r.rank}. {r.name} ({r.family})", f"{pct(r.gap_pct)}, {lakh(r.gap_rupees_a_month)} a month, running {pct(r.cumulative_share_of_gap)} of the gap"))
+    head = (f"{k50} of {len(t):,} SKUs make up half of the gap and {k80} make up 80%. Below the file's price the SKUs add up to {lakh(neg)} a month "
+            f"and above it to {lakh(pos)}, a net {lakh(net)}. {len(clean):,} SKUs ({pct(clean_rev)} of revenue) are within 0.5% of the file. "
+            "Every SKU is listed in sku_gap.csv in the data folder.")
+    return grade(abs(net * n) / tot_rev, 0.005, 0.03), head, ev, "Take the SKUs at the top of the list to whoever owns their prices." if abs(net * n) / tot_rev >= 0.005 else ""
+
+
 @check("no_offer_gap", "Price against the offer file", "A price gap with no offer involved",
        "On lines with no offer at all, does billing charge the file's price (MRP less trade margin, ex-GST)?")
 def _no_offer_gap(c):

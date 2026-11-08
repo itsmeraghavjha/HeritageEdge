@@ -660,14 +660,19 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
               "in_mis_scope": in_offer_rev - outside_rev,
               "modelled": float((final["units"] * final["net_px"]).sum() * n)}
     stages["end_drop"] = stages["in_mis_scope"] - stages["modelled"]
+    gap_lines = b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "trade", "gst",
+                               "offer_rs", "on_rs", "off_rs") if c in b.columns]]
+    try:        # every SKU's gap against the offer file, to open in Excel and take to whoever owns the prices
+        integrity.sku_gap_table({"lines": gap_lines, "n": n}).to_csv(out_dir / "sku_gap.csv", index=False)
+    except Exception:
+        pass
     try:
         integrity_report = integrity.run({
             "raw": raw, "off": off, "g": g.loc[final.index], "mis": mis, "everyone": everyone, "n": n, "stages": stages,
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
             "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months,
-            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "trade", "gst",
-                                    "offer_rs", "on_rs", "off_rs") if c in b.columns]]})
+            "lines": gap_lines})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
     meta = {

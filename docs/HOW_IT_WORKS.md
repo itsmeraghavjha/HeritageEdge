@@ -148,7 +148,7 @@ Sliders are counted the same way: when a lever is moved away from its starting v
 
 ## Data checks
 
-The Data page lists 25 integrity checks (units, coverage, MIS match, tax and offer file). They only read the data and never change a number. See `docs/DATA.md`.
+The Data page lists 26 integrity checks (units, coverage, MIS match, tax and offer file). They only read the data and never change a number. See `docs/DATA.md`.
 
 Offer per base month: the build reads each base month's offer text column (average if several), not the offer file's latest-month numbers. On-invoice offers lower the invoice price; off-invoice claims are paid later and may not be in billing (a data check measures this).
 
