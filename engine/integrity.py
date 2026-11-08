@@ -209,9 +209,9 @@ def _unreadable_packs(c):
     ev = [("Pack text has no readable size", f"{len(text):,} lines, {pct(float(text['rev'].sum()) / tot, 2)} of revenue"),
           ("Pack text is fine but quantity is zero or negative (credit notes, returns, price adjustments)",
            f"{len(qty):,} lines, {pct(float(qty['rev'].sum()) / tot, 2)} of revenue")]
-    top = text.groupby(["PackSize", "SalesUnit"], dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(8)
-    for (txt, unit), v in top.items():
-        ev.append((f"Pack text '{txt}' (sold in {unit})", pct(float(v) / tot, 2)))
+    top = text.groupby(["MaterialCode", "PackSize", "SalesUnit"], dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(8)
+    for (code, txt, unit), v in top.items():
+        ev.append((f"SKU {code} {_name(c, pd.to_numeric(code, errors='coerce'))}: pack text '{txt}', sold in {unit}", pct(float(v) / tot, 2)))
     fam = qty.groupby("ProductFamily", dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(5) if "ProductFamily" in qty.columns else []
     for k, v in (fam.items() if len(qty) else []):
         ev.append((f"No quantity, family {k}", pct(float(v) / tot, 2)))

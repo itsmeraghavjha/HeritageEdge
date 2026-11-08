@@ -622,6 +622,11 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     # packs: use the SQL value; where SQL could not read the pack size, try again here
     packs = pd.to_numeric(b["Packs"], errors="coerce")
     size = b["PackSize"].map(pack_size)
+    # where the pack text has no size (blank in the product master), read it from the SKU's name in the offer file
+    name_size = pd.to_numeric(b["MaterialCode"], errors="coerce").map(sku_names).map(lambda n: integrity.name_pack_size(n, pack_size))
+    from_name = (size.isna() | (size <= 0)) & (name_size > 0)
+    size = size.where(~from_name, name_size)
+    from_name_pct = float(b.loc[from_name & (packs.isna() | (packs <= 0)), "rev"].sum() / b["rev"].sum()) if b["rev"].sum() else 0.0
     redo = packs.isna() & (size > 0)
     packs[redo] = pd.to_numeric(b["Qty_LtrKg"], errors="coerce")[redo] / size[redo]
     b["packs"] = packs
@@ -743,6 +748,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "rows": int(len(final)),
         "net_revenue_cr": round(float((final["units"] * final["net_px"]).sum() / 1e7), 2),
         "quality": {"billing_revenue_with_unreadable_pack_size_pct": round(unreadable_pct * 100, 2),
+                    "pack_size_taken_from_offer_name_pct": round(from_name_pct * 100, 2),
                     "billing_revenue_in_offer_scope_pct": round(in_scope_pct * 100, 1),
                     "mf_ecom_revenue_in_offer_scope_pct": round(in_scope_mf_pct * 100, 1),
                     "billing_revenue_outside_mis_groups_pct": round(outside_pct * 100, 2),

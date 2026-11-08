@@ -65,8 +65,8 @@ def billing_rows(months=None, include_specials=True):
         for r in rows:
             if (r["CustomerID"], r["MaterialCode"], r["SalesOfficeID"], r["BillMonth"]) == (1001, 7001, 2001, "2026-09-01"):
                 r["Packs"] = None
-        # 2. a line whose pack size cannot be read at all: it must be dropped and counted
-        rows.append({**rows[0], "CustomerID": 1002, "SalesOfficeID": 2002, "MaterialCode": 7002, "BillMonth": "2026-07-01",
+        # 2. a line whose pack size cannot be read at all, from the pack text or from an offer-file name (SKU 7099 is in no offer file): it must be dropped and counted
+        rows.append({**rows[0], "CustomerID": 1002, "SalesOfficeID": 2002, "MaterialCode": 7099, "BillMonth": "2026-07-01",
                      "PackSize": "ASSORTED", "Packs": None, "Qty_LtrKg": 300, "InvoiceValue_exTax": 30000.0})
     return pd.DataFrame(rows)
 

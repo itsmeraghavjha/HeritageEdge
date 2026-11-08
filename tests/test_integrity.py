@@ -422,14 +422,28 @@ def test_a_multiplier_in_the_pack_text_is_read():
 
 
 def test_unreadable_lines_are_split_by_reason():
-    r = pd.DataFrame({"PackSize": ["PCS", "500 ML", "500 ML", "1 KG"], "SalesUnit": ["PC", "L", "L", "KG"],
+    r = pd.DataFrame({"MaterialCode": [1, 2, 3, 4], "PackSize": ["PCS", "500 ML", "500 ML", "1 KG"], "SalesUnit": ["PC", "L", "L", "KG"],
                       "ProductFamily": ["Milk", "Milk", "Curd", "Ghee"], "rev": [100.0, -50.0, 0.0, 850.0],
                       "packs": [float("nan"), -10.0, 0.0, 85.0]})
-    out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size})
+    out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size, "names": {1: "Test item"}})
     assert out["evidence"][0][1].startswith("1 lines") and out["evidence"][1][1].startswith("2 lines")
     assert any("'PCS'" in k for k, _ in out["evidence"])
 
 
 def test_no_unreadable_lines_passes():
-    r = pd.DataFrame({"PackSize": ["500 ML"], "SalesUnit": ["L"], "rev": [100.0], "packs": [10.0]})
-    assert integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size})["status"] == "pass"
+    r = pd.DataFrame({"MaterialCode": [1], "PackSize": ["500 ML"], "SalesUnit": ["L"], "rev": [100.0], "packs": [10.0]})
+    assert integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size, "names": {}})["status"] == "pass"
+
+
+def test_a_blank_pack_text_is_read_from_the_offer_file_name(tmp_path):
+    def blank(b):
+        b = b.copy()
+        b.loc[b["MaterialCode"] == 7001, ["PackSize", "Packs"]] = [None, None]
+        return b
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    _, base = build(tmp_path / "a")
+    _, meta = build(tmp_path / "b", billing=blank(synth.billing_rows()))
+    assert meta["quality"]["pack_size_taken_from_offer_name_pct"] > 0
+    # SKU 7099 (in no offer file) stays unreadable in both; the blank text of SKU 7001 adds nothing to it
+    assert meta["quality"]["billing_revenue_with_unreadable_pack_size_pct"] == base["quality"]["billing_revenue_with_unreadable_pack_size_pct"]
