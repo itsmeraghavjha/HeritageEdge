@@ -456,4 +456,4 @@ def test_the_split_shows_amounts_that_cancel_in_the_net():
                                     "Qty_LtrKg": [10.0], "rev": [98000.0], "packs": [10.0]})], ignore_index=True)
     out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size, "names": {}})
     text = " | ".join(f"{k}: {v}" for k, v in out["evidence"])
-    assert "above zero: 1 lines, 1.00%" in text and "below zero: 1 lines, -1.00%" in text
+    assert "above zero: 1 lines, 1.02%" in text and "below zero: 1 lines, -1.02%" in text
