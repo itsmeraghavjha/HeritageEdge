@@ -390,3 +390,24 @@ def test_a_new_mrp_does_not_go_back_to_the_old_one():
                        (1, "2026-08-01", 100.0, 7200.0, 100.0, 90.0)])     # August looks like the old one: noise, not a rollback
     out, rep = prepare.mrp_in_force(d)
     assert list(out["mrp"]) == [100.0, 100.0] and rep["sku_months_priced_old"] == 0
+
+
+def test_dates_from_the_config_decide_the_mrp_in_force(tmp_path):
+    f = tmp_path / "mrp.csv"
+    f.write_text("sku,new_from\n# a comment\n1,2026-08\n")
+    dates = prepare.load_mrp_dates(f)
+    assert dates == {1: "2026-08-01"}
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0),      # billed at the new price, but the date says old
+                       (1, "2026-08-01", 100.0, 8000.0, 100.0, 90.0)])
+    out, rep = prepare.mrp_in_force(d, dates)
+    assert list(out["mrp"]) == [90.0, 100.0] and rep["sku_months_from_dates"] == 2
+
+
+def test_a_star_row_applies_to_every_revised_sku():
+    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0), (2, "2026-07-01", 100.0, 8000.0, 100.0, 100.0)])
+    out, _ = prepare.mrp_in_force(d, {"*": "2026-08-01"})
+    assert list(out["mrp"]) == [90.0, 100.0]                                # SKU 2 was never revised
+
+
+def test_no_config_file_means_no_dates(tmp_path):
+    assert prepare.load_mrp_dates(tmp_path / "missing.csv") == {}

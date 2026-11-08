@@ -1,0 +1,2 @@
+sku,new_from
+# one row per SKU code, or * for every SKU whose MRP was revised; new_from is the first month at the new MRP (YYYY-MM)

@@ -507,17 +507,34 @@ def monthly_offers(off, base_months):
 
 
 
-def mrp_in_force(b):
+def load_mrp_dates(path=None):
+    """config/mrp_effective.csv: sku (a SKU code, or * for every revised SKU) and new_from (YYYY-MM, the first month at
+    the new MRP). Missing file or blank rows mean nothing is fixed and the build infers it from billing."""
+    path = Path(path or data.CONFIG_DIR / "mrp_effective.csv")
+    out = {}
+    if not path.exists():
+        return out
+    for r in data._read(path):
+        sku, start = str(r.get("sku", "")).strip(), str(r.get("new_from", "")).strip()
+        if not sku or sku.startswith("#") or len(start) < 7:
+            continue
+        out["*" if sku == "*" else int(float(sku))] = start[:7] + "-01"
+    return out
+
+
+def mrp_in_force(b, dates=None):
     """Which MRP was in force in each month: the new one, or the old one before the revision.
 
     The offer file holds "OLD MRP" and "New MRP" but not the month the new one started. For a SKU whose two MRPs differ,
     each base month is priced with whichever MRP puts the file's price closer to what billing charged across all chains
     that month (the midpoint between the two MRPs is the dividing line, so a deduction of a few percent does not flip
-    it). `b` needs sku, BillMonth, packs, rev, mrp, mrp_old, trade, gst, offer_rs. Returns (b, report); b["mrp_new"]
-    keeps the new MRP and b["mrp"] is the one used."""
+    it). `dates` ({sku or "*": "YYYY-MM-01"}, from config/mrp_effective.csv) says the month the new MRP started and
+    overrides the inference for those SKUs. `b` needs sku, BillMonth, packs, rev, mrp, mrp_old, trade, gst, offer_rs.
+    Returns (b, report); b["mrp_new"] keeps the new MRP and b["mrp"] is the one used."""
     b = b.copy()
     b["mrp_new"] = b["mrp"]
-    report = {"sku_months_priced_old": 0, "skus": 0, "revenue_pct": 0.0}
+    report = {"sku_months_priced_old": 0, "skus": 0, "revenue_pct": 0.0, "sku_months_from_dates": 0}
+    dates = dates or {}
     if "mrp_old" not in b.columns:
         return b, report
     e_new = (b["mrp"] * (1 - b["trade"]) - b["offer_rs"]) / (1 + b["gst"])
@@ -537,12 +554,19 @@ def mrp_in_force(b):
             seen_new = seen_new or not old
             if old and not seen_new:
                 keys.add((sk, month))
+    fixed = 0
+    for sku, month in t.index:                     # dates given in config/mrp_effective.csv win over the inference
+        start = dates.get(sku, dates.get("*"))
+        if start:
+            fixed += 1
+            (keys.add if month < start else keys.discard)((sku, month))
+    report["sku_months_from_dates"] = fixed
     if not keys:
         return b, report
     hit = pd.Series([(k in keys) for k in zip(b["sku"], b["BillMonth"])], index=b.index) & ok
     b.loc[hit, "mrp"] = b.loc[hit, "mrp_old"]
-    report = {"sku_months_priced_old": int(len(keys)), "skus": int(len({k[0] for k in keys})),
-              "revenue_pct": float(b.loc[hit, "rev"].sum() / b["rev"].sum()) if b["rev"].sum() else 0.0}
+    report.update({"sku_months_priced_old": int(len(keys)), "skus": int(len({k[0] for k in keys})),
+                   "revenue_pct": float(b.loc[hit, "rev"].sum() / b["rev"].sum()) if b["rev"].sum() else 0.0})
     return b, report
 
 
@@ -632,7 +656,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         raise DataError("Every billing line left after matching the offer file belongs to a customer group the MIS "
                         "does not cover. The MIS must include Modern Formats or E-Commerce.")
 
-    b, mrp_report = mrp_in_force(b)
+    b, mrp_report = mrp_in_force(b, load_mrp_dates())
     n = len(base_months)
     offer_rows = off.rename(columns={"New MRP": "mrp", "TOT Margin on Invoice": "trade", "GST%": "gst"})[
         ["cid", "sku", "mrp", "trade", "offer_rs", "gst"]]
@@ -685,6 +709,12 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     final = final[valid]
     out_dir.mkdir(parents=True, exist_ok=True)
     final.to_csv(out_dir / "rows.csv", index=False)
+    if "mrp_new" in b.columns:                     # which MRP each revised SKU and month was priced with, to review and confirm
+        rv = b[(b["mrp_old"] / b["mrp_new"] - 1).abs() > 0.005]
+        if len(rv):
+            (rv.assign(price_with=np.where(rv["mrp"] == rv["mrp_old"], "old MRP", "new MRP"))
+               .groupby(["sku", "name", "BillMonth", "price_with"]).agg(revenue=("rev", "sum")).reset_index()
+               .sort_values(["revenue"], ascending=False).to_csv(out_dir / "mrp_in_force.csv", index=False))
 
     rec = reconcile(final, mis, basis)
     check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
