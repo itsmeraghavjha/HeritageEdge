@@ -28,6 +28,8 @@ Numbers were reconciled to the MIS for Aug 2026 (net margin 2.3% vs 2.2%).
 
 Branch `other-deductions` (not merged) also holds: the "Where other deductions come from" panel and the 19 Data checks (`engine/integrity.py`). Next: run them on real data, then fix what turns red, in `docs/ERROR_REGISTER.md` order.
 
+**Where the "other deductions" work stands (Nov 2026).** Decision: stay on monthly data (option C), show the leftover as a named residual, no guessing. Waiting on the user to confirm the MRP in force per month; until then build on one month (Aug) so old vs new MRP does not matter. `mrp_in_force` infers old vs new from billing and is only a stand-in: it changes the gross / promotion / other split, never net revenue; it is on by default in this branch and should be switched off (use New MRP unless `config/mrp_effective.csv` gives dates) if the user says so. The user's view: prices change mid-month, which monthly data cannot show; option A (add billing week to `billing.sql` plus a read-only "price steps inside a month" check) is the way to test it if wanted. Rule for working here: label each statement "seen in the data" or "my reading", and ask before changing anything that moves a number.
+
 ## Not done yet (priority order)
 
 1. **Hosting.** Still Flask's dev server on HTTP. IT should host it behind HTTPS with Waitress or Gunicorn. Other computers need `HOST=0.0.0.0` and `APP_BASE_URL`.
