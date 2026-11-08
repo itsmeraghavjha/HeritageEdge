@@ -77,7 +77,8 @@ def pack_size(s):
     if not nums:
         return None
     try:
-        tot = sum(float(n) for n in nums)
+        times = re.search(r"(\d+(?:\.\d+)?)\s*[X*]\s*(\d+(?:\.\d+)?)", t)      # '6 X 200 ML' is six packs of 200 ml
+        tot = float(times.group(1)) * float(times.group(2)) if times else sum(float(n) for n in nums)
     except ValueError:
         return None
     return tot / 1000 if ("ML" in t or "GM" in t) else tot

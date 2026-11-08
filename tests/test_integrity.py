@@ -411,3 +411,25 @@ def test_a_star_row_applies_to_every_revised_sku():
 
 def test_no_config_file_means_no_dates(tmp_path):
     assert prepare.load_mrp_dates(tmp_path / "missing.csv") == {}
+
+
+# ---------- unreadable pack sizes ----------
+def test_a_multiplier_in_the_pack_text_is_read():
+    assert prepare.pack_size("6 X 200 ML") == pytest.approx(1.2)
+    assert prepare.pack_size("2*500 GM") == pytest.approx(1.0)
+    assert prepare.pack_size("700+700ML") == pytest.approx(1.4)          # unchanged
+    assert prepare.pack_size("1.5 LTR") == pytest.approx(1.5)
+
+
+def test_unreadable_lines_are_split_by_reason():
+    r = pd.DataFrame({"PackSize": ["PCS", "500 ML", "500 ML", "1 KG"], "SalesUnit": ["PC", "L", "L", "KG"],
+                      "ProductFamily": ["Milk", "Milk", "Curd", "Ghee"], "rev": [100.0, -50.0, 0.0, 850.0],
+                      "packs": [float("nan"), -10.0, 0.0, 85.0]})
+    out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size})
+    assert out["evidence"][0][1].startswith("1 lines") and out["evidence"][1][1].startswith("2 lines")
+    assert any("'PCS'" in k for k, _ in out["evidence"])
+
+
+def test_no_unreadable_lines_passes():
+    r = pd.DataFrame({"PackSize": ["500 ML"], "SalesUnit": ["L"], "rev": [100.0], "packs": [10.0]})
+    assert integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size})["status"] == "pass"

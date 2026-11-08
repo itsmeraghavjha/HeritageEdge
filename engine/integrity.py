@@ -194,6 +194,40 @@ def _waterfall(c):
     return status, head, ev, "Fix the pack text of the unread lines, or find why rows vanish after grouping." if status != PASS else ""
 
 
+@check("unreadable_packs", "Coverage", "Lines left out for pack size, and why",
+       "Which billing lines end up with no pack count, and is it the pack text or the quantity?")
+def _unreadable_packs(c):
+    r, size_fn = c["rawn"], c["pack_size"]
+    bad = r["packs"].isna() | (r["packs"] <= 0)
+    d = r[bad]
+    tot = float(r["rev"].sum())
+    if d.empty:
+        return PASS, "Every billing line has a pack count.", [], ""
+    size = d["PackSize"].map(size_fn)
+    no_text = size.isna() | (size <= 0)
+    text, qty = d[no_text], d[~no_text]
+    ev = [("Pack text has no readable size", f"{len(text):,} lines, {pct(float(text['rev'].sum()) / tot, 2)} of revenue"),
+          ("Pack text is fine but quantity is zero or negative (credit notes, returns, price adjustments)",
+           f"{len(qty):,} lines, {pct(float(qty['rev'].sum()) / tot, 2)} of revenue")]
+    top = text.groupby(["PackSize", "SalesUnit"], dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(8)
+    for (txt, unit), v in top.items():
+        ev.append((f"Pack text '{txt}' (sold in {unit})", pct(float(v) / tot, 2)))
+    fam = qty.groupby("ProductFamily", dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(5) if "ProductFamily" in qty.columns else []
+    for k, v in (fam.items() if len(qty) else []):
+        ev.append((f"No quantity, family {k}", pct(float(v) / tot, 2)))
+    share = abs(float(d["rev"].sum())) / tot if tot else 0.0
+    head = (f"{pct(share, 2)} of billing has no pack count and is left out. "
+            f"{pct(float(text['rev'].sum()) / tot, 2)} is because the pack text has no readable size; "
+            f"{pct(float(qty['rev'].sum()) / tot, 2)} is lines with no quantity, which cannot be turned into packs.")
+    fix = []
+    if len(text):
+        fix.append("Send the pack texts listed and I will add a rule for each, or correct them in the product master.")
+    if len(qty):
+        fix.append("Lines with no quantity are credit notes or price adjustments: they are revenue but have no packs, so they need "
+                   "to be carried as an adjustment, not left out.")
+    return grade(share, 0.001, 0.01), head, ev, " ".join(fix) if share >= 0.001 else ""
+
+
 @check("credits", "Coverage", "Returns and credit notes are not silently dropped",
        "Is there billing with no quantity, or negative billing, that the build leaves out?")
 def _credits(c):
