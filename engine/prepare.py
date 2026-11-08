@@ -508,69 +508,6 @@ def monthly_offers(off, base_months):
 
 
 
-def load_mrp_dates(path=None):
-    """config/mrp_effective.csv: sku (a SKU code, or * for every revised SKU) and new_from (YYYY-MM, the first month at
-    the new MRP). Missing file or blank rows mean nothing is fixed and the build infers it from billing."""
-    path = Path(path or data.CONFIG_DIR / "mrp_effective.csv")
-    out = {}
-    if not path.exists():
-        return out
-    for r in data._read(path):
-        sku, start = str(r.get("sku", "")).strip(), str(r.get("new_from", "")).strip()
-        if not sku or sku.startswith("#") or len(start) < 7:
-            continue
-        out["*" if sku == "*" else int(float(sku))] = start[:7] + "-01"
-    return out
-
-
-def mrp_in_force(b, dates=None):
-    """Which MRP was in force in each month: the new one, or the old one before the revision.
-
-    The offer file holds "OLD MRP" and "New MRP" but not the month the new one started. For a SKU whose two MRPs differ,
-    each base month is priced with whichever MRP puts the file's price closer to what billing charged across all chains
-    that month (the midpoint between the two MRPs is the dividing line, so a deduction of a few percent does not flip
-    it). `dates` ({sku or "*": "YYYY-MM-01"}, from config/mrp_effective.csv) says the month the new MRP started and
-    overrides the inference for those SKUs. `b` needs sku, BillMonth, packs, rev, mrp, mrp_old, trade, gst, offer_rs.
-    Returns (b, report); b["mrp_new"] keeps the new MRP and b["mrp"] is the one used."""
-    b = b.copy()
-    b["mrp_new"] = b["mrp"]
-    report = {"sku_months_priced_old": 0, "skus": 0, "revenue_pct": 0.0, "sku_months_from_dates": 0}
-    dates = dates or {}
-    if "mrp_old" not in b.columns:
-        return b, report
-    e_new = (b["mrp"] * (1 - b["trade"]) - b["offer_rs"]) / (1 + b["gst"])
-    e_old = (b["mrp_old"] * (1 - b["trade"]) - b["offer_rs"]) / (1 + b["gst"])
-    ok = ((b["mrp_old"] / b["mrp"] - 1).abs() > 0.005) & (e_new > 0) & (e_old > 0) & (b["packs"] > 0)
-    if not ok.any():
-        return b, report
-    x = pd.DataFrame({"sku": b.loc[ok, "sku"], "m": b.loc[ok, "BillMonth"], "rev": b.loc[ok, "rev"],
-                      "n": (e_new * b["packs"])[ok], "o": (e_old * b["packs"])[ok]})
-    t = x.groupby(["sku", "m"]).sum()
-    use_old = ((t["rev"] / t["o"] - 1).abs() < (t["rev"] / t["n"] - 1).abs())
-    # A new MRP cannot go back to the old one: once a SKU follows the new MRP in a month, later months do too.
-    keys = set()
-    for sku, grp in use_old.groupby(level=0):
-        seen_new = False
-        for (sk, month), old in grp.sort_index(level=1).items():
-            seen_new = seen_new or not old
-            if old and not seen_new:
-                keys.add((sk, month))
-    fixed = 0
-    for sku, month in t.index:                     # dates given in config/mrp_effective.csv win over the inference
-        start = dates.get(sku, dates.get("*"))
-        if start:
-            fixed += 1
-            (keys.add if month < start else keys.discard)((sku, month))
-    report["sku_months_from_dates"] = fixed
-    if not keys:
-        return b, report
-    hit = pd.Series([(k in keys) for k in zip(b["sku"], b["BillMonth"])], index=b.index) & ok
-    b.loc[hit, "mrp"] = b.loc[hit, "mrp_old"]
-    report.update({"sku_months_priced_old": int(len(keys)), "skus": int(len({k[0] for k in keys})),
-                   "revenue_pct": float(b.loc[hit, "rev"].sum() / b["rev"].sum()) if b["rev"].sum() else 0.0})
-    return b, report
-
-
 # ---------- the build ----------
 
 def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None):
@@ -588,7 +525,6 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     off["sku"] = pd.to_numeric(off["Sku Code"], errors="coerce")
     off["chain"] = off["Cluster"].astype(str).str.strip().str.upper()
     off, offer_months = monthly_offers(off, base_months)
-    off["mrp_old"] = pd.to_numeric(off["OLD MRP"], errors="coerce") if "OLD MRP" in off.columns else off["New MRP"]
     parts = []
     for key in base_months:         # the offer is taken month by month, so a change between months is not averaged away
         t = off.assign(on_rs=off[f"on_rs|{key}"], off_rs=off[f"off_rs|{key}"])
@@ -596,7 +532,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         parts.append(t.groupby(["cid", "sku"]).agg(
             chain=("chain", "first"), name=("Material", "first"), mrp=("New MRP", "mean"),
             trade=("TOT Margin on Invoice", "mean"), offer_rs=("offer_rs", "mean"), gst=("GST%", "mean"),
-            on_rs=("on_rs", "mean"), off_rs=("off_rs", "mean"), mrp_old=("mrp_old", "mean")).reset_index().assign(BillMonth=key))
+            on_rs=("on_rs", "mean"), off_rs=("off_rs", "mean")).reset_index().assign(BillMonth=key))
     terms = pd.concat(parts, ignore_index=True)
     complete = terms[["mrp", "trade", "gst"]].notna().all(axis=1) & (terms["mrp"] > 0)
     terms_dropped = int((~complete[terms["BillMonth"] == base_months[0]]).sum())
@@ -662,7 +598,6 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         raise DataError("Every billing line left after matching the offer file belongs to a customer group the MIS "
                         "does not cover. The MIS must include Modern Formats or E-Commerce.")
 
-    b, mrp_report = mrp_in_force(b, load_mrp_dates())
     n = len(base_months)
     offer_rows = off.rename(columns={"New MRP": "mrp", "TOT Margin on Invoice": "trade", "GST%": "gst"})[
         ["cid", "sku", "mrp", "trade", "offer_rs", "gst"]]
@@ -670,7 +605,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         gap_breakdown = gapcheck.explain(b, offer_rows, n)
     except Exception:       # a diagnostic must never stop a build
         gap_breakdown = None
-    for k in ("mrp", "trade", "offer_rs", "gst", "on_rs", "off_rs", "mrp_old"):
+    for k in ("mrp", "trade", "offer_rs", "gst", "on_rs", "off_rs"):
         b["w_" + k] = b[k] * b["packs"]
     keys = ["chain", "grp", "state", "city", "so_num", "so_name", "sku", "name", "family", "variant", "pack"]
     for k in ("state", "city", "so_name", "family", "variant", "pack", "grp"):
@@ -678,13 +613,13 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     g = b.groupby(keys, as_index=False).agg(
         packs=("packs", "sum"), rev=("rev", "sum"), w_mrp=("w_mrp", "sum"), w_trade=("w_trade", "sum"),
         w_offer=("w_offer_rs", "sum"), w_gst=("w_gst", "sum"), w_on=("w_on_rs", "sum"),
-        w_offrs=("w_off_rs", "sum"), w_old=("w_mrp_old", "sum"))
+        w_offrs=("w_off_rs", "sum"))
     g = g[g["packs"] > 0].copy()
     g["units"] = (g["packs"] / n).round(1)
     g["net_px"] = g["rev"] / g["packs"]
     g["mrp"], g["trade"] = g["w_mrp"] / g["packs"], g["w_trade"] / g["packs"]
     g["offer_rs"], g["gst"] = g["w_offer"] / g["packs"], g["w_gst"] / g["packs"]
-    g["on_rs"], g["off_rs"], g["mrp_old"] = g["w_on"] / g["packs"], g["w_offrs"] / g["packs"], g["w_old"] / g["packs"]
+    g["on_rs"], g["off_rs"] = g["w_on"] / g["packs"], g["w_offrs"] / g["packs"]
     g["mrp_x"] = g["mrp"] / (1 + g["gst"])
     gross_u = g["mrp_x"] * (1 - g["trade"])
     raw_promo = g["offer_rs"] / (g["mrp"] * (1 - g["trade"]))
@@ -715,12 +650,6 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     final = final[valid]
     out_dir.mkdir(parents=True, exist_ok=True)
     final.to_csv(out_dir / "rows.csv", index=False)
-    if "mrp_new" in b.columns:                     # which MRP each revised SKU and month was priced with, to review and confirm
-        rv = b[(b["mrp_old"] / b["mrp_new"] - 1).abs() > 0.005]
-        if len(rv):
-            (rv.assign(price_with=np.where(rv["mrp"] == rv["mrp_old"], "old MRP", "new MRP"))
-               .groupby(["sku", "name", "BillMonth", "price_with"]).agg(revenue=("rev", "sum")).reset_index()
-               .sort_values(["revenue"], ascending=False).to_csv(out_dir / "mrp_in_force.csv", index=False))
 
     rec = reconcile(final, mis, basis)
     check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
@@ -737,8 +666,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
             "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months,
-            "mrp_used": mrp_report,
-            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "mrp_new", "mrp_old", "trade", "gst",
+            "lines": b[[c for c in ("chain", "sku", "name", "family", "BillMonth", "packs", "rev", "mrp", "trade", "gst",
                                     "offer_rs", "on_rs", "off_rs") if c in b.columns]]})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
@@ -763,7 +691,6 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
         "offer_price_check": offer_check,
         "gap_breakdown": gap_breakdown,
         "offer_months": offer_months,
-        "mrp_in_force": mrp_report,
         "integrity": integrity_report,
     }
     (out_dir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

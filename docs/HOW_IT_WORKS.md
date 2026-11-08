@@ -148,8 +148,8 @@ Sliders are counted the same way: when a lever is moved away from its starting v
 
 ## Data checks
 
-The Data page lists 26 integrity checks (units, coverage, MIS match, tax and offer file). They only read the data and never change a number. See `docs/DATA.md`.
+The Data page lists 25 integrity checks (units, coverage, MIS match, tax and offer file). They only read the data and never change a number. See `docs/DATA.md`.
 
 Offer per base month: the build reads each base month's offer text column (average if several), not the offer file's latest-month numbers. On-invoice offers lower the invoice price; off-invoice claims are paid later and may not be in billing (a data check measures this).
 
-MRP and offer are taken per base month. Where a SKU's old and new MRP differ, the month is priced with whichever MRP billing follows (inferred; the offer file has no start date). See `docs/DATA.md`.
+MRP (New MRP only) and offer are taken per base month. The old MRP is ignored. See `docs/DATA.md`.

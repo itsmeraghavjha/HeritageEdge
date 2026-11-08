@@ -279,15 +279,8 @@ def test_billing_that_deducts_off_invoice_offers_passes():
     assert integrity._off_invoice({"g": lines(76.0)})["status"] == "pass"
 
 
-def test_billing_that_follows_the_old_mrp_is_flagged():
-    d = priced([("2026-07-01", 1, 100.0, 6900.0, 100.0, 90.0, 4.0, 0.0)])     # old MRP: 90 x 0.8 - 4 = 68; new: 76; billed 69
-    out = integrity._mrp_revision({"lines": d})
-    assert out["status"] == "warn" and "old MRP" in out["evidence"][-1][1]
 
 
-def test_billing_that_follows_the_new_mrp_passes():
-    d = priced([("2026-07-01", 1, 100.0, 7600.0, 100.0, 90.0, 4.0, 0.0)])
-    assert integrity._mrp_revision({"lines": d})["status"] == "pass"
 
 
 # ---------- price gap checks ----------
@@ -315,42 +308,15 @@ def test_one_base_month_cannot_show_movement():
     assert integrity._gap_by_month({"lines": d})["status"] == "skipped"
 
 
-def test_a_sku_that_switches_from_old_to_new_mrp_is_flagged():
-    rows = [("2026-07-01", 1, 100.0, 7200.0, 100.0, 90.0, 0.0, 0.0),     # July billed at the old MRP (90 x 0.8 = 72)
-            ("2026-08-01", 1, 100.0, 8000.0, 100.0, 90.0, 0.0, 0.0)]     # August at the new MRP (100 x 0.8 = 80)
-    out = integrity._gap_by_month({"lines": priced(rows)})
-    assert out["status"] == "fail" and "old MRP" in out["evidence"][-1][1] and "new MRP" in out["evidence"][-1][1]
 
 
-def test_steady_prices_in_every_month_pass():
-    rows = [(m, 1, 100.0, 8000.0, 100.0, 90.0, 0.0, 0.0) for m in ("2026-07-01", "2026-08-01")]
-    assert integrity._gap_by_month({"lines": priced(rows)})["status"] == "pass"
 
 
-# ---------- the MRP in force, and the offer month by month ----------
-def lines_for_mrp(rows):
-    d = pd.DataFrame(rows, columns=["sku", "BillMonth", "packs", "rev", "mrp", "mrp_old"])
-    d["trade"], d["gst"], d["offer_rs"] = 0.2, 0.0, 0.0
-    return d
+# ---------- the offer month by month ----------
 
 
-def test_the_old_mrp_is_used_for_the_month_billing_follows_it():
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7200.0, 100.0, 90.0),      # billed at 72 = old MRP 90 x 0.8
-                       (1, "2026-08-01", 100.0, 8000.0, 100.0, 90.0)])     # billed at 80 = new MRP
-    out, rep = prepare.mrp_in_force(d)
-    assert list(out["mrp"]) == [90.0, 100.0] and list(out["mrp_new"]) == [100.0, 100.0]
-    assert rep["sku_months_priced_old"] == 1 and rep["skus"] == 1
 
 
-def test_a_small_deduction_does_not_flip_the_mrp():
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7840.0, 100.0, 90.0)])     # 2% under the new price, far from the old one
-    out, rep = prepare.mrp_in_force(d)
-    assert list(out["mrp"]) == [100.0] and rep["sku_months_priced_old"] == 0
-
-
-def test_a_sku_with_one_mrp_is_left_alone():
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 7000.0, 100.0, 100.0)])
-    assert list(prepare.mrp_in_force(d)[0]["mrp"]) == [100.0]
 
 
 def test_each_month_keeps_its_own_offer():
@@ -385,32 +351,6 @@ def test_the_top_skus_by_rupees_are_listed_for_a_no_offer_gap():
     assert any(k.startswith("SKU: ") for k, _ in out["evidence"])
 
 
-def test_a_new_mrp_does_not_go_back_to_the_old_one():
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0),      # July follows the new MRP
-                       (1, "2026-08-01", 100.0, 7200.0, 100.0, 90.0)])     # August looks like the old one: noise, not a rollback
-    out, rep = prepare.mrp_in_force(d)
-    assert list(out["mrp"]) == [100.0, 100.0] and rep["sku_months_priced_old"] == 0
-
-
-def test_dates_from_the_config_decide_the_mrp_in_force(tmp_path):
-    f = tmp_path / "mrp.csv"
-    f.write_text("sku,new_from\n# a comment\n1,2026-08\n")
-    dates = prepare.load_mrp_dates(f)
-    assert dates == {1: "2026-08-01"}
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0),      # billed at the new price, but the date says old
-                       (1, "2026-08-01", 100.0, 8000.0, 100.0, 90.0)])
-    out, rep = prepare.mrp_in_force(d, dates)
-    assert list(out["mrp"]) == [90.0, 100.0] and rep["sku_months_from_dates"] == 2
-
-
-def test_a_star_row_applies_to_every_revised_sku():
-    d = lines_for_mrp([(1, "2026-07-01", 100.0, 8000.0, 100.0, 90.0), (2, "2026-07-01", 100.0, 8000.0, 100.0, 100.0)])
-    out, _ = prepare.mrp_in_force(d, {"*": "2026-08-01"})
-    assert list(out["mrp"]) == [90.0, 100.0]                                # SKU 2 was never revised
-
-
-def test_no_config_file_means_no_dates(tmp_path):
-    assert prepare.load_mrp_dates(tmp_path / "missing.csv") == {}
 
 
 # ---------- unreadable pack sizes ----------
@@ -457,3 +397,14 @@ def test_the_split_shows_amounts_that_cancel_in_the_net():
     out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size, "names": {}})
     text = " | ".join(f"{k}: {v}" for k, v in out["evidence"])
     assert "above zero: 1 lines, 1.02%" in text and "below zero: 1 lines, -1.02%" in text
+
+
+def test_a_gap_that_differs_between_months_is_reported():
+    rows = [("2026-07-01", 1, 100.0, 7200.0, 100.0, 100.0, 0.0, 0.0), ("2026-08-01", 1, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0)]
+    out = integrity._gap_by_month({"lines": priced(rows)})
+    assert out["status"] == "fail" and [k for k, _ in out["evidence"]] == ["2026-07", "2026-08"]
+
+
+def test_the_same_gap_in_every_month_passes():
+    rows = [(m, 1, 100.0, 8000.0, 100.0, 100.0, 0.0, 0.0) for m in ("2026-07-01", "2026-08-01")]
+    assert integrity._gap_by_month({"lines": priced(rows)})["status"] == "pass"
