@@ -207,8 +207,17 @@ def _unreadable_packs(c):
     no_text = size.isna() | (size <= 0)
     text, qty = d[no_text], d[~no_text]
     ev = [("Pack text has no readable size", f"{len(text):,} lines, {pct(float(text['rev'].sum()) / tot, 2)} of revenue"),
-          ("Pack text is fine but quantity is zero or negative (credit notes, returns, price adjustments)",
-           f"{len(qty):,} lines, {pct(float(qty['rev'].sum()) / tot, 2)} of revenue")]
+          ("Pack text is fine but quantity is zero or negative",
+           f"{len(qty):,} lines, net {pct(float(qty['rev'].sum()) / tot, 2)} of revenue")]
+    # the net can hide large amounts of opposite sign, so show each side
+    for label, m in (("  of which revenue above zero", qty["rev"] > 0), ("  of which revenue below zero", qty["rev"] < 0),
+                     ("  of which revenue exactly zero", qty["rev"] == 0)):
+        part = qty[m]
+        if len(part):
+            ev.append((label, f"{len(part):,} lines, {pct(float(part['rev'].sum()) / tot, 2)} of revenue"))
+    if len(qty) and "Qty_LtrKg" in qty.columns:
+        q = pd.to_numeric(qty["Qty_LtrKg"], errors="coerce")
+        ev.append(("  quantity below zero / exactly zero / missing", f"{int((q < 0).sum())} / {int((q == 0).sum())} / {int(q.isna().sum())} lines"))
     top = text.groupby(["MaterialCode", "PackSize", "SalesUnit"], dropna=False)["rev"].sum().sort_values(key=abs, ascending=False).head(8)
     for (code, txt, unit), v in top.items():
         ev.append((f"SKU {code} {_name(c, pd.to_numeric(code, errors='coerce'))}: pack text '{txt}', sold in {unit}", pct(float(v) / tot, 2)))
@@ -218,13 +227,14 @@ def _unreadable_packs(c):
     share = abs(float(d["rev"].sum())) / tot if tot else 0.0
     head = (f"{pct(share, 2)} of billing has no pack count and is left out. "
             f"{pct(float(text['rev'].sum()) / tot, 2)} is because the pack text has no readable size; "
-            f"{pct(float(qty['rev'].sum()) / tot, 2)} is lines with no quantity, which cannot be turned into packs.")
+            f"{pct(float(qty['rev'].sum()) / tot, 2)} (net) is lines with no usable quantity, which cannot be turned into packs. "
+            "The net can hide large amounts of opposite sign, so the split is shown below.")
     fix = []
     if len(text):
         fix.append("Send the pack texts listed and I will add a rule for each, or correct them in the product master.")
     if len(qty):
-        fix.append("Lines with no quantity are credit notes or price adjustments: they are revenue but have no packs, so they need "
-                   "to be carried as an adjustment, not left out.")
+        fix.append("Lines with no quantity are revenue with no packs (usually credit notes, returns or price adjustments, but check the "
+                   "split). They need to be carried as an adjustment, not left out, if the gross amounts are not small.")
     return grade(share, 0.001, 0.01), head, ev, " ".join(fix) if share >= 0.001 else ""
 
 

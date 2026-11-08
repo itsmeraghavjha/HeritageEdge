@@ -447,3 +447,13 @@ def test_a_blank_pack_text_is_read_from_the_offer_file_name(tmp_path):
     assert meta["quality"]["pack_size_taken_from_offer_name_pct"] > 0
     # SKU 7099 (in no offer file) stays unreadable in both; the blank text of SKU 7001 adds nothing to it
     assert meta["quality"]["billing_revenue_with_unreadable_pack_size_pct"] == base["quality"]["billing_revenue_with_unreadable_pack_size_pct"]
+
+
+def test_the_split_shows_amounts_that_cancel_in_the_net():
+    r = pd.DataFrame({"MaterialCode": [1, 1], "PackSize": ["500 ML"] * 2, "SalesUnit": ["L"] * 2, "ProductFamily": ["Milk"] * 2,
+                      "Qty_LtrKg": [0.0, -5.0], "rev": [1000.0, -1000.0], "packs": [0.0, -10.0]})
+    r = pd.concat([r, pd.DataFrame({"MaterialCode": [2], "PackSize": ["1 KG"], "SalesUnit": ["KG"], "ProductFamily": ["Ghee"],
+                                    "Qty_LtrKg": [10.0], "rev": [98000.0], "packs": [10.0]})], ignore_index=True)
+    out = integrity._unreadable_packs({"rawn": r, "pack_size": prepare.pack_size, "names": {}})
+    text = " | ".join(f"{k}: {v}" for k, v in out["evidence"])
+    assert "above zero: 1 lines, 1.00%" in text and "below zero: 1 lines, -1.00%" in text
