@@ -38,9 +38,11 @@ def main(argv=None):
     token = users.issue_token(uid, "invite")
     base = (os.environ.get("APP_BASE_URL") or "http://localhost:5000").rstrip("/")
     link = f"{base}/set-password/{token}"
-    sent, why = mailer.send(user["email"], "Your HeritageEdge admin account",
-                            f"Set your password here:\n\n{link}\n\nThe link works once and expires in "
-                            f"{users.INVITE_HOURS} hours.\n")
+    lead = "An admin account has been created for you on HeritageEdge."
+    body = (f"Set your password here:\n\n{link}\n\nThe link works once and expires in "
+            f"{users.INVITE_HOURS} hours.\n")
+    page = mailer.link_email_html("Hello,", lead, link, users.INVITE_HOURS)
+    sent, why = mailer.send(user["email"], "Your HeritageEdge admin account", body, html=page)
     print(f"Admin account created for {user['email']}.")
     print("The link was emailed to you." if sent else f"Email not sent ({why})")
     print(f"Open this link to set the password (works once, expires in {users.INVITE_HOURS} hours):\n\n{link}\n")
