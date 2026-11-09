@@ -43,3 +43,37 @@ def send(to, subject, body):
     except (OSError, smtplib.SMTPException, ValueError) as exc:
         return False, "The email could not be sent: " + _clean(exc)
     return True, ""
+
+
+def diagnose(out=print):
+    """Walks the connection step by step and says where it stops. Never prints the password."""
+    host, port = os.environ.get("SMTP_HOST"), int(os.environ.get("SMTP_PORT") or 587)
+    mode = (os.environ.get("SMTP_SECURITY") or "starttls").lower()
+    user = os.environ.get("SMTP_USER")
+    out(f"Server {host}, port {port}, security {mode}, login user {user or '(none)'}, from {os.environ.get('SMTP_FROM')}")
+    if not host:
+        out("SMTP_HOST is empty in .env.")
+        return False
+    step = "connect to the server"
+    try:
+        ctx = ssl.create_default_context()
+        server = smtplib.SMTP_SSL(host, port, timeout=20, context=ctx) if mode == "ssl" else smtplib.SMTP(host, port, timeout=20)
+        out("1. Connected to the server: ok")
+        with server:
+            step = "say hello (EHLO)"
+            server.ehlo()
+            out("2. Server answered hello: ok")
+            if mode == "starttls":
+                step = "switch to an encrypted connection (STARTTLS)"
+                server.starttls(context=ctx)
+                server.ehlo()
+                out("3. Encrypted connection: ok")
+            if user:
+                step = "log in"
+                server.login(user, os.environ.get("SMTP_PASSWORD", ""))
+                out("4. Login: ok")
+    except (OSError, smtplib.SMTPException, ValueError) as exc:
+        out(f"Stopped when trying to {step}: {_clean(exc)}")
+        return False
+    out("Everything worked. The server accepts the connection and the login.")
+    return True

@@ -4,6 +4,10 @@
 
 Run it once, before anyone else uses the app. It creates the first admin and gives you a link to set the password
 (emailed too when SMTP is set up in .env). After that the admin adds everyone else on the Users page.
+
+    python manage.py test-email
+
+Checks the SMTP settings in .env step by step and says where it stops. It sends nothing.
 """
 import argparse
 import os
@@ -19,7 +23,11 @@ def main(argv=None):
     c = sub.add_parser("create-admin", help="create the admin account and print its set-password link")
     c.add_argument("email")
     c.add_argument("name", nargs="?", default="")
+    sub.add_parser("test-email", help="check the SMTP settings in .env step by step (sends nothing)")
     args = ap.parse_args(argv)
+
+    if args.cmd == "test-email":
+        return 0 if mailer.diagnose() else 1
 
     try:
         uid = users.create(args.email, args.name, role="admin")

@@ -187,3 +187,26 @@ def test_an_admin_can_create_another_admin_like_any_other_user(client):
     t = csrf(client)
     client.post("/admin/users/new", data={"email": "second@example.com", "role": "admin", "csrf": t})
     assert users.get_by_email("second@example.com")["role"] == "admin"
+
+
+def test_test_email_says_which_step_stopped_and_hides_the_password(monkeypatch):
+    import smtplib
+    monkeypatch.setenv("SMTP_HOST", "mail.example.test")
+    monkeypatch.setenv("SMTP_USER", "me@example.com")
+    monkeypatch.setenv("SMTP_PASSWORD", "hunter2-secret")
+    monkeypatch.setenv("SMTP_SECURITY", "starttls")
+
+    class Boom:
+        def __init__(self, *a, **k):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def ehlo(self):
+            raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed hunter2-secret")
+    monkeypatch.setattr(smtplib, "SMTP", Boom)
+    lines = []
+    assert mailer.diagnose(lines.append) is False
+    text = "\n".join(lines)
+    assert "say hello" in text and "hunter2-secret" not in text
