@@ -28,6 +28,8 @@ Numbers were reconciled to the MIS for Aug 2026 (net margin 2.3% vs 2.2%).
 
 Branch `other-deductions` (not merged) also holds: the "Where other deductions come from" panel and the 19 Data checks (`engine/integrity.py`). Next: run them on real data, then fix what turns red, in `docs/ERROR_REGISTER.md` order.
 
+**Data page report is hidden (Nov 2026).** The panels below "Build the dataset" (What was built, Data checks, costs and price checks, gap panel) are off by default; set `SHOW_BUILD_REPORT=1` in `.env` to show them. The build still runs the checks and writes `meta.json` and `sku_gap.csv`.
+
 **Where the "other deductions" work stands (Nov 2026).** Decision: stay on monthly data, show the leftover as a named residual, no guessing. MRP: the offer file's New MRP only, taken as the latest month's (Aug); the OLD MRP is ignored and nothing about it is inferred or configured, so build on Aug (or later) to keep July's price revision out of the gap. The user's view: prices change mid-month, which monthly data cannot show; adding the billing week to `billing.sql` plus a read-only "price steps inside a month" check would test it, if wanted. Rule for working here: label each statement "seen in the data" or "my reading", and ask before changing anything that moves a number.
 
 ## Not done yet (priority order)

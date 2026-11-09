@@ -156,3 +156,12 @@ def test_lever_use_counts_the_lever_name_only_never_the_value(world):
     assert rows["Extra promo discount"]["n"] == 2 and rows["Volume change"]["people"] == 1
     assert activity.describe("lever", "promo_add_pp") == "Extra promo discount"
     assert "Sliders used" in a.get("/admin/activity").get_data(as_text=True)
+
+
+def test_the_build_report_is_hidden_unless_switched_on(world, monkeypatch):
+    c = client("boss@example.com", "Boss-pass-12345")
+    monkeypatch.delenv("SHOW_BUILD_REPORT", raising=False)
+    html = c.get("/data").get_data(as_text=True)
+    assert "stepBuild" in html and "resultPanel" not in html and "Data checks" not in html
+    monkeypatch.setenv("SHOW_BUILD_REPORT", "1")
+    assert "resultPanel" in c.get("/data").get_data(as_text=True)

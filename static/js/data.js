@@ -131,6 +131,7 @@
 
   function renderResult(data) {
     const panel = $('resultPanel');
+    if (!panel) return;                 // the report is switched off (SHOW_BUILD_REPORT)
     if (data.mode !== 'actual' || !data.rows) { panel.hidden = true; return; }
     panel.hidden = false;
     $('builtSub').textContent = `Built ${fmtTime(data.built_at)} from ${monthsRange(data.base_months)}`;

@@ -62,6 +62,7 @@
   </li>
 </ol>
 
+{% if show_report %}
 <section class="panel" id="resultPanel" hidden>
   <div class="panel-head"><h2>What was built</h2><p class="sub" id="builtSub"></p></div>
   <div class="facts" id="facts"></div>
@@ -86,5 +87,6 @@
   </div>
   <div id="gapCheck"></div>
 </section>
+{% endif %}
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/data.js') }}"></script>{% endblock %}

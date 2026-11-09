@@ -499,7 +499,8 @@ def pnl_page():
 @app.get("/data")
 @data_admin_only
 def data_page():
-    return render_template("data.html", active="data")
+    # The build report (what was built, data checks, gap panels) is switched off for now; set SHOW_BUILD_REPORT=1 in .env to show it.
+    return render_template("data.html", active="data", show_report=os.environ.get("SHOW_BUILD_REPORT") == "1")
 
 
 # ---------- numbers ----------
