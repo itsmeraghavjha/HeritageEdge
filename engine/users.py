@@ -103,7 +103,7 @@ def list_users():
 
 
 def create(email, name="", role="kam", employee_id="", password=None, must_change=False):
-    """Adds a person. With no password they get a set-password link instead. There is only ever one admin."""
+    """Adds a person. With no password they get a set-password link instead. An admin can be added like anyone else."""
     email = clean_email(email)
     if role not in ROLES:
         raise UserError("Unknown role.")
@@ -112,8 +112,6 @@ def create(email, name="", role="kam", employee_id="", password=None, must_chang
     with closing(_db()) as con:
         if con.execute("SELECT 1 FROM users WHERE email=?", (email,)).fetchone():
             raise UserError("That email already has an account.")
-        if role == "admin" and con.execute("SELECT 1 FROM users WHERE role='admin'").fetchone():
-            raise UserError("There is already an admin.")
         cur = con.execute("INSERT INTO users (email, name, role, employee_id, pw_hash, must_change, created) "
                           "VALUES (?,?,?,?,?,?,?)",
                           (email, (name or "").strip()[:100], role, str(employee_id or "").strip()[:40],

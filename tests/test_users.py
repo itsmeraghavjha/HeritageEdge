@@ -44,10 +44,11 @@ def test_open_until_the_first_user_exists(client):
     assert client.post("/api/simulate", json={}).status_code == 401
 
 
-def test_only_one_admin(client):
+def test_more_than_one_admin_is_allowed_but_an_admin_cannot_be_disabled(client):
     make_admin(client)
+    uid = users.create("second@example.com", role="admin")
     with pytest.raises(users.UserError):
-        users.create("second@example.com", role="admin")
+        users.set_active(uid, False)
 
 
 def test_login_and_wrong_password(client):
@@ -168,3 +169,21 @@ def test_login_network_uses_names_from_the_private_file_and_escapes_them(tmp_pat
     assert "Alpha Mart" in out and "<script>" not in out and "&lt;script&gt;" in out
     (tmp_path / "login_chains.txt").write_text("\n".join(f"Name {i}" for i in range(20)), encoding="utf-8")
     assert len(network.labels()) == network.MAX_NAMES
+
+
+def test_email_failure_tells_the_admin_why(client, monkeypatch):
+    make_admin(client)
+    login(client, "boss@example.com", "Secret-pass-123")
+    monkeypatch.setattr(mailer, "send", lambda *a: (False, "The email could not be sent: login refused"))
+    t = csrf(client)
+    client.post("/admin/users/new", data={"email": "asha@example.com", "csrf": t})
+    page = client.get("/admin/users").get_data(as_text=True)
+    assert "login refused" in page
+
+
+def test_an_admin_can_create_another_admin_like_any_other_user(client):
+    make_admin(client)
+    login(client, "boss@example.com", "Secret-pass-123")
+    t = csrf(client)
+    client.post("/admin/users/new", data={"email": "second@example.com", "role": "admin", "csrf": t})
+    assert users.get_by_email("second@example.com")["role"] == "admin"

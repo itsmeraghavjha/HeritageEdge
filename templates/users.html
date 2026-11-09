@@ -55,7 +55,7 @@
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <label>Name<input name="name" class="text" autocomplete="off" maxlength="100"></label>
     <label>Email<input name="email" type="email" class="text" autocomplete="off" required></label>
-    <label>Role<select name="role" class="text"><option value="kam">KAM</option><option value="leadership">Leadership, sees everything</option></select></label>
+    <label>Role<select name="role" class="text"><option value="kam">KAM</option><option value="leadership">Leadership, sees everything</option><option value="admin">Admin, sees everything and manages users</option></select></label>
     <button type="submit" class="btn btn-primary">Add and send link</button>
   </form>
 </section>

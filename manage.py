@@ -2,7 +2,7 @@
 
     python manage.py create-admin you@company.com "Your name"
 
-Run it once, before anyone else uses the app. It creates the one admin and gives you a link to set the password
+Run it once, before anyone else uses the app. It creates the first admin and gives you a link to set the password
 (emailed too when SMTP is set up in .env). After that the admin adds everyone else on the Users page.
 """
 import argparse

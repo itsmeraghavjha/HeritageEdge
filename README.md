@@ -29,7 +29,7 @@ Real data never goes into git. It stays on the computer running the app.
 4. Open **Data**: test the connection, pull billing from SQL, upload the offer file and MIS workbook, tick the baseline months and build.
 5. Check the reconciliation shown after the build before trusting the P&L.
 
-Logging in uses each person's own email and password. Create the one admin once, before anyone else uses the app:
+Logging in uses each person's own email and password. Create the first admin once, before anyone else uses the app:
 
 ```bash
 python manage.py create-admin you@company.com "Your name"

@@ -149,7 +149,7 @@ def set_password_link(token):
 
 
 def send_link(user, purpose):
-    """Emails a set-password link. Returns (sent, link): the link is for the admin to copy when email fails."""
+    """Emails a set-password link. Returns (sent, link, reason): the link is for the admin to copy when email fails, the reason says why."""
     token = users.issue_token(user["id"], purpose)
     link = set_password_link(token)
     hours = users.INVITE_HOURS if purpose == "invite" else users.RESET_HOURS
@@ -160,8 +160,8 @@ def send_link(user, purpose):
         subject, lead = "Reset your HeritageEdge password", "Someone asked to reset your HeritageEdge password."
     body = (f"{greeting}\n\n{lead} Set your password here:\n\n{link}\n\n"
             f"The link works once and expires in {hours} hours. If you did not expect this email, ignore it.\n")
-    ok, _ = mailer.send(user["email"], subject, body)
-    return ok, link
+    ok, reason = mailer.send(user["email"], subject, body)
+    return ok, link, reason
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -301,7 +301,7 @@ def _done(text, link=None):
 def admin_users_new():
     try:
         role = request.form.get("role", "kam")
-        if role not in ("kam", "leadership"):
+        if role not in users.ROLES:
             role = "kam"
         uid = users.create(request.form.get("email", ""), request.form.get("name", ""), role,
                            request.form.get("employee_id", ""))
@@ -309,10 +309,10 @@ def admin_users_new():
         return _done(str(exc))
     user = users.get(uid)
     log("user_created", f"{user['email']} as {users.ROLE_NAMES.get(role, role)}")
-    sent, link = send_link(user, "invite")
+    sent, link, reason = send_link(user, "invite")
     if sent:
         return _done(f"Account created. A link to set a password was emailed to {user['email']}.")
-    return _done(f"Account created, but the email could not be sent. Send {user['email']} this link yourself "
+    return _done(f"Account created, but the email could not be sent. {reason} Send {user['email']} this link yourself "
                  f"(it works once and expires in {users.INVITE_HOURS} hours):", link)
 
 
@@ -439,11 +439,11 @@ def admin_users_link(uid):
     user = users.get(uid)
     if not user or not user["active"]:
         return _done("Enable the account first.")
-    sent, link = send_link(user, "invite")
+    sent, link, reason = send_link(user, "invite")
     log("link_sent", user["email"])
     if sent:
         return _done(f"A new link was emailed to {user['email']}.")
-    return _done(f"The email could not be sent. Send {user['email']} this link yourself:", link)
+    return _done(f"The email could not be sent. {reason} Send {user['email']} this link yourself:", link)
 
 
 @app.after_request
