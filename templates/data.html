@@ -22,9 +22,12 @@
     </div>
     <p class="sub" id="volInfo"></p>
     <div class="step-actions">
-      <div class="field"><label for="startDate">Pull billing from</label><input id="startDate" type="date" class="text"></div>
-      <button type="button" class="btn" id="testSql">Test connection</button>
-      <button type="button" class="btn btn-primary" id="pullSql">Refresh from SQL</button>
+      <div class="field"><label for="startDate">From</label><input id="startDate" type="date" class="text"></div>
+      <div class="field"><label for="endDate">To</label><input id="endDate" type="date" class="text"></div>
+      <div class="action-buttons">
+        <button type="button" class="btn" id="testSql">Test connection</button>
+        <button type="button" class="btn btn-primary" id="pullSql">Refresh from SQL</button>
+      </div>
     </div>
     <p class="note" id="sqlNote" role="status"></p>
   </li>

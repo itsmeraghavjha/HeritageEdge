@@ -5,7 +5,7 @@ All files live in data/ (ignored by git). Slow steps run in one background threa
 import json
 import threading
 import traceback
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from . import data, prepare, simulate, sql_source
@@ -108,9 +108,9 @@ def start_job(name, fn):
 
 
 # ---------- the two jobs ----------
-def pull_billing(start):
+def pull_billing(start, end=None):
     def job(progress):
-        summary = sql_source.fetch_billing(start, progress)
+        summary = sql_source.fetch_billing(start, progress, end=end)
         _write_json(data.DATA_DIR / "billing_meta.json", summary)
     return start_job("pull", job)
 
@@ -150,6 +150,7 @@ def status():
         "billing": billing,
         "suggested_months": prepare.default_base_months(months),
         "sql": {"missing": sql_source.missing_settings(),
-                "default_start": sql_source.default_start().isoformat()},
+                "default_start": sql_source.default_start().isoformat(),
+                "default_end": date.today().isoformat()},
         "job": job_status(),
     }

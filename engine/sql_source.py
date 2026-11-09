@@ -6,7 +6,7 @@ If it contains a single ?, that is filled with the first billing date to pull.
 """
 import csv
 import os
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import data, env  # noqa: F401  (env loads .env on import)
@@ -151,14 +151,38 @@ def default_start(today=None):
     return date(months // 12, months % 12 + 1, 1)
 
 
-def fetch_billing(start, progress=None, fetch_size=20000):
-    """Runs the billing query from `start` (a date) and writes data/billing.csv. Returns a summary dict."""
-    if isinstance(start, str):
-        start = datetime.strptime(start[:10], "%Y-%m-%d").date()
+def as_date(value, what):
+    """A date from a date or 'YYYY-MM-DD' text; SqlError naming `what` when it is not one."""
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        raise SqlError(f"The {what} date is not a date.")
+
+
+def fetch_billing(start, progress=None, fetch_size=20000, end=None):
+    """Runs the billing query from `start` to `end` (both dates, `end` included; None means up to today and later) and
+    writes data/billing.csv. Returns a summary dict."""
+    start = as_date(start, "From")
+    end = as_date(end, "To") if end else None
+    if end and end < start:
+        raise SqlError("The To date is before the From date.")
     sql = read_query()
-    if marker_count(sql) > 1:
-        raise SqlError(f"The billing query has {marker_count(sql)} question marks. It should have one at most, "
-                       "standing for the first billing date.")
+    markers = marker_count(sql)
+    if markers > 2:
+        raise SqlError(f"The billing query has {markers} question marks. It should have two at most: the first billing "
+                       "date and the day after the last one.")
+    if end and markers < 2:
+        raise SqlError("The billing query takes a From date only. Add AND s.BillingDate < ? after the first date test "
+                       "(see engine/sql/billing.sql) to use the To date.")
+    params = ()
+    if markers >= 1:
+        params = (start,)
+    if markers == 2:
+        params = (start, (end + timedelta(days=1)) if end else date(2999, 12, 31))
     say = progress or (lambda *a, **k: None)
 
     say("Connecting to SQL Server", 0.05)
@@ -173,7 +197,7 @@ def fetch_billing(start, progress=None, fetch_size=20000):
         cur = conn.cursor()
         say("Running the billing query. This can take a few minutes", 0.15)
         try:
-            cur.execute(sql, start) if marker_count(sql) == 1 else cur.execute(sql)
+            cur.execute(sql, *params)
         except Exception as exc:
             raise SqlError("The billing query failed: " + _clean(exc))
         cols = [c[0] for c in cur.description]
@@ -195,8 +219,8 @@ def fetch_billing(start, progress=None, fetch_size=20000):
         conn.close()
     if rows == 0:
         tmp.unlink(missing_ok=True)
-        raise SqlError("The query returned no rows. Check the start date and your access to the billing tables.")
+        raise SqlError("The query returned no rows. Check the From and To dates and your access to the billing tables.")
     os.replace(tmp, path)
     say("Saved billing volumes", 1.0)
-    return {"rows": rows, "months": sorted(months), "start": start.isoformat(),
+    return {"rows": rows, "months": sorted(months), "start": start.isoformat(), "end": end.isoformat() if end else None,
             "pulled_at": datetime.now().isoformat(timespec="seconds")}

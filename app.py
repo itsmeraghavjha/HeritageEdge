@@ -590,10 +590,18 @@ def data_sql_test():
 @app.post("/api/data/sql/pull")
 @data_admin_only
 def data_sql_pull():
-    start = (request.get_json(silent=True) or {}).get("start") or sql_source.default_start().isoformat()
-    if not datastore.pull_billing(start):
+    body = request.get_json(silent=True) or {}
+    start = body.get("start") or sql_source.default_start().isoformat()
+    end = body.get("end") or None
+    try:
+        start_d, end_d = sql_source.as_date(start, "From"), (sql_source.as_date(end, "To") if end else None)
+    except sql_source.SqlError as exc:
+        return jsonify(error=str(exc)), 400
+    if end_d and end_d < start_d:
+        return jsonify(error="The To date is before the From date."), 400
+    if not datastore.pull_billing(start_d.isoformat(), end_d.isoformat() if end_d else None):
         return jsonify(error="Another step is still running."), 409
-    log("data_pull", f"from {start}")
+    log("data_pull", f"from {start_d.isoformat()}" + (f" to {end_d.isoformat()}" if end_d else ""))
     return jsonify(started=True)
 
 

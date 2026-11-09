@@ -1,8 +1,9 @@
 -- Monthly billing by customer, sales office and SKU, from HeritageBI.
 -- Shared with the team. It holds table names only: the login (host, port, user, password) is in each person's .env.
 --
--- The single ? is the first billing date to pull (the "Pull billing from" box on the Data page). It is optional:
--- a query with no ? uses the date written in it and the box is ignored.
+-- The first ? is the first billing date to pull (the "From" box on the Data page) and the second is the day after the
+-- last one (the "To" box, which includes its own day). Both are optional: a query with one ? takes only the From date,
+-- and a query with none uses the dates written in it and the boxes are ignored.
 --
 -- The app reads these output columns, so keep their names if you change the query:
 --   BillMonth, CustomerGroup, CustomerID, SalesOfficeID, SalesOfficeName, CITY, STATE, MaterialCode,
@@ -37,6 +38,7 @@
   JOIN [HeritageBI].[DW].[dsalesofficemaster] c
     ON s.SalesOfficeID = c.PLANT
   WHERE s.BillingDate >= ?
+    AND s.BillingDate < ?
     AND s.CustomerGroup IN ('Institutions','E-Commerce','Modern Formats')
 )
 SELECT

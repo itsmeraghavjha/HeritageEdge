@@ -165,3 +165,17 @@ def test_the_build_report_is_hidden_unless_switched_on(world, monkeypatch):
     assert "stepBuild" in html and "resultPanel" not in html and "Data checks" not in html
     monkeypatch.setenv("SHOW_BUILD_REPORT", "1")
     assert "resultPanel" in c.get("/data").get_data(as_text=True)
+
+
+def test_the_pull_route_takes_both_dates_and_refuses_bad_ones(world, monkeypatch):
+    from engine import datastore
+    calls = []
+    monkeypatch.setattr(datastore, "pull_billing", lambda start, end=None: calls.append((start, end)) or True)
+    c = client("boss@example.com", "Boss-pass-12345")
+    ok = c.post("/api/data/sql/pull", json={"start": "2026-08-01", "end": "2026-08-31"})
+    assert ok.status_code == 200 and calls == [("2026-08-01", "2026-08-31")]
+    assert c.post("/api/data/sql/pull", json={"start": "2026-08-31", "end": "2026-08-01"}).status_code == 400
+    assert c.post("/api/data/sql/pull", json={"start": "nonsense"}).status_code == 400
+    assert len(calls) == 1
+    log = [r for r in activity.recent(50)[0] if r["action"] == "data_pull"]
+    assert log and "2026-08-01" in log[0]["detail"] and "2026-08-31" in log[0]["detail"]

@@ -63,7 +63,7 @@ def test_a_question_mark_in_a_comment_or_a_string_is_not_a_parameter():
 def test_the_billing_query_is_shared_and_gives_the_columns_the_build_needs(monkeypatch):
     monkeypatch.setenv("SQL_QUERY_FILE", "")
     sql = sql_source.read_query()
-    assert sql_source.marker_count(sql) == 1, "exactly one ?, for the first billing date"
+    assert sql_source.marker_count(sql) == 2, "two ?: the first billing date and the day after the last"
     assert "--" not in sql, "comments are removed before the query is sent"
     final = sql[sql.rindex("SELECT"):sql.index("FROM base")]
     missing = [c for c in prepare.BILLING_REQUIRED if c not in final]
@@ -74,3 +74,89 @@ def test_the_query_file_holds_no_login():
     text = sql_source.strip_comments(Path(sql_source.SQL_DIR / "billing.sql").read_text()).lower()
     for word in ("password", "pwd=", "uid="):
         assert word not in text
+
+
+# ---------- the From and To dates ----------
+from datetime import date
+
+
+class FakeCursor:
+    description = [("BillMonth",), ("Qty_LtrKg",)]
+
+    def __init__(self, log):
+        self.log, self.sent = log, False
+
+    def execute(self, sql, *params):
+        self.log.append(params)
+
+    def fetchmany(self, n):
+        if self.sent:
+            return []
+        self.sent = True
+        return [(date(2026, 8, 1), 10.0)]
+
+
+class FakeConn:
+    timeout = 0
+
+    def __init__(self, log):
+        self.log = log
+
+    def cursor(self):
+        return FakeCursor(self.log)
+
+    def close(self):
+        pass
+
+
+def fake_pull(monkeypatch, tmp_path, query):
+    from engine import data
+    monkeypatch.setattr(data, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(sql_source, "read_query", lambda: query)
+    log = []
+    monkeypatch.setattr(sql_source, "connect", lambda: FakeConn(log))
+    return log
+
+
+TWO = "SELECT 1 WHERE d >= ? AND d < ?"
+
+
+def test_the_to_date_is_included_so_the_query_gets_the_next_day(monkeypatch, tmp_path):
+    log = fake_pull(monkeypatch, tmp_path, TWO)
+    out = sql_source.fetch_billing("2026-08-01", end="2026-08-31")
+    assert log == [(date(2026, 8, 1), date(2026, 9, 1))] and out["end"] == "2026-08-31" and out["rows"] == 1
+
+
+def test_no_to_date_means_everything_from_the_start(monkeypatch, tmp_path):
+    log = fake_pull(monkeypatch, tmp_path, TWO)
+    out = sql_source.fetch_billing("2026-08-01")
+    assert log[0][0] == date(2026, 8, 1) and log[0][1].year == 2999 and out["end"] is None
+
+
+def test_a_query_with_one_marker_still_takes_only_a_from_date(monkeypatch, tmp_path):
+    log = fake_pull(monkeypatch, tmp_path, "SELECT 1 WHERE d >= ?")
+    sql_source.fetch_billing("2026-08-01")
+    assert log == [(date(2026, 8, 1),)]
+
+
+def test_a_to_date_needs_a_query_that_can_use_it(monkeypatch, tmp_path):
+    fake_pull(monkeypatch, tmp_path, "SELECT 1 WHERE d >= ?")
+    with pytest.raises(sql_source.SqlError, match="From date only"):
+        sql_source.fetch_billing("2026-08-01", end="2026-08-31")
+
+
+def test_a_to_date_before_the_from_date_is_refused(monkeypatch, tmp_path):
+    fake_pull(monkeypatch, tmp_path, TWO)
+    with pytest.raises(sql_source.SqlError, match="before the From"):
+        sql_source.fetch_billing("2026-08-31", end="2026-08-01")
+
+
+def test_three_markers_are_refused(monkeypatch, tmp_path):
+    fake_pull(monkeypatch, tmp_path, "SELECT 1 WHERE a = ? AND b = ? AND c = ?")
+    with pytest.raises(sql_source.SqlError, match="two at most"):
+        sql_source.fetch_billing("2026-08-01")
+
+
+def test_a_bad_date_names_which_one():
+    with pytest.raises(sql_source.SqlError, match="To date is not a date"):
+        sql_source.as_date("soon", "To")

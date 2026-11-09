@@ -72,6 +72,9 @@
       ? `${billing.rows.toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.`
       : 'Monthly packs and invoice value by customer, sales office and SKU, read straight from the billing tables.';
     if (!$('startDate').value) $('startDate').value = sql.default_start;
+    if (!$('endDate').value) $('endDate').value = sql.default_end;
+    $('endDate').min = $('startDate').value;          // the pickers cannot cross each other
+    $('startDate').max = $('endDate').value;
     if (sql.missing.length) {
       setNote($('sqlNote'), `SQL is not set up. Add ${sql.missing.join(', ')} to the .env file in the project folder, then restart the app.`, 'is-warn');
     } else if (sqlMessage) {
@@ -335,11 +338,16 @@
 
   $('pullSql').addEventListener('click', async () => {
     sqlMessage = null;
-    const r = await api('/api/data/sql/pull', { start: $('startDate').value });
+    const start = $('startDate').value, end = $('endDate').value;
+    if (!start || !end) { setNote($('sqlNote'), 'Choose both a From and a To date.', 'is-error'); return; }
+    if (end < start) { setNote($('sqlNote'), 'The To date is before the From date.', 'is-error'); return; }
+    const r = await api('/api/data/sql/pull', { start, end });
     if (!r.ok) { setNote($('sqlNote'), r.data.error || 'Could not start the pull.', 'is-error'); return; }
     prevJobState = 'running';
     poll();
   });
+
+  ['startDate', 'endDate'].forEach((id) => $(id).addEventListener('change', render));
 
   $('months').addEventListener('change', (e) => {
     const box = e.target.closest('input[type=checkbox]');

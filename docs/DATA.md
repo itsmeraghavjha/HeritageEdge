@@ -8,7 +8,7 @@ The app runs on one dataset: a table with a row per chain x customer group x sal
 
 | Source | What it gives | How it arrives |
 |---|---|---|
-| **SQL Server billing** | Monthly packs and invoice value by customer, sales office and SKU | Pulled by the app: *Data > Refresh from SQL* |
+| **SQL Server billing** | Monthly packs and invoice value by customer, sales office and SKU | Pulled by the app: *Data > Refresh from SQL* (pick a From and a To date) |
 | **Offer file** (`.xlsb` or `.xlsx`) | List price (MRP), trade margin, offers, GST per customer x SKU, and which customer belongs to which chain (`Cluster`) | Uploaded on the Data page |
 | **MIS workbook** (`.xlsx`, sheet `SAP_MIS_DATABASE`) | COGS, S&D, P&A, interest, over/under and marketing by SKU, sales office and customer group | Uploaded on the Data page |
 
@@ -16,7 +16,7 @@ The app runs on one dataset: a table with a row per chain x customer group x sal
 
 1. Install `pyodbc` (`pip install pyodbc`) and the Microsoft ODBC Driver for SQL Server.
 2. Copy `.env.example` to `.env` and set `SQL_SERVER`, `SQL_DATABASE`, `SQL_USER` and `SQL_PASSWORD`. Set `SQL_PORT` too if the server is not on the default port (or write it as `host,1433` in `SQL_SERVER`). Ask IT for a **read-only** login. `.env` is never committed.
-3. The billing query is `engine/sql/billing.sql`, shared in the repo. It holds table names only, no login. If you change it, keep the **output column names** listed in its header, because the app reads them (a test checks this). The single `?` is the first billing date to pull, and comments in the file are stripped before it runs.
+3. The billing query is `engine/sql/billing.sql`, shared in the repo. It holds table names only, no login. If you change it, keep the **output column names** listed in its header, because the app reads them (a test checks this). The two `?` are the From date and the day after the To date (the To date is included). Leave To empty to pull everything from the From date. A query of your own (`SQL_QUERY_FILE`) with only one `?` still works, but then only the From date can be used. Comments in the file are stripped before it runs.
 4. Restart the app, open *Data* and press *Test connection*.
 
 The computer running the app must be able to reach the SQL Server (company network or VPN).
