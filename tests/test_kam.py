@@ -15,7 +15,7 @@ LIMITED = simulate.BELOW_CONTRIBUTION
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(data, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(mailer, "send", lambda *a: (True, ""))
+    monkeypatch.setattr(mailer, "send", lambda *a, **k: (True, ""))
     monkeypatch.setattr(mailer, "configured", lambda: True)
     return tmp_path
 

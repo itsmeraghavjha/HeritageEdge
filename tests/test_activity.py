@@ -12,7 +12,7 @@ from test_kam import login, post_json
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     monkeypatch.setattr(data, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(mailer, "send", lambda *a: (True, ""))
+    monkeypatch.setattr(mailer, "send", lambda *a, **k: (True, ""))
     monkeypatch.setattr(mailer, "configured", lambda: True)
     monkeypatch.setattr(app_module, "_seen", {})
     admin = users.create("boss@example.com", "Boss", "admin", password="Boss-pass-12345")

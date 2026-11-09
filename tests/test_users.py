@@ -11,7 +11,7 @@ from engine import data, mailer, users
 def client(tmp_path, monkeypatch):
     monkeypatch.setattr(data, "DATA_DIR", tmp_path)
     sent = []
-    monkeypatch.setattr(mailer, "send", lambda to, subject, body: (sent.append((to, subject, body)) or (True, "")))
+    monkeypatch.setattr(mailer, "send", lambda to, subject, body, html=None: (sent.append((to, subject, body)) or (True, "")))
     monkeypatch.setattr(mailer, "configured", lambda: True)
     c = app_module.app.test_client()
     c.sent = sent
@@ -139,7 +139,7 @@ def test_form_without_csrf_token_is_refused(client):
 def test_email_failure_shows_the_link_to_the_admin(client, monkeypatch):
     make_admin(client)
     login(client, "boss@example.com", "Secret-pass-123")
-    monkeypatch.setattr(mailer, "send", lambda *a: (False, "The email could not be sent: no server"))
+    monkeypatch.setattr(mailer, "send", lambda *a, **k: (False, "The email could not be sent: no server"))
     t = csrf(client)
     client.post("/admin/users/new", data={"email": "asha@example.com", "csrf": t})
     page = client.get("/admin/users").get_data(as_text=True)
@@ -174,7 +174,7 @@ def test_login_network_uses_names_from_the_private_file_and_escapes_them(tmp_pat
 def test_email_failure_tells_the_admin_why(client, monkeypatch):
     make_admin(client)
     login(client, "boss@example.com", "Secret-pass-123")
-    monkeypatch.setattr(mailer, "send", lambda *a: (False, "The email could not be sent: login refused"))
+    monkeypatch.setattr(mailer, "send", lambda *a, **k: (False, "The email could not be sent: login refused"))
     t = csrf(client)
     client.post("/admin/users/new", data={"email": "asha@example.com", "csrf": t})
     page = client.get("/admin/users").get_data(as_text=True)
@@ -210,3 +210,28 @@ def test_test_email_says_which_step_stopped_and_hides_the_password(monkeypatch):
     assert mailer.diagnose(lines.append) is False
     text = "\n".join(lines)
     assert "say hello" in text and "hunter2-secret" not in text
+
+
+def test_the_link_email_has_a_button_and_a_plain_text_copy(monkeypatch):
+    monkeypatch.setenv("SMTP_HOST", "mail.example.test")
+    monkeypatch.setenv("SMTP_FROM", "HeritageEdge <app@example.com>")
+    monkeypatch.setenv("SMTP_SECURITY", "none")
+    monkeypatch.setenv("SMTP_USER", "")
+    sent = []
+
+    class Fake:
+        def __init__(self, *a, **k):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def send_message(self, msg):
+            sent.append(msg)
+    monkeypatch.setattr(mailer.smtplib, "SMTP", Fake)
+    html = mailer.link_email_html("Hello <b>Asha</b>,", "An account was made.", "http://x.test/set-password/abc", 72)
+    assert "&lt;b&gt;" in html and 'href="http://x.test/set-password/abc"' in html and "72 hours" in html
+    assert mailer.send("a@example.com", "s", "plain body", html=html) == (True, "")
+    msg = sent[0]
+    assert msg.get_body(("plain",)).get_content().strip() == "plain body"
+    assert "Set your password" in msg.get_body(("html",)).get_content()

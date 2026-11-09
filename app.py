@@ -160,7 +160,8 @@ def send_link(user, purpose):
         subject, lead = "Reset your HeritageEdge password", "Someone asked to reset your HeritageEdge password."
     body = (f"{greeting}\n\n{lead} Set your password here:\n\n{link}\n\n"
             f"The link works once and expires in {hours} hours. If you did not expect this email, ignore it.\n")
-    ok, reason = mailer.send(user["email"], subject, body)
+    page = mailer.link_email_html(greeting, lead, link, hours)
+    ok, reason = mailer.send(user["email"], subject, body, html=page)
     return ok, link, reason
 
 
