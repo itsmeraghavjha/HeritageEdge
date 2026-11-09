@@ -21,7 +21,7 @@ def _clean(text):
 def send(to, subject, body):
     """Returns (True, "") when sent, or (False, reason) when not. Never raises."""
     if not configured():
-        return False, "Email is not set up (SMTP_HOST and SMTP_FROM in .env)."
+        return False, "The email could not be sent: email is not set up (SMTP_HOST and SMTP_FROM in .env)."
     msg = EmailMessage()
     msg["From"], msg["To"], msg["Subject"] = os.environ["SMTP_FROM"], to, subject
     msg.set_content(body)

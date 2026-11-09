@@ -312,7 +312,7 @@ def admin_users_new():
     sent, link, reason = send_link(user, "invite")
     if sent:
         return _done(f"Account created. A link to set a password was emailed to {user['email']}.")
-    return _done(f"Account created, but the email could not be sent. {reason} Send {user['email']} this link yourself "
+    return _done(f"Account created. {reason} Send {user['email']} this link yourself "
                  f"(it works once and expires in {users.INVITE_HOURS} hours):", link)
 
 
@@ -443,7 +443,7 @@ def admin_users_link(uid):
     log("link_sent", user["email"])
     if sent:
         return _done(f"A new link was emailed to {user['email']}.")
-    return _done(f"The email could not be sent. {reason} Send {user['email']} this link yourself:", link)
+    return _done(f"{reason} Send {user['email']} this link yourself:", link)
 
 
 @app.after_request

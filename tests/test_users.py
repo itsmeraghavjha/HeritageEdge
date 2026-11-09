@@ -139,7 +139,7 @@ def test_form_without_csrf_token_is_refused(client):
 def test_email_failure_shows_the_link_to_the_admin(client, monkeypatch):
     make_admin(client)
     login(client, "boss@example.com", "Secret-pass-123")
-    monkeypatch.setattr(mailer, "send", lambda *a: (False, "no server"))
+    monkeypatch.setattr(mailer, "send", lambda *a: (False, "The email could not be sent: no server"))
     t = csrf(client)
     client.post("/admin/users/new", data={"email": "asha@example.com", "csrf": t})
     page = client.get("/admin/users").get_data(as_text=True)
