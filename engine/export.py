@@ -38,13 +38,13 @@ COLUMNS = [
     ("Gross margin", "gm", 1e5, AMOUNT),
     ("Over/under", "ou", 1e5, AMOUNT),
     ("S&D / freight", "logistics", 1e5, AMOUNT),
-    ("Contribution", "cm", 1e5, AMOUNT),
+    ("Contribution (MC)", "cm", 1e5, AMOUNT),
     ("P&A", "pa", 1e5, AMOUNT),
     ("Interest", "interest", 1e5, AMOUNT),
     ("Marketing", "mktg", 1e5, AMOUNT),
     ("Net margin", "nm", 1e5, AMOUNT),
     ("GM %", "gm_pct", 0.01, PERCENT),
-    ("CM %", "cm_pct", 0.01, PERCENT),
+    ("MC %", "cm_pct", 0.01, PERCENT),
     ("NM %", "nm_pct", 0.01, PERCENT),
 ]
 
@@ -80,9 +80,9 @@ PIVOT_STEPS = [
     "1. Click any cell in the table on the left.",
     "2. Insert > PivotTable > OK.",
     "3. Drag Chain, State, City, Product category, SKU (or any you like) into Rows, in the order you want.",
-    "4. Drag the amounts you want into Values (for example Scenario Net revenue, Scenario Contribution). Choose Sum.",
+    "4. Drag the amounts you want into Values (for example Scenario Net revenue, Scenario Contribution (MC)). Choose Sum.",
     "5. For a percentage, use PivotTable Analyze > Fields, Items & Sets > Calculated Field.",
-    "   Example, name CM %: = 'Scenario Contribution' / 'Scenario Net revenue'. Format it as a percentage.",
+    "   Example, name MC %: = 'Scenario Contribution (MC)' / 'Scenario Net revenue'. Format it as a percentage.",
     "Amounts are Rs lakh a month, volume is thousand packs. Baseline columns have no levers applied.",
 ]
 
