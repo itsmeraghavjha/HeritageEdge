@@ -87,45 +87,47 @@
   });
 
   /* ---------- results ---------- */
-  function kpi(label, value, deltaText, deltaTone, sub, key) {
+  // One card = what the scenario gives, how it differs from today in plain words, and today's figure.
+  function kpi(label, value, change, today, key, extra) {
     return `<div class="kpi${key ? ' kpi-key' : ''}">
       <p class="kpi-label">${label}</p>
       <p class="kpi-value">${value}</p>
-      <p class="kpi-delta ${deltaTone}">${deltaText}</p>
-      <p class="kpi-sub">${sub}</p>
+      <p class="kpi-change ${change.tone}">${change.text}</p>
+      <p class="kpi-sub">Today: ${today}</p>
+      ${extra ? `<p class="kpi-sub">${extra}</p>` : ''}
     </div>`;
+  }
+  // "₹97.3 L lower (−16.0%)", or "No change" when the difference is too small to matter.
+  function change(delta, fmt, tone, relPct) {
+    if (tone === 'flat') return { tone, text: 'No change' };
+    const word = delta > 0 ? 'higher' : 'lower';
+    return { tone, text: `${fmt(Math.abs(delta))} ${word}${relPct == null ? '' : ` (${HE.relText(relPct)})`}` };
   }
 
   function renderKpis(r) {
     const b = r.base, s = r.sim;
-    const dNet = s.net - b.net, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
-    $('kpis').classList.toggle('kpis-4', HE.LIMITED);
-    const netMarginCard = HE.LIMITED ? '' :
-      kpi('Net margin', HE.inr(s.nm),
-          `${HE.inrSigned(dNm)} (${HE.pp(s.nm_pct - b.nm_pct)})`, HE.tone(dNm, true, 500),
-          `${HE.pct(s.nm_pct)} of net revenue, baseline ${HE.pct(b.nm_pct)}`);
-    $('kpis').innerHTML =
-      kpi('Net revenue', HE.inr(s.net),
-          `${HE.inrSigned(dNet)} (${HE.relText(HE.rel(b.net, s.net))})`, HE.tone(dNet, true, 500),
-          `Baseline ${HE.inr(b.net)}`) +
-      kpi('Gross margin', HE.pct(s.gm_pct),
-          HE.pp(s.gm_pct - b.gm_pct), HE.tone(s.gm_pct - b.gm_pct, true, 0.0005),
-          `${HE.inr(s.gm)}, baseline ${HE.pct(b.gm_pct)}`) +
-      kpi('Contribution', HE.inr(s.cm),
-          `${HE.inrSigned(dCm)} (${HE.relText(HE.rel(b.cm, s.cm))})`, HE.tone(dCm, true, 500),
-          `${HE.pct(s.cm_pct)} of net revenue, baseline ${HE.pct(b.cm_pct)}`, true) +
-      netMarginCard +
-      kpi('Volume in packs', (s.units / 1e5).toFixed(1) + ' lakh',
-          HE.relText(HE.rel(b.units, s.units)), HE.tone(dUnits, true, 1),
-          `Baseline ${(b.units / 1e5).toFixed(1)} lakh packs. ${qtyText(s)}`);
+    const dNet = s.net - b.net, dGm = s.gm_pct - b.gm_pct, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
+    const money = (d, v) => change(d, HE.inr, HE.tone(d, true, 500), HE.rel(v, v + d));
+    const lakhPacks = (n) => (n / 1e5).toFixed(1) + ' lakh';
+    const cards = [
+      kpi('Net revenue', HE.inr(s.net), money(dNet, b.net), HE.inr(b.net)),
+      kpi('Gross margin', HE.pct(s.gm_pct), change(dGm, (d) => HE.pct(d).replace('%', ' pp'), HE.tone(dGm, true, 0.0005)),
+          HE.pct(b.gm_pct)),
+      kpi('Contribution', HE.inr(s.cm), money(dCm, b.cm), HE.inr(b.cm), true),
+    ];
+    if (!HE.LIMITED) cards.push(kpi('Net margin', HE.inr(s.nm), money(dNm, b.nm), HE.inr(b.nm)));
+    cards.push(kpi('Volume (packs)', lakhPacks(s.units), change(dUnits, (d) => lakhPacks(d), HE.tone(dUnits, true, 1),
+                   HE.rel(b.units, s.units)), lakhPacks(b.units), false, qtyText(s)));
+    $('kpis').innerHTML = cards.join('');
   }
 
-  // Litres and kg are kept apart: nothing is converted between them.
+  // Litres and kg are kept apart (nothing is converted between them) and shown per day: monthly volume / days.
   function qtyText(m) {
-    const parts = [];
-    if (m.litres > 0) parts.push(`${(m.litres / 1e5).toFixed(2)} lakh litres`);
-    if (m.kg > 0) parts.push(`${(m.kg / 1e5).toFixed(2)} lakh kg`);
-    return parts.length ? 'That is ' + parts.join(' and ') + '.' : '';
+    const days = (meta && meta.days) || 30, parts = [];
+    const n = (v) => Math.round(v / days).toLocaleString('en-IN');
+    if (m.litres > 0) parts.push(`${n(m.litres)} LPD`);
+    if (m.kg > 0) parts.push(`${n(m.kg)} KGPD`);
+    return parts.join(' + ');
   }
 
   function renderBridge(steps) {

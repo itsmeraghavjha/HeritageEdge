@@ -521,3 +521,29 @@ def test_pack_qty_in_name_for_older_datasets():
     assert data.pack_qty_in_name("Butter 100 GM") == (0.1, "kg")
     assert data.pack_qty_in_name("Curd 1 KG pouch") == (1.0, "kg")
     assert data.pack_qty_in_name("No size here") == (0.0, "")
+
+
+def test_days_per_month_follows_the_base_months(monkeypatch):
+    monkeypatch.setattr(data, "META", {"base_months": ["2026-08-01"]})
+    assert data.days_per_month() == 31
+    monkeypatch.setattr(data, "META", {"base_months": ["2026-07-01", "2026-08-01", "2026-09-01"]})
+    assert data.days_per_month() == pytest.approx((31 + 31 + 30) / 3)
+    monkeypatch.setattr(data, "META", {"base_months": ["2026-02-01"]})
+    assert data.days_per_month() == 28
+    monkeypatch.setattr(data, "META", {})
+    assert data.days_per_month() == 30                      # sample data has no month: 30 days
+
+
+def test_excel_export_adds_litres_and_kg_per_day_next_to_the_monthly_columns(monkeypatch):
+    import openpyxl
+    from engine import export
+    monkeypatch.setattr(data, "META", {"base_months": ["2026-08-01"]})
+    wb = openpyxl.load_workbook(export.build_workbook({}, {}, ["chain"], {}))
+    ws = next(w for w in wb.worksheets if w.title != export.PIVOT_SHEET)
+    rows = [[c.value for c in r] for r in ws.iter_rows()]
+    hr = next(i for i, r in enumerate(rows) if "Litres per day (LPD)" in r)
+    head = rows[hr]
+    i_l, i_m, i_k, i_kd = (head.index(h) for h in ("Litres per day (LPD)", "Litres ('000 L)", "Kg ('000 kg)", "Kg per day (KGPD)"))
+    total = next(r for r in rows[hr + 1:] if r[0] and str(r[0]).lower().startswith("total"))
+    assert total[i_l] == pytest.approx(total[i_m] * 1000 / 31, rel=1e-3)
+    assert total[i_kd] == pytest.approx(total[i_k] * 1000 / 31, rel=1e-3)

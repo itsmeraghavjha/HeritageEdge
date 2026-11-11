@@ -125,6 +125,20 @@ def months_text(months):
     return f"{first.strftime('%b %Y')} to {last.strftime('%b %Y')}"
 
 
+def days_per_month():
+    """Average number of days in the base months: divides a monthly run-rate into per-day figures (LPD, KGPD).
+    30 when the months are unknown (the sample data)."""
+    import calendar
+    days = []
+    for m in META.get("base_months", []) or []:
+        try:
+            d = datetime.strptime(m[:10], "%Y-%m-%d")
+        except ValueError:
+            continue
+        days.append(calendar.monthrange(d.year, d.month)[1])
+    return sum(days) / len(days) if days else 30.0
+
+
 def status():
     """Short description of the data in use, for the sidebar and the data page."""
     if MODE == "actual":

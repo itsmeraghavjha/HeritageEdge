@@ -82,6 +82,8 @@ There is no built-in "realistic uplift" threshold; judge the breakeven against w
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. The two are never converted into each other and never added together, so a total shows litres and kg as separate columns. Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
 
+**Per day (LPD and KGPD).** The P&L screen and the simulator volume card show litres and kg as a daily rate, the way the business talks about them: the monthly figure divided by the days in the base months (`data.days_per_month()`: 31 for August, the average when several months are chosen, 30 for sample data). The Excel P&L keeps the monthly litres and kg columns and adds "Litres per day (LPD)" and "Kg per day (KGPD)" beside them.
+
 ## Who sees what
 
 There are three roles. The **admin** (one) manages users and the Data page and sees everything. **Leadership** sees all data and the full P&L. A **KAM** sees only the rows for the states and chains they are mapped to, and the P&L only down to contribution.
