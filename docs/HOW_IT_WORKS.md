@@ -86,7 +86,7 @@ Volume is also shown as litres and kg. Each pack's size comes from its pack text
 
 ## Who sees what
 
-There are three roles. The **admin** (one) manages users and the Data page and sees everything. **Leadership** sees all data and the full P&L. A **KAM** sees only the rows for the states and chains they are mapped to, and the P&L only down to contribution.
+There are three roles. An **admin** manages users and the Data page and sees everything. **Leadership** sees all data and the full P&L. A **KAM** sees only the rows for the states and chains they are mapped to, and the P&L only down to contribution.
 
 A KAM never sees the Data or Users pages. The simulator labels their selection "All my accounts", says costs apply to their accounts, and drops the net margin card and column. A KAM with no mapped accounts (or only clusters that match no chain) gets a plain explanation on the simulator and P&L instead of a screen of zeros.
 
