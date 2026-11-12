@@ -292,3 +292,9 @@ def test_a_kam_with_no_accounts_gets_an_explanation_not_a_page_of_zeros(world):
     ok = client_for("asha@example.com", "Own-pass-12345").get("/").get_data(as_text=True)
     assert "No accounts are assigned to you yet" not in ok
     assert "All my accounts" in ok
+
+
+def test_meta_carries_the_base_month_text_for_the_simulator(world, monkeypatch):
+    monkeypatch.setattr(data, "META", {"base_months": ["2026-08-01"]})
+    meta = client_for("ceo@example.com", "Ceo-pass-12345").get("/api/meta").get_json()
+    assert meta["months"] == "Aug 2026"

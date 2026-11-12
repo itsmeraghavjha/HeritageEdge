@@ -766,3 +766,20 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .where-it-lands .mc-filter-count { font-size: 13px; color: var(--muted); }
 .where-it-lands #breakdown td.empty-note { text-align: left; color: var(--muted); padding: 18px 12px; }
 .where-it-lands #mcFilter button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }
+
+/* Simulator: original month and scenario side by side */
+.kpi-panel { padding: 6px 18px 10px; }
+.kpi-panel .kpi-table { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.kpi-panel .kpi-table th, .kpi-panel .kpi-table td { padding: 10px 12px; text-align: right; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+.kpi-panel .kpi-table th:first-child { text-align: left; padding-left: 0; font-weight: 500; }
+.kpi-panel .kpi-table thead th { color: var(--muted); font-weight: 500; font-size: 12.5px; vertical-align: bottom; }
+.kpi-panel .kpi-table .kpi-month { display: block; font-weight: 400; font-size: 12px; }
+.kpi-panel .kpi-table tbody tr:last-child th, .kpi-panel .kpi-table tbody tr:last-child td { border-bottom: 0; }
+.kpi-panel .kpi-table .kpi-scn { font-weight: 600; }
+.kpi-panel .kpi-table .kpi-chg { font-weight: 500; font-size: 13.5px; padding-right: 0; }
+.kpi-panel .kpi-table .kpi-chg.up { color: var(--green-text); }
+.kpi-panel .kpi-table .kpi-chg.down { color: var(--red); }
+.kpi-panel .kpi-table .kpi-chg.flat { color: var(--muted); }
+.kpi-panel .kpi-table tr.kpi-key-row th, .kpi-panel .kpi-table tr.kpi-key-row td { background: #f3f9f0; }
+.kpi-panel .kpi-table tr.kpi-key-row .kpi-scn { color: var(--pasture); }
+.kpi-panel .error { padding: 12px 0; }

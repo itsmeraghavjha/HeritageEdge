@@ -514,6 +514,7 @@ def meta():
         "dims": [{"id": d, "name": name, "options": options[d]} for d, name in data.DIM_DEFS],
         "combos": combos,
         "days": data.days_per_month(),
+        "months": data.months_text(data.META.get("base_months", [])),
         "user": {"role": g.user["role"] if g.get("user") else None, "limited": limited},
     })
 

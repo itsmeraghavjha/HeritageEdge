@@ -87,16 +87,6 @@
   });
 
   /* ---------- results ---------- */
-  // One card = what the scenario gives, how it differs from today in plain words, and today's figure.
-  function kpi(label, value, change, today, key, extra) {
-    return `<div class="kpi${key ? ' kpi-key' : ''}">
-      <p class="kpi-label">${label}</p>
-      <p class="kpi-value">${value}</p>
-      <p class="kpi-change ${change.tone}">${change.text}</p>
-      <p class="kpi-sub">Today: ${today}</p>
-      ${extra ? `<p class="kpi-sub">${extra}</p>` : ''}
-    </div>`;
-  }
   // "₹97.3 L lower (−16.0%)", or "No change" when the difference is too small to matter.
   function change(delta, fmt, tone, relPct) {
     if (tone === 'flat') return { tone, text: 'No change' };
@@ -104,21 +94,41 @@
     return { tone, text: `${fmt(Math.abs(delta))} ${word}${relPct == null ? '' : ` (${HE.relText(relPct)})`}` };
   }
 
+  // Litres and kg per day, change as "+1,234 LPD".
+  function qtyChange(b, s) {
+    const days = (meta && meta.days) || 30, parts = [];
+    const add = (d, unit) => {
+      const v = Math.round(d / days);
+      if (v !== 0) parts.push(`${v > 0 ? '+' : HE.MINUS}${Math.abs(v).toLocaleString('en-IN')} ${unit}`);
+    };
+    add(s.litres - b.litres, 'LPD');
+    add(s.kg - b.kg, 'KGPD');
+    const net = (s.litres - b.litres) + (s.kg - b.kg);
+    return { tone: parts.length ? HE.tone(net, true, 0.5) : 'flat', text: parts.length ? parts.join(' ') : 'No change' };
+  }
+
+  // Original month and scenario side by side, with the change, one line per measure.
   function renderKpis(r) {
     const b = r.base, s = r.sim;
     const dNet = s.net - b.net, dGm = s.gm_pct - b.gm_pct, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
     const money = (d, v) => change(d, HE.inr, HE.tone(d, true, 500), HE.rel(v, v + d));
     const lakhPacks = (n) => (n / 1e5).toFixed(1) + ' lakh';
-    const cards = [
-      kpi('Net revenue', HE.inr(s.net), money(dNet, b.net), HE.inr(b.net)),
-      kpi('Gross margin', HE.pct(s.gm_pct), change(dGm, (d) => HE.pct(d).replace('%', ' pp'), HE.tone(dGm, true, 0.0005)),
-          HE.pct(b.gm_pct)),
-      kpi('Contribution', HE.inr(s.cm), money(dCm, b.cm), HE.inr(b.cm), true),
+    const rows = [
+      ['Net revenue', HE.inr(b.net), HE.inr(s.net), money(dNet, b.net)],
+      ['Gross margin', HE.pct(b.gm_pct), HE.pct(s.gm_pct),
+        change(dGm, (d) => HE.pct(d).replace('%', ' pp'), HE.tone(dGm, true, 0.0005))],
+      ['MC (contribution)', HE.inr(b.cm), HE.inr(s.cm), money(dCm, b.cm), 'key'],
     ];
-    if (!HE.LIMITED) cards.push(kpi('Net margin', HE.inr(s.nm), money(dNm, b.nm), HE.inr(b.nm)));
-    cards.push(kpi('Volume (packs)', lakhPacks(s.units), change(dUnits, (d) => lakhPacks(d), HE.tone(dUnits, true, 1),
-                   HE.rel(b.units, s.units)), lakhPacks(b.units), false, qtyText(s)));
-    $('kpis').innerHTML = cards.join('');
+    if (!HE.LIMITED) rows.push(['Net margin', HE.inr(b.nm), HE.inr(s.nm), money(dNm, b.nm)]);
+    rows.push(['Volume (packs)', lakhPacks(b.units), lakhPacks(s.units),
+      change(dUnits, (d) => lakhPacks(d), HE.tone(dUnits, true, 1), HE.rel(b.units, s.units))]);
+    if (qtyText(b) || qtyText(s)) rows.push(['Volume per day', qtyText(b) || '–', qtyText(s) || '–', qtyChange(b, s)]);
+    const months = (meta && meta.months) || '';
+    const sub = months ? `<span class="kpi-month">${HE.esc(months)}${months.includes(' to ') ? ', monthly average' : ''}</span>` : '';
+    $('kpis').innerHTML = `<table class="kpi-table">
+      <thead><tr><th scope="col"></th><th scope="col">Original month${sub}</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead>
+      <tbody>${rows.map(([label, o, sc, ch, key]) => `<tr${key ? ' class="kpi-key-row"' : ''}><th scope="row">${label}</th>
+        <td>${o}</td><td class="kpi-scn">${sc}</td><td class="kpi-chg ${ch.tone}">${ch.text}</td></tr>`).join('')}</tbody></table>`;
   }
 
   // Litres and kg are kept apart (nothing is converted between them) and shown per day: monthly volume / days.
