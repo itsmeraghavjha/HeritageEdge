@@ -31,37 +31,19 @@
     <p class="view-note" id="viewNote" role="status"></p>
     <div class="kpis" id="kpis"></div>
 
-    <div class="panel" id="volumePanel">
+    <div class="panel where-it-lands">
       <div class="panel-head">
-        <h2>Volume check</h2>
-        <p class="sub">How much extra volume this scenario needs to match today, and what contribution looks like at other volumes. The volume itself is your call: enter it under “Volume you expect”.</p>
+        <h2>Where it lands</h2>
+        <div class="tabs" role="tablist" id="breakTabs" aria-label="Break down by"></div>
       </div>
-      <div class="vol-body" id="volumeCheck"></div>
+      <p class="row-note" id="rowNote" hidden><span></span> <button type="button" class="link-btn" id="rowClear">Clear all row changes</button></p>
+      <p class="row-hint">Each row shows today next to the scenario, so you do not need to remember today’s numbers. Volume is litres or kg per day. Promo is the share of the invoice price given away. Click Adjust on a row to change price, promo, trade terms or volume for that row only.</p>
+      <div class="table-scroll"><table class="data" id="breakdown"></table></div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <h2>What moves contribution</h2>
-        <p class="sub">Monthly contribution from baseline to scenario, one lever group at a time.</p>
-      </div>
-      <div class="bridge-wrap"><div id="bridge"></div></div>
-      <p class="chart-note" id="bridgeNote"></p>
-    </div>
-
-    <div class="two-col">
-      <div class="panel">
-        <div class="panel-head"><h2>Scenario P&amp;L</h2><p class="sub">Rupees lakh a month</p></div>
-        <div class="table-scroll"><table class="data" id="summary"></table></div>
-      </div>
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Where it lands</h2>
-          <div class="tabs" role="tablist" id="breakTabs" aria-label="Break down by"></div>
-        </div>
-        <p class="row-note" id="rowNote" hidden><span></span> <button type="button" class="link-btn" id="rowClear">Clear all row changes</button></p>
-        <p class="row-hint">Click Adjust on a row to change price, promo, trade terms or volume for that row only.</p>
-        <div class="table-scroll"><table class="data" id="breakdown"></table></div>
-      </div>
+    <div class="panel scenario-pl">
+      <div class="panel-head"><h2>Scenario P&amp;L</h2><p class="sub">Rupees lakh a month</p></div>
+      <div class="table-scroll"><table class="data" id="summary"></table></div>
     </div>
   </section>
 </div>

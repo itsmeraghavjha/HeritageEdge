@@ -130,69 +130,6 @@
     return parts.join(' + ');
   }
 
-  function renderBridge(steps) {
-    // Draw at the container's real pixel width so text stays at a fixed, readable size.
-    const W = Math.max(560, Math.round($('bridge').clientWidth || 760));
-    const H = 300, padL = 12, padR = 12, top = 30, bottom = 40;
-    const plotH = H - top - bottom;
-    const n = steps.length;
-    const slot = (W - padL - padR) / n;
-    const barW = Math.min(64, slot * 0.56);
-
-    let run = steps[0].value;
-    const levels = [run];
-    steps.forEach((s, i) => {
-      if (s.kind === 'delta') { run += s.value; levels.push(run); }
-      else if (i > 0) levels.push(s.value);
-    });
-    const hi = Math.max(...levels), lo = Math.min(...levels);
-    let span = hi - lo;
-    if (span < hi * 0.05) span = hi * 0.05;
-    let axisMin = lo - span;
-    const truncated = axisMin > 0;
-    if (!truncated) axisMin = 0;
-    const axisMax = hi + span * 0.3;
-    const y = (v) => top + plotH - ((v - axisMin) / (axisMax - axisMin)) * plotH;
-    const floor = top + plotH;
-
-    let cursor = steps[0].value;
-    let links = '';
-    let bars = '';
-    steps.forEach((s, i) => {
-      const x = padL + slot * i + (slot - barW) / 2;
-      const cx = x + barW / 2;
-      let y1, y2, cls, label;
-      if (s.kind === 'total') {
-        y1 = y(s.value); y2 = floor;
-        cls = i === 0 ? 'bar-base' : 'bar-scn';
-        label = HE.inr(s.value);
-        cursor = s.value;
-      } else {
-        const from = cursor, to = cursor + s.value;
-        y1 = Math.min(y(from), y(to)); y2 = Math.max(y(from), y(to));
-        const flat = Math.abs(s.value) < 500;
-        cls = flat ? 'bar-zero' : s.value > 0 ? 'bar-up' : 'bar-down';
-        label = flat ? '–' : HE.inrSigned(s.value);
-        cursor = to;
-      }
-      if (i < n - 1) {
-        links += `<line class="bridge-link" x1="${x + barW}" x2="${x + slot}" y1="${y(cursor)}" y2="${y(cursor)}"/>`;
-      }
-      const h = Math.max(2, y2 - y1);
-      bars += `<rect class="${cls}" x="${x}" y="${y1}" width="${barW}" height="${h}" rx="2"/>`;
-      bars += `<text class="bar-value ${cls}-t" x="${cx}" y="${y1 - 8}" text-anchor="middle">${label}</text>`;
-      bars += `<text class="bar-label" x="${cx}" y="${H - bottom + 24}" text-anchor="middle">${HE.esc(s.label)}</text>`;
-    });
-    const parts = `<line class="axis" x1="${padL}" x2="${W - padR}" y1="${floor}" y2="${floor}"/>${links}${bars}`;
-
-    const first = steps[0].value, last = steps[n - 1].value;
-    $('bridge').innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img"
-      aria-label="Contribution moves from ${HE.inr(first)} to ${HE.inr(last)}">${parts}</svg>`;
-    $('bridgeNote').textContent = truncated
-      ? `Bars start at ${HE.inr(axisMin)} so small changes stay visible.`
-      : '';
-  }
-
   const SUMMARY_ALL = [
     ['Volume (’000 packs)', 'units', 'k', true],
     ['Gross sales', 'gross', 'l', true],
@@ -292,9 +229,14 @@
         <button type="button" class="btn btn-small" data-act="close-row">Done</button></div></div>`;
   }
 
+  const promoPct = (m) => (m.gross ? m.promo / m.gross : 0);
+  const qtyOrDash = (m) => qtyText(m) || '–';
   function rowCellList(n) {
     const dNet = n.sim.net - n.base.net, dCm = n.sim.cm - n.base.cm;
-    return [['', HE.lakh(n.sim.net)], [HE.tone(dNet, true, 500), HE.lakhSigned(dNet)],
+    const dVol = n.sim.units - n.base.units, dPromo = promoPct(n.sim) - promoPct(n.base);
+    return [['qty-col', qtyOrDash(n.base)], [`qty-col ${HE.tone(dVol, true, 0.5)}`, qtyOrDash(n.sim)],
+      ['', HE.pct(promoPct(n.base))], [HE.tone(dPromo, false, 0.0005), HE.pct(promoPct(n.sim))],
+      ['', HE.lakh(n.sim.net)], [HE.tone(dNet, true, 500), HE.lakhSigned(dNet)],
       ['', HE.lakh(n.sim.cm)], [HE.tone(dCm, true, 500), HE.lakhSigned(dCm)], ['', HE.pct(n.sim.cm_pct)]];
   }
   const rowCells = (n) => rowCellList(n).map(([cls, html]) => `<td${cls ? ` class="${cls}"` : ''}>${html}</td>`).join('');
@@ -332,9 +274,13 @@
     const rows = nodes.map((n) => `<tr data-id="${HE.esc(n.id)}"><th scope="row">${HE.esc(n.label)}</th>
         ${rowCells(n)}
         <td class="adjust-cell">${canAdjust ? `<button type="button" class="link-btn adjust-btn${adjustLabel(n) === 'Adjusted' ? ' is-adjusted' : ''}" data-act="open-row" aria-expanded="${isOpen(n)}">${adjustLabel(n)}</button>` : ''}</td></tr>
-      ${isOpen(n) ? `<tr class="row-edit"><td colspan="7">${editorHtml(n)}</td></tr>` : ''}`).join('');
+      ${isOpen(n) ? `<tr class="row-edit"><td colspan="11">${editorHtml(n)}</td></tr>` : ''}`).join('');
     table.dataset.dim = activeDim;
-    table.innerHTML = `<thead><tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
+    table.innerHTML = `<thead>
+      <tr class="group-head"><th></th><th colspan="2" class="grp">Volume per day</th><th colspan="2" class="grp">Promo, % of invoice price</th>
+        <th colspan="5" class="grp">Rupees lakh a month</th><th></th></tr>
+      <tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
+      <th scope="col">Today</th><th scope="col">Scenario</th><th scope="col">Today</th><th scope="col">Scenario</th>
       <th scope="col">Net revenue</th><th scope="col">Change</th>
       <th scope="col">Contribution</th><th scope="col">Change</th><th scope="col">CM %</th><th scope="col"></th></tr></thead>
       <tbody>${rows}</tbody>`;
@@ -388,56 +334,10 @@
   });
 
   /* ---------- volume check: the volume you expect, what the model suggests, and the breakeven ---------- */
-  function breakevenText(b) {
-    const scope = HE.thousands(b.units_in_scope);
-    if (b.status === 'neutral') return { tone: 'flat', head: 'Nothing to pay back', body: 'No lever here changes what a pack earns, so there is no volume to win back.' };
-    if (b.status === 'unreachable') return { tone: 'down', head: 'More volume will not pay this back', body: 'Contribution in scope is zero or negative at these terms, so selling more packs does not close the gap.' };
-    const packs = HE.thousands(Math.abs(b.extra_units));
-    if (b.status === 'ahead') {
-      return { tone: 'up', head: 'Already ahead at today’s volume',
-        body: `At today’s volume this scenario earns more contribution. Volume in scope could fall by ${HE.pct(-b.required)} (${packs} thousand packs a month) before it drops below today.` };
-    }
-    let verdict;
-    if (Math.abs(b.assumed) < 1e-9) verdict = 'You have not entered an expected volume change yet. Set one under “Volume you expect”.';
-    else if (b.covered) verdict = `You expect ${HE.relText(b.assumed)}, which covers it.`;
-    else verdict = `You expect ${HE.relText(b.assumed)}, which falls short by ${HE.pct(-b.gap)}.`;
-    return { tone: Math.abs(b.assumed) < 1e-9 ? 'flat' : (b.covered ? 'up' : 'down'),
-      head: `Needs ${HE.pct(b.required)} more volume to match today`,
-      body: `That is ${packs} thousand more packs a month in scope. ${verdict}` };
-  }
-
-  function renderVolume(r) {
-    const el = $('volumeCheck');
-    const t = breakevenText(r.breakeven);
-    const sg = (v) => (v > 0 ? '+' : v < 0 ? HE.MINUS : '') + Math.abs(v).toFixed(1) + '%';
-    const rows = r.ladder.cases.map((c) => `<tr${c.entered ? ' class="is-base"' : ''}>
-      <th scope="row">${sg(c.volume_pct)}${c.entered ? ' (your input)' : ''}</th>
-      <td>${HE.thousands(c.d_units, true)}</td>
-      <td><span class="chg ${HE.tone(c.d_cm, true, 5e3)}">${HE.lakhSigned(c.d_cm)}</span></td>
-      ${HE.LIMITED ? '' : `<td><span class="chg ${HE.tone(c.d_nm, true, 5e3)}">${HE.lakhSigned(c.d_nm)}</span></td>`}</tr>`).join('');
-    const sug = Math.round(r.suggested_volume * 1000) / 10;
-    const hint = Math.abs(sug) < 0.05 ? ''
-      : `<p class="chart-note">For these levers the model suggests about ${sg(sug)} volume. That is an assumption from past
-        price elasticities, not a forecast. <button type="button" class="link-btn" id="useSuggested">Use ${sg(sug)}</button></p>`;
-    el.innerHTML = `<div class="vol-lead ${t.tone}"><strong>${HE.esc(t.head)}</strong><span>${HE.esc(t.body)}</span></div>
-      <table class="table vol-table"><thead><tr><th scope="col">If volume in scope changes by</th>
-        <th scope="col">Volume (thousand packs)</th><th scope="col">Contribution change (₹ L)</th>${HE.LIMITED ? '' : '<th scope="col">Net margin change (₹ L)</th>'}</tr></thead>
-        <tbody>${rows}</tbody></table>${hint}`;
-    const btn = $('useSuggested');
-    if (btn) btn.addEventListener('click', () => {
-      const l = HE.FLAT.find((x) => x.key === 'volume_change_pct');
-      state.levers.volume_change_pct = Math.min(l.max, Math.max(l.min, sug));
-      syncLever(l);
-      changed();
-    });
-  }
-
   function render(r) {
     latest = r;
     if (!tabsBuilt) buildTabs(Object.keys(r.breakdown));
     renderKpis(r);
-    renderVolume(r);
-    renderBridge(r.bridge);
     renderSummary(r);
     renderBreakdown(r);
     updateScopeSummary(r);
@@ -528,12 +428,6 @@
     HE.storeSaved(list);
     renderLoadSelect();
   }
-
-  let resizeTimer = null;
-  window.addEventListener('resize', () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => { if (latest) renderBridge(latest.bridge); }, 120);
-  });
 
   /* ---------- start ---------- */
   fetch('/api/meta').then((r) => r.json()).then((m) => {

@@ -35,7 +35,7 @@
       note: 'Your own view of how much more or less these levers will sell. Applies to the chains, states and SKUs in scope.',
       levers: [
         { key: 'volume_change_pct', label: 'Volume change', min: -20, max: 50, step: 1, unit: '%', signed: true,
-          hint: 'The change in packs sold that you expect from the levers above. The Volume check shows what the model suggests and what volume you need to break even.' },
+          hint: 'The change in packs sold that you expect from the levers above. This is your call: the model does not forecast it. Today’s volume is shown next to each row below.' },
       ],
     },
     {

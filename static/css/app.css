@@ -754,3 +754,10 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 #integrity .chk-ev th, #integrity .chk-ev td { text-align: left; padding: 4px 8px; border-top: 1px solid var(--line); font-weight: 400; vertical-align: top; }
 #integrity .chk-ev th { width: 52%; }
 #integrity .chk-fix { color: var(--green); font-weight: 500; }
+
+
+/* Simulator: "Where it lands" is full width and shows today next to the scenario */
+.where-it-lands #breakdown .group-head th { padding: 8px 12px 2px; border-bottom: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; }
+.where-it-lands #breakdown .group-head th.grp { border-bottom: 1px solid var(--line-soft); }
+.where-it-lands #breakdown td.qty-col { white-space: nowrap; }
+.scenario-pl { max-width: 720px; }

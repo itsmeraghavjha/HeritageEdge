@@ -62,7 +62,7 @@ In a scenario, volume-based lines move with units and revenue-based lines move w
 | COGS change (%) | The whole COGS line, from the MIS. Use it for a milk, packing or other input cost change | Selected scope |
 | S&D / freight cost (%) | The S&D line | Selected scope |
 
-"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. **The simulator screen shows the selection only:** the cards, volume check, bridge and breakdowns are for the selected rows (the whole business when nothing is selected), and every lever, including the two cost levers, applies to those rows. The P&L page still shows every row: there the commercial levers apply to the selection, and the cost levers apply to everything.
+"Selected scope" means the dimensions you limit under *Apply price, promo and chain terms to*. Any dimension can be limited, and nothing selected means everything. **The simulator screen shows the selection only:** the cards, the scenario P&L and the "Where it lands" table are for the selected rows (the whole business when nothing is selected), and every lever, including the two cost levers, applies to those rows. The P&L page still shows every row: there the commercial levers apply to the selection, and the cost levers apply to everything.
 
 **Note on "Other deductions and display fees":** in the real data this line also contains credit notes and mix effects, because it is the balancing item between list and billed price. Moving it by 1 pp changes that balancing line, which is not strictly "display fees". Treat it as "other deductions from invoice".
 
@@ -106,6 +106,12 @@ Under "Where it lands", a chain, product category, SKU or state can carry its ow
 - **Volume ladder.** If volume is set on rows, there is no single entered figure, so the marked line is the scenario's actual overall volume change. The other lines use one volume change for every row.
 - **Not modelled.** A promo on one SKU may take sales from another (cannibalisation). Each row's volume is your own estimate, so the total can be lower than the sum of the rows.
 - **Where it lives.** The adjustments travel inside the `levers` value as `adjust: {dimension: {id: {lever: value}}}`. They are saved with scenarios, applied on the P&L page, and listed on the "Scenario levers" sheet of the Excel export. "Clear all row changes" and "Reset levers" remove them.
+
+## What the simulator screen shows
+
+The screen has the KPI cards, the **Where it lands** table and the **Scenario P&L**. The volume check panel and the contribution bridge chart were taken off the screen (the engine still computes the bridge, volume ladder and breakeven, and they are tested, but nothing on the screen shows them).
+
+**Where it lands** shows today next to the scenario so nobody has to remember today's numbers: volume per day (LPD and KGPD, the monthly litres or kg divided by the days in the base months) and promo as a share of the invoice price (promo / gross, the same unit as the *Extra promo discount* lever in pp), then net revenue, contribution and CM %. A row with adjustments shows its own scenario values. Colour follows the usual rule: volume up is green, promo up is red.
 
 ## The contribution bridge
 
