@@ -28,6 +28,7 @@
   </aside>
 
   <section class="results" aria-live="polite" aria-label="Scenario results">
+    <p class="view-note scn-editing" id="editingNote" role="status" hidden><span></span> <button type="button" class="link-btn" id="stopEditing">Stop editing</button></p>
     <p class="view-note" id="viewNote" role="status"></p>
     <div class="panel kpi-panel" id="kpis"></div>
 
@@ -61,10 +62,11 @@
   <form method="dialog" id="saveForm">
     <h2>Save scenario</h2>
     <label for="saveName">Scenario name</label>
-    <input id="saveName" name="name" class="text" maxlength="60" required placeholder="Diwali display, Hyderabad">
+    <input id="saveName" name="name" class="text" maxlength="80" required placeholder="Diwali display, Hyderabad">
     <div class="dialog-actions">
       <button type="button" class="btn" id="saveCancel">Cancel</button>
-      <button type="submit" class="btn btn-primary">Save scenario</button>
+      <button type="button" class="btn" id="saveCopy" hidden>Save as a copy</button>
+      <button type="submit" class="btn btn-primary" id="saveSubmit">Save scenario</button>
     </div>
   </form>
 </dialog>

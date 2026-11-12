@@ -2,7 +2,7 @@
 
 Flask app for the MRF (Heritage Foods, dairy FMCG) team. Humans: `README.md`. **Start with `docs/STATUS.md`** (state, what is left, how we work). Figures are monthly run-rates in rupees; with no real data built it runs on synthetic `sample_data/`.
 
-Screens: `/` promo simulator (levers, scope, KPIs, breakeven, volume ladder, bridge, per-row adjustments); `/pnl` P&L (net revenue to net margin, any grouping, drill-down, Excel); `/data` build the dataset from SQL volumes + offer file + MIS (admin only); `/admin/users` and `/admin/activity` (admin only); login pages.
+Screens: `/` promo simulator (levers, scope, KPIs, breakeven, volume ladder, bridge, per-row adjustments); `/scenarios` every saved scenario (search, sort, open to edit, copy, rename, delete); `/pnl` P&L (net revenue to net margin, any grouping, drill-down, Excel); `/data` build the dataset from SQL volumes + offer file + MIS (admin only); `/admin/users` and `/admin/activity` (admin only); login pages.
 
 ## Confidential data: the one rule
 
@@ -21,7 +21,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - `engine/data.py`: loads `data/rows.csv` else `sample_data/rows.csv`; one row per chain x customer group x sales office x SKU; dimensions in `DIM_DEFS`.
 - `engine/sql_source.py` + `sql/billing.sql` (output columns are a tested contract) -> `data/billing.csv`; `engine/prepare.py` builds `rows.csv` from billing + offer file + MIS and writes `meta.json` (quality report, MIS reconciliation); `engine/datastore.py` runs uploads and jobs.
 - `engine/simulate.py`: all maths (`calc_row`, `simulate`, `pnl`, `bridge`); `Levers` frozen dataclass, `LIMITS` clamps input; functions take `allowed` rows; `strip_below_cm` and `BELOW_CONTRIBUTION` for KAMs.
-- `engine/export.py` Excel; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
+- `engine/export.py` Excel; `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
 - `app.py`: thin routes, login, CSRF, `log(...)`. Keep logic in `engine/`.
 - `config/assumptions.csv` elasticities (volume suggestion only; volume is a user input); `config/attribution.csv` spreads each MIS cost per pack or as % of revenue.
 - Front end: plain JS, one CSS file, no build. `static/js/common.js` has lever defs (`GROUPS`), presets, selectors, formatting, `window.HE`.
@@ -42,7 +42,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - MIS is cut to the base months (`pick_mis_months`); never average MIS costs over months billing does not cover (once overstated net margin by ~3 points). Month column found by header or `MIS_MONTH_COLUMN`.
 - The contribution bridge holds volume at baseline for rate steps; the volume entered is the remainder; it must reconcile to the scenario total (tested).
 - "Other deductions and display fees" is the gap between list invoice and billed price (credit notes, mix, schemes), not only fees.
-- Scenarios are saved in browser `localStorage`, not shared.
+- Saved scenarios live on the server (`engine/scenarios.py`, table in `users.db`): levers, selection and row adjustments only, never results. Leadership and admin see everyone's; a KAM sees only their own; only the owner or an admin can rename or delete. Results on the Scenarios list are computed fresh with `simulate.headline` on the viewer's allowed rows. Old browser-saved ones are imported once from the Scenarios page. The working state of the simulator (current levers) is still browser `localStorage`.
 - Billing SQL misses pack formats like `700+700 ML`; `prepare.py` recomputes them. Volume units: ML/L as litres, GM/KG as kg, never converted in the data or Excel; the simulator and P&L screens add them into one LPD figure (1 kg = 1 litre).
 - Google Fonts load from a CDN; falls back to system fonts offline.
 - Flask dev server only; do not expose it as shared production hosting.

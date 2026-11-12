@@ -8,7 +8,7 @@ from functools import wraps
 from flask import (Flask, g, jsonify, redirect, render_template, request, send_file, session, url_for)
 
 from engine import env  # noqa: F401  (loads .env before anything reads settings)
-from engine import access, activity, data, datastore, export, mailer, network, prepare, simulate, sql_source, users
+from engine import access, activity, data, datastore, export, mailer, network, prepare, scenarios, simulate, sql_source, users
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 ** 3          # the MIS workbook can be large
@@ -80,7 +80,7 @@ def require_login():
 
 
 _seen = {}
-SCREEN_OF = {"simulator_page": "simulator", "pnl_page": "pnl", "data_page": "data", "admin_users": "users",
+SCREEN_OF = {"simulator_page": "simulator", "scenarios_page": "scenarios", "pnl_page": "pnl", "data_page": "data", "admin_users": "users",
              "admin_activity": "activity"}
 
 
@@ -492,6 +492,11 @@ def simulator_page():
     return _no_accounts("simulator") or render_template("simulator.html", active="simulator")
 
 
+@app.get("/scenarios")
+def scenarios_page():
+    return render_template("scenarios.html", active="scenarios")
+
+
 @app.get("/pnl")
 def pnl_page():
     return _no_accounts("pnl") or render_template("pnl.html", active="pnl")
@@ -502,6 +507,92 @@ def pnl_page():
 def data_page():
     # The build report (what was built, data checks, gap panels) is switched off for now; set SHOW_BUILD_REPORT=1 in .env to show it.
     return render_template("data.html", active="data", show_report=os.environ.get("SHOW_BUILD_REPORT") == "1")
+
+
+# ---------- saved scenarios ----------
+def _scenario_error(exc):
+    return jsonify({"error": str(exc)}), 400
+
+
+@app.get("/api/scenarios")
+def api_scenarios():
+    allowed, limited = visible()
+    items = scenarios.listing(g.get("user"), mine_only=request.args.get("mine") == "1")
+    if request.args.get("results") != "0":
+        for it in items:
+            try:
+                it["result"] = scenarios.results(it, allowed, limited)
+            except Exception:           # a scenario saved before the data was rebuilt may not fit it any more
+                it["result"] = None
+    return jsonify({"scenarios": items, "limited": limited})
+
+
+@app.get("/api/scenarios/<int:sid>")
+def api_scenario(sid):
+    scn = scenarios.get(g.get("user"), sid)
+    if not scn:
+        return jsonify({"error": "That scenario was not found."}), 404
+    scn["mine"] = scn["owner_id"] == (g.user["id"] if g.get("user") else 0)
+    return jsonify(scn)
+
+
+@app.post("/api/scenarios")
+def api_scenario_save():
+    body = request.get_json(silent=True) or {}
+    try:
+        sid = scenarios.save(g.get("user"), body.get("name"), body.get("levers"), body.get("scope"), body.get("id"), bool(body.get("copy")))
+    except scenarios.ScenarioError as exc:
+        return _scenario_error(exc)
+    log("scenario_saved")
+    return jsonify({"id": sid})
+
+
+@app.post("/api/scenarios/import")
+def api_scenarios_import():
+    """Moves scenarios saved in this browser (the old way) into the person's account."""
+    body = request.get_json(silent=True) or {}
+    added, skipped = 0, 0
+    for item in (body.get("items") or [])[:scenarios.MAX_PER_PERSON]:
+        try:
+            levers = dict(item.get("levers") or {})
+            if item.get("adjust"):
+                levers["adjust"] = item["adjust"]
+            scenarios.save(g.get("user"), item.get("name"), levers, item.get("scope"))
+            added += 1
+        except (scenarios.ScenarioError, AttributeError, TypeError):
+            skipped += 1
+    if added:
+        log("scenario_saved")
+    return jsonify({"added": added, "skipped": skipped})
+
+
+@app.post("/api/scenarios/<int:sid>/rename")
+def api_scenario_rename(sid):
+    try:
+        scenarios.rename(g.get("user"), sid, (request.get_json(silent=True) or {}).get("name"))
+    except scenarios.ScenarioError as exc:
+        return _scenario_error(exc)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/scenarios/<int:sid>/duplicate")
+def api_scenario_duplicate(sid):
+    try:
+        new_id = scenarios.duplicate(g.get("user"), sid)
+    except scenarios.ScenarioError as exc:
+        return _scenario_error(exc)
+    log("scenario_saved")
+    return jsonify({"id": new_id})
+
+
+@app.delete("/api/scenarios/<int:sid>")
+def api_scenario_delete(sid):
+    try:
+        scenarios.delete(g.get("user"), sid)
+    except scenarios.ScenarioError as exc:
+        return _scenario_error(exc)
+    log("scenario_deleted")
+    return jsonify({"ok": True})
 
 
 # ---------- numbers ----------

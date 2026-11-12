@@ -783,3 +783,31 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .kpi-panel .kpi-table tr.kpi-key-row th, .kpi-panel .kpi-table tr.kpi-key-row td { background: #f3f9f0; }
 .kpi-panel .kpi-table tr.kpi-key-row .kpi-scn { color: var(--pasture); }
 .kpi-panel .error { padding: 12px 0; }
+
+/* Scenarios page */
+.scn-page .scn-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 12px; }
+.scn-page .scn-search { flex: 1 1 280px; max-width: 420px; }
+.scn-page .scn-sort { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.scn-page .scn-sort select { width: auto; }
+.scn-page .scn-count { font-size: 13px; color: var(--muted); margin-left: auto; }
+.scn-page .scn-import { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.scn-page .scn-table th, .scn-page .scn-table td { vertical-align: top; text-align: right; }
+.scn-page .scn-table th:nth-child(-n+3), .scn-page .scn-table td:nth-child(-n+3) { text-align: left; }
+.scn-page .scn-table th:last-child, .scn-page .scn-table td:last-child { text-align: left; }
+.scn-page .scn-table td, .scn-page .scn-table th[scope=row] { padding-top: 12px; padding-bottom: 12px; }
+.scn-page .scn-name { min-width: 260px; max-width: 420px; font-weight: 400; }
+.scn-page .scn-name span { display: block; font-weight: 600; }
+.scn-page .scn-name small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.scn-page .scn-actions { white-space: normal; min-width: 130px; }
+.scn-page .scn-actions .link-btn, .scn-page .scn-actions a { display: block; margin: 0 0 4px; text-align: left; }
+.scn-page .scn-actions .scn-confirm .link-btn { display: inline; margin-right: 10px; }
+.scn-page .scn-confirm { color: var(--red); }
+.scn-page .link-btn.danger { color: var(--red); }
+.scn-page .sort-btn { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: inherit; }
+.scn-page th[aria-sort=ascending] .sort-btn::after { content: " ▲"; font-size: 10px; }
+.scn-page th[aria-sort=descending] .sort-btn::after { content: " ▼"; font-size: 10px; }
+.scn-page .scn-empty { padding: 22px 18px; color: var(--muted); }
+.scn-page #scnWho button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }
+.dialog-error { color: var(--red); font-size: 13px; min-height: 18px; margin-top: 6px; }
+.scn-editing { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--green-tint); border-radius: 8px; }
+.scn-editing[hidden] { display: none; }

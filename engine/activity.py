@@ -33,6 +33,8 @@ ACTIONS = {
     "filter": ("Used a filter", "use"),
     "lever": ("Moved a lever", "use"),
     "export": ("Excel export", "export"),
+    "scenario_saved": ("Saved a scenario", "use"),
+    "scenario_deleted": ("Deleted a scenario", "use"),
     "data_upload": ("Data file uploaded", "data"),
     "data_pull": ("SQL volumes pulled", "data"),
     "data_build": ("Dataset built", "data"),
@@ -43,7 +45,7 @@ LEVER_NAMES = {"price_change_pct": "MRP change", "promo_add_pp": "Extra promo di
                "trade_margin_add_pp": "Trade margin change", "rebate_add_pp": "Other deductions and display fees",
                "volume_change_pct": "Volume change", "cogs_change_pct": "COGS change",
                "freight_change_pct": "S&D / freight cost"}
-SCREENS = {"simulator": "Promo simulator", "pnl": "P&L statement", "data": "Data", "users": "Users", "activity": "Activity"}
+SCREENS = {"simulator": "Promo simulator", "scenarios": "Scenarios", "pnl": "P&L statement", "data": "Data", "users": "Users", "activity": "Activity"}
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _last_prune = [0.0]

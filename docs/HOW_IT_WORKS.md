@@ -84,6 +84,17 @@ Volume is also shown as litres and kg. Each pack's size comes from its pack text
 
 **Per day (LPD).** The P&L screen and the simulator show volume as one daily rate, LPD: (litres + kg) for the month divided by the days in the base months (`data.days_per_month()`: 31 for August, the average when several months are chosen, 30 for sample data). The Excel P&L keeps the monthly litres and kg columns and adds "Litres per day (LPD)" and "Kg per day (KGPD)" beside them.
 
+## Saved scenarios
+
+A scenario is saved on the server, under the person's login, so it follows them across browsers. What is stored is the lever values, the selection (chains, states, SKUs and so on) and the row adjustments. No result is stored: the **Scenarios** screen works out each scenario's net revenue change, MC change, MC % and volume change (LPD) fresh from today's data (`simulate.headline`, the same maths as the simulator without the bridge and breakdowns), on the rows the viewer may see. A KAM's figures stop at contribution. A scenario saved before the data was rebuilt that no longer fits shows dashes.
+
+- **Who sees them.** Leadership and admin see everyone's. A KAM sees only their own, and cannot open anyone else's by its link either.
+- **Who can change them.** The person who saved a scenario, and an admin, can rename or delete it. Anyone who can see a scenario can open it and save their own copy; saving over someone else's scenario never changes theirs.
+- **Editing.** *Open and edit* loads the scenario into the simulator. Saving then updates it (your own) or makes your own copy (someone else's). *Save as a copy* is offered when editing your own. The same name saved twice by one person replaces the earlier one.
+- **Old browser-saved scenarios.** The Scenarios screen offers to move them into the person's account once; the browser keeps a backup copy under `heritageedge:saved:imported`.
+- **Activity log.** Saving and deleting are logged as events, never with the name, the levers or the chains.
+- **Limits.** Names up to 80 characters, 300 scenarios per person, 200 KB per scenario.
+
 ## Who sees what
 
 There are three roles. An **admin** manages users and the Data page and sees everything. **Leadership** sees all data and the full P&L. A **KAM** sees only the rows for the states and chains they are mapped to, and the P&L only down to contribution.

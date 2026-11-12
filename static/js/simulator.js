@@ -382,14 +382,40 @@
   }
 
   /* ---------- scenarios ---------- */
-  function renderLoadSelect() {
-    const saved = HE.loadSaved();
+  // The saved scenario being edited, if any: { id, name, mine, owner }.
+  let currentScn = null;
+  async function renderLoadSelect() {
+    let saved = [];
+    try { saved = (await (await fetch('/api/scenarios?mine=1&results=0')).json()).scenarios || []; } catch (e) { saved = []; }
     $('loadSelect').innerHTML =
       '<option value="">Load a scenario</option>' +
       '<optgroup label="Starting points">' +
       HE.PRESETS.map((p) => `<option value="p:${p.id}">${HE.esc(p.name)}</option>`).join('') + '</optgroup>' +
       (saved.length ? '<optgroup label="Your scenarios">' +
-        saved.map((s, i) => `<option value="s:${i}">${HE.esc(s.name)}</option>`).join('') + '</optgroup>' : '');
+        saved.map((s) => `<option value="s:${s.id}">${HE.esc(s.name)}</option>`).join('') + '</optgroup>' : '');
+  }
+
+  function showEditing() {
+    const note = $('editingNote');
+    note.hidden = !currentScn;
+    if (!currentScn) return;
+    note.firstElementChild.textContent = currentScn.mine
+      ? `Editing “${currentScn.name}”. Save scenario updates it.`
+      : `Opened “${currentScn.name}”, saved by ${currentScn.owner || 'someone else'}. Saving makes your own copy.`;
+  }
+  $('stopEditing').addEventListener('click', () => { currentScn = null; showEditing(); });
+
+  async function openSaved(id) {
+    try {
+      const res = await fetch(`/api/scenarios/${id}`);
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'That scenario was not found.');
+      const scn = await res.json();
+      const lv = Object.assign({}, scn.levers), adjust = lv.adjust;
+      delete lv.adjust;
+      applyScenario(lv, scn.scope, adjust);
+      currentScn = { id: scn.id, name: scn.name, mine: scn.mine, owner: scn.owner };
+      showEditing();
+    } catch (err) { window.alert(err.message); }
   }
 
   function applyScenario(levers, scope, adjust) {
@@ -409,17 +435,18 @@
       const p = HE.PRESETS.find((x) => x.id === v.slice(2));
       if (p) applyScenario(p.levers, null, {});
     } else if (v.startsWith('s:')) {
-      const s = HE.loadSaved()[Number(v.slice(2))];
-      if (s) applyScenario(s.levers, s.scope, s.adjust);
+      openSaved(Number(v.slice(2)));
     }
     e.target.value = '';
   });
 
-  $('resetBtn').addEventListener('click', () => applyScenario({}, HE.emptyScope(), {}));
+  $('resetBtn').addEventListener('click', () => { currentScn = null; showEditing(); applyScenario({}, HE.emptyScope(), {}); });
 
   const dialog = $('saveDialog');
   $('saveBtn').addEventListener('click', () => {
-    $('saveName').value = '';
+    $('saveName').value = currentScn ? currentScn.name : '';
+    $('saveCopy').hidden = !(currentScn && currentScn.mine);
+    $('saveSubmit').textContent = currentScn && currentScn.mine ? 'Update scenario' : 'Save scenario';
     if (dialog.showModal) dialog.showModal();
     else {
       const name = window.prompt('Scenario name');
@@ -427,16 +454,21 @@
     }
   });
   $('saveCancel').addEventListener('click', () => dialog.close());
+  $('saveCopy').addEventListener('click', () => { dialog.close(); saveScenario($('saveName').value, true); });
   $('saveForm').addEventListener('submit', () => saveScenario($('saveName').value));
 
-  function saveScenario(name) {
+  async function saveScenario(name, asCopy) {
     name = name.trim();
     if (!name) return;
-    const list = HE.loadSaved().filter((s) => s.name !== name);
-    list.push({ name, levers: Object.assign({}, state.levers), scope: JSON.parse(JSON.stringify(state.scope)),
-                adjust: JSON.parse(JSON.stringify(state.adjust)) });
-    HE.storeSaved(list);
-    renderLoadSelect();
+    try {
+      const res = await HE.postJson('/api/scenarios', { id: currentScn && currentScn.mine && !asCopy ? currentScn.id : undefined,
+        copy: !!asCopy, name, levers: HE.leversPayload(state), scope: state.scope });
+      const out = await res.json();
+      if (!res.ok) throw new Error(out.error || 'The scenario could not be saved.');
+      currentScn = { id: out.id, name, mine: true, owner: '' };
+      showEditing();
+      renderLoadSelect();
+    } catch (err) { window.alert(err.message); }
   }
 
   /* ---------- start ---------- */
@@ -447,5 +479,7 @@
     renderScope();
     renderLoadSelect();
     refresh();
+    const wanted = new URLSearchParams(window.location.search).get('scenario');
+    if (wanted) { openSaved(Number(wanted)); window.history.replaceState(null, '', '/'); }
   }).catch(showError);
 })();

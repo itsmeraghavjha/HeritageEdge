@@ -14,7 +14,8 @@ Read this first in a new chat. It is the one place that says where the project s
 
 | Area | What it does | Where |
 |---|---|---|
-| Promo simulator `/` | Levers, scope picker, KPIs, volume check and ladder, contribution bridge, breakdowns, per-row adjustments, saved scenarios (browser only) | `engine/simulate.py`, `static/js/simulator.js`, `common.js` |
+| Scenarios `/scenarios` | Every saved scenario: search, sort, open to edit, copy, rename, delete; leadership and admin see all, a KAM only their own | `engine/scenarios.py`, `static/js/scenarios.js` |
+| Promo simulator `/` | Levers, scope picker, KPIs, volume check and ladder, contribution bridge, breakdowns, per-row adjustments, Save and Load use the server (see Scenarios) | `engine/simulate.py`, `static/js/simulator.js`, `common.js` |
 | P&L `/pnl` | Net revenue to net margin, any grouping, drill-down, Baseline / Scenario / Change, volume as packs plus litres and kg in one column, Excel export | `engine/simulate.py`, `engine/export.py`, `pnl.js` |
 | Data `/data` | SQL volumes, offer file and MIS uploads, build, reconciliation (admin only) | `engine/prepare.py`, `sql_source.py`, `datastore.py` |
 | Login | Own email and password, set-password links (invite 72 h, reset 2 h, single use), lockout after 5 wrong tries, forced change for starting passwords, first admin made by `manage.py create-admin`, more admins added from the Users page | `engine/users.py`, `engine/mailer.py`, `auth_base.html` and login templates |

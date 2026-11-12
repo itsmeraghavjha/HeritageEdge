@@ -474,6 +474,16 @@ def simulate(levers_raw, scope_raw, allowed=None):
     }
 
 
+def headline(levers_raw, scope_raw, allowed=None):
+    """Totals only (baseline and scenario) for the selected rows: the same numbers as `simulate`, without the bridge,
+    ladder and breakdowns. Used to list many saved scenarios cheaply."""
+    lv, adjust = split_levers(levers_raw)
+    scope = parse_scope(scope_raw)
+    rows, base = view_rows(scope, allowed)
+    sims = scenario_metrics(lv, scope, rows, adjust)
+    return {"base": derive(total(base)), "sim": derive(total(sims)), "rows_in_scope": len(rows)}
+
+
 def pnl_items(levers_raw, scope_raw, filter_raw=None, allowed=None):
     """One entry per dataset row that passes the filters: {"row", "base", "sim"}. Used by the Excel export."""
     lv, adjust = split_levers(levers_raw)
