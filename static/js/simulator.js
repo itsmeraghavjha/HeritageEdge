@@ -94,25 +94,20 @@
     return { tone, text: `${fmt(Math.abs(delta))} ${word}${relPct == null ? '' : ` (${HE.relText(relPct)})`}` };
   }
 
-  // Litres and kg per day, change as "+1,234 LPD".
+  // Volume per day (LPD): litres plus kg added together, so one kg counts as one litre.
+  const lpd = (m) => (m.litres + m.kg) / ((meta && meta.days) || 30);
+  const lpdText = (m) => (Math.round(lpd(m)) > 0 ? `${Math.round(lpd(m)).toLocaleString('en-IN')} LPD` : '');
   function qtyChange(b, s) {
-    const days = (meta && meta.days) || 30, parts = [];
-    const add = (d, unit) => {
-      const v = Math.round(d / days);
-      if (v !== 0) parts.push(`${v > 0 ? '+' : HE.MINUS}${Math.abs(v).toLocaleString('en-IN')} ${unit}`);
-    };
-    add(s.litres - b.litres, 'LPD');
-    add(s.kg - b.kg, 'KGPD');
-    const net = (s.litres - b.litres) + (s.kg - b.kg);
-    return { tone: parts.length ? HE.tone(net, true, 0.5) : 'flat', text: parts.length ? parts.join(' ') : 'No change' };
+    const d = Math.round(lpd(s) - lpd(b));
+    return { tone: d === 0 ? 'flat' : HE.tone(d, true, 0.5),
+      text: d === 0 ? 'No change' : `${d > 0 ? '+' : HE.MINUS}${Math.abs(d).toLocaleString('en-IN')} LPD` };
   }
 
   // Original month and scenario side by side, with the change, one line per measure.
   function renderKpis(r) {
     const b = r.base, s = r.sim;
-    const dNet = s.net - b.net, dGm = s.gm_pct - b.gm_pct, dCm = s.cm - b.cm, dNm = s.nm - b.nm, dUnits = s.units - b.units;
+    const dNet = s.net - b.net, dGm = s.gm_pct - b.gm_pct, dCm = s.cm - b.cm, dNm = s.nm - b.nm;
     const money = (d, v) => change(d, HE.inr, HE.tone(d, true, 500), HE.rel(v, v + d));
-    const lakhPacks = (n) => (n / 1e5).toFixed(1) + ' lakh';
     const rows = [
       ['Net revenue', HE.inr(b.net), HE.inr(s.net), money(dNet, b.net)],
       ['Gross margin', HE.pct(b.gm_pct), HE.pct(s.gm_pct),
@@ -120,9 +115,7 @@
       ['MC (contribution)', HE.inr(b.cm), HE.inr(s.cm), money(dCm, b.cm), 'key'],
     ];
     if (!HE.LIMITED) rows.push(['Net margin', HE.inr(b.nm), HE.inr(s.nm), money(dNm, b.nm)]);
-    rows.push(['Volume (packs)', lakhPacks(b.units), lakhPacks(s.units),
-      change(dUnits, (d) => lakhPacks(d), HE.tone(dUnits, true, 1), HE.rel(b.units, s.units))]);
-    if (qtyText(b) || qtyText(s)) rows.push(['Volume per day', qtyText(b) || '–', qtyText(s) || '–', qtyChange(b, s)]);
+    if (lpdText(b) || lpdText(s)) rows.push(['Volume per day', lpdText(b) || '–', lpdText(s) || '–', qtyChange(b, s)]);
     const months = (meta && meta.months) || '';
     const sub = months ? `<span class="kpi-month">${HE.esc(months)}${months.includes(' to ') ? ', monthly average' : ''}</span>` : '';
     $('kpis').innerHTML = `<table class="kpi-table">
@@ -131,14 +124,6 @@
         <td>${o}</td><td class="kpi-scn">${sc}</td><td class="kpi-chg ${ch.tone}">${ch.text}</td></tr>`).join('')}</tbody></table>`;
   }
 
-  // Litres and kg are kept apart (nothing is converted between them) and shown per day: monthly volume / days.
-  function qtyText(m) {
-    const days = (meta && meta.days) || 30, parts = [];
-    const n = (v) => Math.round(v / days).toLocaleString('en-IN');
-    if (m.litres > 0) parts.push(`${n(m.litres)} LPD`);
-    if (m.kg > 0) parts.push(`${n(m.kg)} KGPD`);
-    return parts.join(' + ');
-  }
 
   const SUMMARY_ALL = [
     ['Volume (’000 packs)', 'units', 'k', true],
@@ -240,7 +225,7 @@
   }
 
   const promoPct = (m) => (m.gross ? m.promo / m.gross : 0);
-  const qtyOrDash = (m) => qtyText(m) || '–';
+  const qtyOrDash = (m) => lpdText(m) || '–';
   function rowCellList(n) {
     const dNet = n.sim.net - n.base.net, dCm = n.sim.cm - n.base.cm;
     const dVol = n.sim.units - n.base.units, dPromo = promoPct(n.sim) - promoPct(n.base);

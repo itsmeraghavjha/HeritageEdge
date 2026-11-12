@@ -80,9 +80,9 @@ There is no built-in "realistic uplift" threshold; judge the breakeven against w
 
 ## Litres and kg
 
-Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. The two are never converted into each other and never added together, so a total shows litres and kg as separate columns. Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
+Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. In the data and in the Excel export they are never converted into each other: litres and kg stay in separate columns. On the simulator and P&L screens they are added into one figure, LPD, where one kg counts as one litre (a simplification: density is ignored). Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
 
-**Per day (LPD and KGPD).** The P&L screen and the simulator volume card show litres and kg as a daily rate, the way the business talks about them: the monthly figure divided by the days in the base months (`data.days_per_month()`: 31 for August, the average when several months are chosen, 30 for sample data). The Excel P&L keeps the monthly litres and kg columns and adds "Litres per day (LPD)" and "Kg per day (KGPD)" beside them.
+**Per day (LPD).** The P&L screen and the simulator show volume as one daily rate, LPD: (litres + kg) for the month divided by the days in the base months (`data.days_per_month()`: 31 for August, the average when several months are chosen, 30 for sample data). The Excel P&L keeps the monthly litres and kg columns and adds "Litres per day (LPD)" and "Kg per day (KGPD)" beside them.
 
 ## Who sees what
 
@@ -109,9 +109,9 @@ Under "Where it lands", a chain, product category, SKU or state can carry its ow
 
 ## What the simulator screen shows
 
-The screen has a comparison at the top (**original month** and **scenario** side by side with the change: net revenue, gross margin, MC, net margin, volume in packs and volume per day), the **Where it lands** table and the **Scenario P&L**. The volume check panel and the contribution bridge chart were taken off the screen (the engine still computes the bridge, volume ladder and breakeven, and they are tested, but nothing on the screen shows them).
+The screen has a comparison at the top (**original month** and **scenario** side by side with the change: net revenue, gross margin, MC, net margin, volume per day in LPD; packs are not shown here), the **Where it lands** table and the **Scenario P&L**. The volume check panel and the contribution bridge chart were taken off the screen (the engine still computes the bridge, volume ladder and breakeven, and they are tested, but nothing on the screen shows them).
 
-**Where it lands** shows today next to the scenario so nobody has to remember today's numbers: volume per day (LPD and KGPD, the monthly litres or kg divided by the days in the base months) and promo as a share of the invoice price (promo / gross, the same unit as the *Extra promo discount* lever in pp), then net revenue, contribution and CM %. A row with adjustments shows its own scenario values. Colour follows the usual rule: volume up is green, promo up is red. Contribution is labelled MC here, as in the MIS. The **MC filter** shows all rows, only rows whose scenario MC is zero or more, or only rows below zero; a row whose sliders are open stays in the table even if its MC crosses zero while you drag.
+**Where it lands** shows today next to the scenario so nobody has to remember today's numbers: volume per day (LPD: litres plus kg, divided by the days in the base months) and promo as a share of the invoice price (promo / gross, the same unit as the *Extra promo discount* lever in pp), then net revenue, contribution and CM %. A row with adjustments shows its own scenario values. Colour follows the usual rule: volume up is green, promo up is red. Contribution is labelled MC here, as in the MIS. The **MC filter** shows all rows, only rows whose scenario MC is zero or more, or only rows below zero; a row whose sliders are open stays in the table even if its MC crosses zero while you drag.
 
 ## The contribution bridge
 

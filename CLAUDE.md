@@ -43,7 +43,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - The contribution bridge holds volume at baseline for rate steps; the volume entered is the remainder; it must reconcile to the scenario total (tested).
 - "Other deductions and display fees" is the gap between list invoice and billed price (credit notes, mix, schemes), not only fees.
 - Scenarios are saved in browser `localStorage`, not shared.
-- Billing SQL misses pack formats like `700+700 ML`; `prepare.py` recomputes them. Volume units: ML/L as litres, GM/KG as kg, never converted.
+- Billing SQL misses pack formats like `700+700 ML`; `prepare.py` recomputes them. Volume units: ML/L as litres, GM/KG as kg, never converted in the data or Excel; the simulator and P&L screens add them into one LPD figure (1 kg = 1 litre).
 - Google Fonts load from a CDN; falls back to system fonts offline.
 - Flask dev server only; do not expose it as shared production hosting.
 
