@@ -37,7 +37,16 @@
         <div class="tabs" role="tablist" id="breakTabs" aria-label="Break down by"></div>
       </div>
       <p class="row-note" id="rowNote" hidden><span></span> <button type="button" class="link-btn" id="rowClear">Clear all row changes</button></p>
-      <p class="row-hint">Each row shows today next to the scenario, so you do not need to remember today’s numbers. Volume is litres or kg per day. Promo is the share of the invoice price given away. Click Adjust on a row to change price, promo, trade terms or volume for that row only.</p>
+      <div class="mc-filter-bar">
+        <span class="mc-filter-label" id="mcFilterLabel">Show</span>
+        <div class="tabs" role="group" id="mcFilter" aria-labelledby="mcFilterLabel">
+          <button type="button" data-mc="all" aria-pressed="true">All rows</button>
+          <button type="button" data-mc="pos" aria-pressed="false">MC positive</button>
+          <button type="button" data-mc="neg" aria-pressed="false">MC negative</button>
+        </div>
+        <span class="mc-filter-count" id="mcCount" role="status"></span>
+      </div>
+      <p class="row-hint">Each row shows today next to the scenario, so you do not need to remember today’s numbers. Volume is litres or kg per day. Promo is the share of the invoice price given away. MC is contribution. The MC filter uses the scenario MC. Click Adjust on a row to change price, promo, trade terms or volume for that row only.</p>
       <div class="table-scroll"><table class="data" id="breakdown"></table></div>
     </div>
 

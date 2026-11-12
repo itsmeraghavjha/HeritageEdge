@@ -249,8 +249,23 @@
     $('rowNote').firstElementChild.textContent = `${count} row${count > 1 ? 's' : ''} adjusted on their own. They are included in every number on this page.`;
   }
 
+  // MC filter: all rows, only rows whose scenario MC is zero or more, or only rows below zero.
+  let mcFilter = 'all';
+  const passesMc = (n) => mcFilter === 'all' || (mcFilter === 'pos' ? n.sim.cm >= 0 : n.sim.cm < 0);
+  $('mcFilter').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mc]');
+    if (!btn) return;
+    mcFilter = btn.dataset.mc;
+    $('mcFilter').querySelectorAll('[data-mc]').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+    $('breakdown').dataset.dim = '';          // force a full redraw
+    if (latest) renderBreakdown(latest);
+  });
+
   function renderBreakdown(r) {
-    const nodes = r.breakdown[activeDim];
+    const all = r.breakdown[activeDim];
+    // The row being adjusted always stays in the table, even if its MC crosses zero while you drag.
+    const nodes = all.filter((n) => passesMc(n) || isOpen(n));
+    $('mcCount').textContent = mcFilter === 'all' ? '' : `Showing ${nodes.length} of ${all.length} rows`;
     const canAdjust = HE.ADJUST_DIMS.includes(activeDim);
     updateRowNote();
     const table = $('breakdown');
@@ -282,8 +297,8 @@
       <tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
       <th scope="col">Today</th><th scope="col">Scenario</th><th scope="col">Today</th><th scope="col">Scenario</th>
       <th scope="col">Net revenue</th><th scope="col">Change</th>
-      <th scope="col">Contribution</th><th scope="col">Change</th><th scope="col">CM %</th><th scope="col"></th></tr></thead>
-      <tbody>${rows}</tbody>`;
+      <th scope="col">MC</th><th scope="col">Change</th><th scope="col">MC %</th><th scope="col"></th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="11" class="empty-note">${mcFilter === 'neg' ? 'No rows with negative MC.' : 'No rows with positive MC.'}</td></tr>`}</tbody>`;
   }
 
   $('breakdown').addEventListener('click', (e) => {

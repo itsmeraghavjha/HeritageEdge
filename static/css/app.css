@@ -761,3 +761,8 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .where-it-lands #breakdown .group-head th.grp { border-bottom: 1px solid var(--line-soft); }
 .where-it-lands #breakdown td.qty-col { white-space: nowrap; }
 .scenario-pl { max-width: 720px; }
+.where-it-lands .mc-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 4px 18px 10px; }
+.where-it-lands .mc-filter-label { font-size: 13px; color: var(--muted); }
+.where-it-lands .mc-filter-count { font-size: 13px; color: var(--muted); }
+.where-it-lands #breakdown td.empty-note { text-align: left; color: var(--muted); padding: 18px 12px; }
+.where-it-lands #mcFilter button[aria-pressed="true"] { background: var(--panel); color: var(--ink); font-weight: 500; box-shadow: 0 0 0 1px var(--line); }

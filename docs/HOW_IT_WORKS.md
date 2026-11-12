@@ -111,7 +111,7 @@ Under "Where it lands", a chain, product category, SKU or state can carry its ow
 
 The screen has the KPI cards, the **Where it lands** table and the **Scenario P&L**. The volume check panel and the contribution bridge chart were taken off the screen (the engine still computes the bridge, volume ladder and breakeven, and they are tested, but nothing on the screen shows them).
 
-**Where it lands** shows today next to the scenario so nobody has to remember today's numbers: volume per day (LPD and KGPD, the monthly litres or kg divided by the days in the base months) and promo as a share of the invoice price (promo / gross, the same unit as the *Extra promo discount* lever in pp), then net revenue, contribution and CM %. A row with adjustments shows its own scenario values. Colour follows the usual rule: volume up is green, promo up is red.
+**Where it lands** shows today next to the scenario so nobody has to remember today's numbers: volume per day (LPD and KGPD, the monthly litres or kg divided by the days in the base months) and promo as a share of the invoice price (promo / gross, the same unit as the *Extra promo discount* lever in pp), then net revenue, contribution and CM %. A row with adjustments shows its own scenario values. Colour follows the usual rule: volume up is green, promo up is red. Contribution is labelled MC here, as in the MIS. The **MC filter** shows all rows, only rows whose scenario MC is zero or more, or only rows below zero; a row whose sliders are open stays in the table even if its MC crosses zero while you drag.
 
 ## The contribution bridge
 
