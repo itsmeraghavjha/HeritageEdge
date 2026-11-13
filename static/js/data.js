@@ -135,17 +135,39 @@
     sel.value = others.includes(keep) ? keep : '';
     const single = ticked.size === 1 ? [...ticked][0] : null;
     $('mtdField').hidden = !single;
-    if (!single) $('mtdDays').value = '';
-    else if (!$('mtdDays').value && !$('mtdDays').dataset.touched) {
-      const end = status.billing && status.billing.end;          // the To date of the pull, when one was set
-      if (end && end.slice(0, 7) === single.slice(0, 7)) {
-        const day = Number(end.slice(8, 10));
-        const last = new Date(Number(single.slice(0, 4)), Number(single.slice(5, 7)), 0).getDate();
-        if (day < last) $('mtdDays').value = String(day);
-      }
+    if (!single) { $('mtdDays').value = ''; return; }
+    const days = autoDays(single);
+    const text = $('mtdAuto');
+    if (days) {
+      text.textContent = `The month is still running. Billing so far: 1 to ${days} ${monthLabel(single).split(' ')[0]} (${days} days). Figures are the actual amounts so far.`;
+    } else if (isCurrentMonth(single)) {
+      text.textContent = 'The month is still running. Enter how many days of billing it has.';
+    } else {
+      text.textContent = 'The month is finished, so the figures are for the whole month.';
     }
+    $('mtdPick').open = isCurrentMonth(single) && !days;
+    $('mtdDays').placeholder = days ? String(days) : 'for example 12';
   }
-  $('mtdDays').addEventListener('input', () => { $('mtdDays').dataset.touched = '1'; });
+
+  function isCurrentMonth(m) {
+    const now = new Date();
+    return m === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+
+  // Days of billing so far, worked out from the pull: its To date, or else the last full day before the pull.
+  // Returns null when the month is finished or the pull gives no answer.
+  function autoDays(month) {
+    const b = status && status.billing;
+    if (!b) return null;
+    let ref = null;
+    if (b.end) ref = new Date(b.end + 'T00:00:00');
+    else if (b.pulled_at) { ref = new Date(b.pulled_at); ref.setHours(0, 0, 0, 0); ref.setDate(ref.getDate() - 1); }
+    if (!ref || Number.isNaN(ref.getTime())) return null;
+    const y = Number(month.slice(0, 4)), mo = Number(month.slice(5, 7));
+    if (ref.getFullYear() !== y || ref.getMonth() + 1 !== mo) return null;
+    const last = new Date(y, mo, 0).getDate();
+    return ref.getDate() < last ? ref.getDate() : null;
+  }
 
   const QUALITY = [
     ['billing_revenue_in_offer_scope_pct', 'Billing revenue covered by the offer file', 1, null],
@@ -381,7 +403,8 @@
   });
 
   $('buildBtn').addEventListener('click', async () => {
-    const months = [...ticked].sort(), days = $('mtdDays').value.trim();
+    const months = [...ticked].sort(), single = months.length === 1;
+    const days = single ? ($('mtdDays').value.trim() || String(autoDays(months[0]) || '')) : '';
     const now = new Date(), thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     if (months.length === 1 && months[0] === thisMonth && !days) {
       setNote($('buildNote'), `${monthLabel(months[0])} is not finished. Enter how many days of billing it has (for example 11), or tick only finished months.`, 'is-error');

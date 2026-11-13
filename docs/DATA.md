@@ -65,6 +65,8 @@ Global constants for the volume suggestion are at the top of `engine/simulate.py
 
 ## Month to date and costs from another month
 
+The days of billing are worked out by the page, not typed: the To date of the SQL pull, or the last full day before the pull when no To date was set (see `autoDays` in `data.js`). A month that is finished gets no days. "Change the days" overrides it.
+
 Build options on the Data page: "Take costs from the MIS of" (a month other than the billing month) and "Days of billing in the month" (shown when one month is ticked). Rules are in `prepare.check_period`: one base month only, days between 1 and the days in that month, cost month must exist in the MIS file. When one base month has no MIS rows and no cost month is chosen, `build_dataset` takes the latest earlier MIS month itself and records it in `meta.json` `costs_from`. The offer file needs a column for the billing month (for example `Nov'26 - Month Offer`). See `HOW_IT_WORKS.md`.
 
 ## Refreshing

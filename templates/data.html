@@ -59,10 +59,15 @@
     <p class="sub">Tick the month to build. The simulator and P&amp;L switch to it when it finishes, after a few minutes. With several months ticked, the baseline is their average.</p>
     <div class="months" id="months" role="group" aria-label="Base months"></div>
     <div class="build-options">
-      <div class="field" id="mtdField" hidden>
-        <label for="mtdDays">Days billed so far</label>
-        <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 12" inputmode="numeric">
-        <small>Only for a month that is still running. Leave it empty for a finished month.</small>
+      <div id="mtdField" hidden>
+        <p class="build-costs" id="mtdAuto"></p>
+        <details class="build-costs-pick" id="mtdPick">
+          <summary>Change the days</summary>
+          <div class="field">
+            <label for="mtdDays">Days billed so far</label>
+            <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 12" inputmode="numeric">
+          </div>
+        </details>
       </div>
     </div>
     <p class="build-costs">Costs come from the MIS of the same month. If that MIS is not there yet, the latest earlier month is used, for example October for November.</p>
