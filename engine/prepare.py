@@ -684,6 +684,15 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     say("Reading the MIS workbook. This takes a few minutes", 0.2)
     mis_all = load_mis(mis_path, progress)
     mis_cols = dict(mis_all.attrs)
+    if not cost_month and len(base_months) == 1:
+        # The MIS of the month being assessed is written at month end. Until it exists, use the latest earlier month.
+        have_all = sorted(mis_all["month"].unique())
+        want = base_months[0]
+        if want not in have_all and f"{UNKNOWN_YEAR}-{want[5:7]}-01" not in have_all:
+            earlier = [k for k in have_all if not k.startswith(UNKNOWN_YEAR) and k < want]
+            if earlier:
+                cost_month, cost_months, costs_other = earlier[-1], [earlier[-1]], True
+                say(f"The MIS has no {month_text(want)} yet. Taking costs from {month_text(cost_month)}", 0.25)
     mis, mis_have, year_known = pick_mis_months(mis_all, cost_months)
     say("Attributing MIS costs to chains", 0.8)
     g["SalesOfficeID"] = g["so_num"]

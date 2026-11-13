@@ -62,7 +62,7 @@
       <div class="field">
         <label for="costMonth">Take costs from the MIS of</label>
         <select id="costMonth" class="text"></select>
-        <small>Usual: the same month as the billing. Pick another month when the MIS of the billing month does not exist yet, for example November billing with the October MIS. Costs per pack and as a share of revenue come from that month.</small>
+        <small>Leave this alone and it does the right thing: it uses the MIS of the billing month, and when that MIS does not exist yet (the MIS is written at month end) it takes the latest earlier month, for example the October MIS for November billing. The screens and the Excel say which month the costs came from. Pick a month here only to choose a different one.</small>
       </div>
       <div class="field" id="mtdField" hidden>
         <label for="mtdDays">Days of billing in the month</label>

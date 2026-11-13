@@ -81,7 +81,7 @@ There is no built-in "realistic uplift" threshold; judge the breakeven against w
 ## Month to date, with costs from another month
 
 The Data page can build a P&L for a month that is not finished, for example November so far.
-- Tick the one month, enter the days of billing it has (for example 11), and choose the month whose MIS supplies the costs (for example October).
+- Tick the one month and enter the days of billing it has (for example 11). Costs come from the latest earlier month in the MIS (for example October for November) by themselves, because the MIS of a month is written at its end. A different cost month can be chosen. This also applies to a finished month whose MIS is not there yet. With several months ticked, every month must be in the MIS.
 - Figures on every screen are the actual billing so far, not scaled to a month. Units are packs billed in those days; LPD divides by the days entered.
 - Costs are the cost-month MIS rates (per litre, per kg or as a % of revenue, as in `config/attribution.csv`) applied to the month-to-date billing. They are a proxy: this month's real costs may differ.
 - MIS-against-billing checks cannot run (the months differ) and show as skipped. Billed-price-against-offer checks still run.

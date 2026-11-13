@@ -424,8 +424,6 @@ def _build_period(tmp_path, base, **kw):
 
 
 def test_a_month_with_no_mis_of_its_own_can_take_costs_from_another_month(tmp_path):
-    with pytest.raises(prepare.DataError, match="Oct 2026"):                     # the usual build still refuses
-        _build_period(tmp_path, [synth.OCT])
     rows, meta = _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01")
     assert math.isclose(rows["cogs"].iloc[0], synth.MIS_COGS_PER_PACK, rel_tol=1e-6)    # September's rate, not April's
     assert meta["costs_from"] == "Sep 2026" and meta["mis_months"]["used"] == ["2026-09-01"]
@@ -441,8 +439,21 @@ def test_cost_rates_come_from_the_cost_month_and_apply_to_the_billing_months_vol
 
 
 def test_the_cost_month_must_exist_in_the_mis(tmp_path):
-    with pytest.raises(prepare.DataError, match=r"Oct 2026.*It has: Apr 2026, Jul 2026"):
-        _build_period(tmp_path, [synth.OCT], cost_month=synth.OCT)
+    with pytest.raises(prepare.DataError, match=r"Jun 2026.*It has: Apr 2026, Jul 2026"):
+        _build_period(tmp_path, [synth.OCT], cost_month="2026-06-01")
+
+
+def test_a_month_with_no_mis_yet_takes_costs_from_the_latest_earlier_month_by_itself(tmp_path):
+    auto, meta = _build_period(tmp_path, [synth.OCT])                      # nothing chosen: the MIS has no October
+    (tmp_path / "x").mkdir()
+    chosen, _ = _build_period(tmp_path / "x", [synth.OCT], cost_month="2026-09-01")
+    assert meta["costs_from"] == "Sep 2026" and meta["mis_months"]["used"] == ["2026-09-01"]
+    assert auto["cogs"].tolist() == chosen["cogs"].tolist()               # the same as choosing September
+
+
+def test_a_month_that_has_its_own_mis_does_not_fall_back(tmp_path):
+    _, meta = _build_period(tmp_path, ["2026-09-01"])
+    assert meta["costs_from"] is None and meta["mis_months"]["used"] == ["2026-09-01"]
 
 
 def test_month_to_date_keeps_the_actual_packs_and_records_the_days(tmp_path):
