@@ -115,14 +115,15 @@ def pull_billing(start, end=None):
     return start_job("pull", job)
 
 
-def build(base_months):
+def build(base_months, cost_month=None, mtd_days=None):
     def job(progress):
         offer, mis = upload_path("offer"), upload_path("mis")
         if not offer:
             raise prepare.DataError("Upload the offer file first.")
         if not mis:
             raise prepare.DataError("Upload the MIS workbook first.")
-        prepare.build_dataset(offer, mis, sql_source.billing_path(), base_months, progress)
+        prepare.build_dataset(offer, mis, sql_source.billing_path(), base_months, progress,
+                              cost_month=cost_month, mtd_days=mtd_days)
         data.reload()
         simulate.refresh()
     return start_job("build", job)

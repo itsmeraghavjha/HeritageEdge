@@ -58,6 +58,18 @@
     <div class="step-head"><h2>Build the dataset</h2><span class="state" id="buildState"></span></div>
     <p class="sub">Uses the average of the months you tick as the baseline. Reading the MIS takes a few minutes. The simulator and P&amp;L switch to the new data when it finishes.</p>
     <div class="months" id="months" role="group" aria-label="Base months"></div>
+    <div class="build-options">
+      <div class="field">
+        <label for="costMonth">Take costs from the MIS of</label>
+        <select id="costMonth" class="text"></select>
+        <small>Usual: the same month as the billing. Pick another month when the MIS of the billing month does not exist yet, for example November billing with the October MIS. Costs per pack and as a share of revenue come from that month.</small>
+      </div>
+      <div class="field" id="mtdField" hidden>
+        <label for="mtdDays">Days of billing in the month</label>
+        <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 11" inputmode="numeric">
+        <small>Fill this in when the month is not finished (month to date). The figures are then the actual amounts so far, and volume per day divides by these days. Leave it empty for a finished month.</small>
+      </div>
+    </div>
     <div class="step-actions">
       <button type="button" class="btn btn-primary" id="buildBtn">Build dataset</button>
     </div>

@@ -98,8 +98,8 @@
     $('pnlTable').innerHTML = head + '<tbody>' + totalRow +
       data.tree.map((n) => rowHtml(n, 0)).join('') + '</tbody>';
     $('tableFoot').textContent = mode === 'delta'
-      ? 'Scenario minus baseline. Rupees lakh a month, volume in thousand packs, volume per day (LPD), percentages in points.'
-      : `Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs. LPD is litres per day with kg counted as litres (one kg = one litre): litres plus kg for the month, divided by ${daysText()} days.`;
+      ? `Scenario minus baseline. ${HE.lakhUnit(meta)}, volume in thousand packs, volume per day (LPD), percentages in points.`
+      : `${HE.lakhUnit(meta)} (1 lakh = 1,00,000). Volume in thousand packs. LPD is litres per day with kg counted as litres (one kg = one litre): litres plus kg ${HE.isMtd(meta) ? 'billed so far' : 'for the month'}, divided by ${daysText()} days.`;
   }
 
   function allIds(nodes, out) {
@@ -213,6 +213,7 @@
 
   fetch('/api/meta').then((r) => r.json()).then((m) => {
     meta = m;
+    HE.showPeriod(meta);
     state.scope = HE.pruneSelection(state.scope, meta.dims);
     banner();
     initSelects();

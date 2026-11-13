@@ -12,6 +12,7 @@
 </header>
 
 <div class="scn-page">
+  <p class="view-note period-note" id="periodNote" role="status" hidden></p>
   <div class="banner scn-import" id="importBanner" role="status" hidden>
     <span id="importText"></span>
     <button type="button" class="btn btn-small" id="importBtn">Add them to my scenarios</button>
@@ -45,7 +46,7 @@
     <div class="table-scroll"><table class="data scn-table" id="scnTable"></table></div>
     <p class="scn-empty" id="scnEmpty" hidden></p>
   </div>
-  <p class="table-foot">Results are worked out fresh from today’s data, so they change when the data is rebuilt. Change is against today for the same rows. MC is contribution; money is in rupees lakh a month.</p>
+  <p class="table-foot">Results are worked out fresh from today’s data, so they change when the data is rebuilt. Change is against today for the same rows. MC is contribution; money is in <span id="scnUnit">rupees lakh a month</span>.</p>
 </div>
 
 <dialog id="renameDialog" class="dialog">

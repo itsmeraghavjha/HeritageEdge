@@ -29,6 +29,7 @@
 
   <section class="results" aria-live="polite" aria-label="Scenario results">
     <p class="view-note scn-editing" id="editingNote" role="status" hidden><span></span> <button type="button" class="link-btn" id="stopEditing">Stop editing</button></p>
+    <p class="view-note period-note" id="periodNote" role="status" hidden></p>
     <p class="view-note" id="viewNote" role="status"></p>
     <div class="panel kpi-panel" id="kpis"></div>
 
@@ -52,7 +53,7 @@
     </div>
 
     <div class="panel scenario-pl">
-      <div class="panel-head"><h2>Scenario P&amp;L</h2><p class="sub">Rupees lakh a month</p></div>
+      <div class="panel-head"><h2>Scenario P&amp;L</h2><p class="sub" id="plUnit">Rupees lakh a month</p></div>
       <div class="table-scroll"><table class="data" id="summary"></table></div>
     </div>
   </section>

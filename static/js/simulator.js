@@ -117,9 +117,10 @@
     if (!HE.LIMITED) rows.push(['Net margin', HE.inr(b.nm), HE.inr(s.nm), money(dNm, b.nm)]);
     if (lpdText(b) || lpdText(s)) rows.push(['Volume per day', lpdText(b) || '–', lpdText(s) || '–', qtyChange(b, s)]);
     const months = (meta && meta.months) || '';
-    const sub = months ? `<span class="kpi-month">${HE.esc(months)}${months.includes(' to ') ? ', monthly average' : ''}</span>` : '';
+    const sub = HE.isMtd(meta) ? `<span class="kpi-month">${HE.esc(meta.period.label)}</span>`
+      : months ? `<span class="kpi-month">${HE.esc(months)}${months.includes(' to ') ? ', monthly average' : ''}</span>` : '';
     $('kpis').innerHTML = `<table class="kpi-table">
-      <thead><tr><th scope="col"></th><th scope="col">Original month${sub}</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead>
+      <thead><tr><th scope="col"></th><th scope="col">${HE.isMtd(meta) ? 'Original' : 'Original month'}${sub}</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead>
       <tbody>${rows.map(([label, o, sc, ch, key]) => `<tr${key ? ' class="kpi-key-row"' : ''}><th scope="row">${label}</th>
         <td>${o}</td><td class="kpi-scn">${sc}</td><td class="kpi-chg ${ch.tone}">${ch.text}</td></tr>`).join('')}</tbody></table>`;
   }
@@ -288,7 +289,7 @@
     table.dataset.dim = activeDim;
     table.innerHTML = `<thead>
       <tr class="group-head"><th></th><th colspan="2" class="grp">Volume per day</th><th colspan="2" class="grp">Promo, % of invoice price</th>
-        <th colspan="5" class="grp">Rupees lakh a month</th><th></th></tr>
+        <th colspan="5" class="grp">${HE.lakhUnit(meta)}</th><th></th></tr>
       <tr><th scope="col">${HE.esc(dimName(activeDim))}</th>
       <th scope="col">Today</th><th scope="col">Scenario</th><th scope="col">Today</th><th scope="col">Scenario</th>
       <th scope="col">Net revenue</th><th scope="col">Change</th>
@@ -474,6 +475,8 @@
   /* ---------- start ---------- */
   fetch('/api/meta').then((r) => r.json()).then((m) => {
     meta = m;
+    HE.showPeriod(meta);
+    $('plUnit').textContent = HE.lakhUnit(meta);
     state.scope = HE.pruneSelection(state.scope, meta.dims);
     renderLevers();
     renderScope();

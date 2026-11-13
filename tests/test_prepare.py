@@ -411,3 +411,65 @@ def test_gap_lines_carry_a_price_for_each_month(tmp_path):
     assert lines and all(x["months"] for x in lines)
     m = lines[0]["months"][0]
     assert {"month", "billed_px", "file_px", "gap_pct"} <= set(m) and m["billed_px"] > 0 and m["file_px"] > 0
+
+
+# ---------- costs from another month, and month to date ----------
+def _build_period(tmp_path, base, **kw):
+    synth.make_offer(tmp_path / "offer.xlsx")
+    synth.make_billing(tmp_path / "billing.csv")
+    synth.make_mis(tmp_path / "mis.xlsx")                  # Apr, Jul, Aug, Sep: there is no October MIS
+    meta = prepare.build_dataset(tmp_path / "offer.xlsx", tmp_path / "mis.xlsx", tmp_path / "billing.csv", base,
+                                 out_dir=tmp_path / "out", **kw)
+    return pd.read_csv(tmp_path / "out" / "rows.csv"), meta
+
+
+def test_a_month_with_no_mis_of_its_own_can_take_costs_from_another_month(tmp_path):
+    with pytest.raises(prepare.DataError, match="Oct 2026"):                     # the usual build still refuses
+        _build_period(tmp_path, [synth.OCT])
+    rows, meta = _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01")
+    assert math.isclose(rows["cogs"].iloc[0], synth.MIS_COGS_PER_PACK, rel_tol=1e-6)    # September's rate, not April's
+    assert meta["costs_from"] == "Sep 2026" and meta["mis_months"]["used"] == ["2026-09-01"]
+    assert meta["base_months"] == [synth.OCT]
+
+
+def test_cost_rates_come_from_the_cost_month_and_apply_to_the_billing_months_volume(tmp_path):
+    rows, _ = _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01")
+    assert set(rows["units"].round(1)) == {float(synth.VOLUMES[synth.OCT])}     # October's own packs, not September's
+    (tmp_path / "x").mkdir()
+    sep, _ = _build_period(tmp_path / "x", ["2026-09-01"])
+    assert math.isclose(rows["pa"].iloc[0], sep["pa"].iloc[0], rel_tol=1e-6)    # same % of revenue as September's build
+
+
+def test_the_cost_month_must_exist_in_the_mis(tmp_path):
+    with pytest.raises(prepare.DataError, match=r"Oct 2026.*It has: Apr 2026, Jul 2026"):
+        _build_period(tmp_path, [synth.OCT], cost_month=synth.OCT)
+
+
+def test_month_to_date_keeps_the_actual_packs_and_records_the_days(tmp_path):
+    rows, meta = _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01", mtd_days=11)
+    assert set(rows["units"].round(1)) == {5000.0}                  # actual billed so far, not scaled to a month
+    assert meta["period"] == {"mtd": True, "days": 11, "label": "Oct 2026 month to date, 1 to 11 Oct", "short": "Oct MTD"}
+
+
+def test_month_to_date_is_checked(tmp_path):
+    for bad, match in ((0, "between 1 and 31"), (32, "between 1 and 31"), ("x", "whole number")):
+        with pytest.raises(prepare.DataError, match=match):
+            _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01", mtd_days=bad)
+    with pytest.raises(prepare.DataError, match="one base month"):
+        prepare.check_period(["2026-07-01", "2026-08-01"], None, 11)
+    assert prepare.check_period([synth.OCT], None, 31) == (None, None)               # the whole month is not month to date
+    assert prepare.check_period([synth.OCT], synth.OCT, None) == (None, None)        # costs from the same month: usual build
+
+
+def test_comparisons_with_the_mis_are_skipped_when_costs_come_from_another_month(tmp_path):
+    _, meta = _build_period(tmp_path, [synth.OCT], cost_month="2026-09-01", mtd_days=11)
+    assert meta["reconciliation"] == [] and "skipped" in meta["price_check"]
+    mis_checks = [c for c in meta["integrity"]["checks"] if c["area"] == "MIS match"]
+    assert mis_checks and all(c["status"] == "skipped" and "2026-09" in c["headline"] for c in mis_checks)
+    full = next(c for c in meta["integrity"]["checks"] if c["id"] == "months_complete")
+    assert full["status"] == "pass" and "11 days" in full["headline"]
+
+
+def test_a_usual_build_has_no_period_note(built):
+    _, meta, _ = built
+    assert meta["period"] == {"mtd": False, "days": None, "label": ""} and meta["costs_from"] is None

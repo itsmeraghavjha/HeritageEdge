@@ -377,8 +377,24 @@
   const BELOW_CM = new Set(['pa', 'interest', 'mktg', 'nm', 'nm_pct', 'd_nm']);
   const allowedKey = (key) => !(LIMITED && BELOW_CM.has(key));
 
+  /* Wording that follows what the data covers: a monthly run-rate, or the actual month to date. */
+  const isMtd = (m) => !!(m && m.period && m.period.mtd);
+  const lakhUnit = (m) => (isMtd(m) ? `Rupees lakh, ${m.period.short}` : 'Rupees lakh a month');
+  function periodText(m) {
+    const parts = [];
+    if (isMtd(m)) parts.push(`${m.period.label}. These are the actual figures so far, not a full month.`);
+    if (m && m.costs_from) parts.push(`Costs use the ${m.costs_from} MIS rates.`);
+    return parts.join(' ');
+  }
+  function showPeriod(m) {
+    const el = document.getElementById('periodNote');
+    if (!el) return;
+    el.textContent = periodText(m);
+    el.hidden = !el.textContent;
+  }
+
   window.HE = {
-    LIMITED, allowedKey,
+    LIMITED, allowedKey, isMtd, lakhUnit, periodText, showPeriod,
     DEFAULTS, GROUPS, FLAT, PRESETS, trackLever,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,

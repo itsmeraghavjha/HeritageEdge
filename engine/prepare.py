@@ -510,13 +510,63 @@ def monthly_offers(off, base_months):
 
 # ---------- the build ----------
 
-def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None):
-    """Writes rows.csv and meta.json to out_dir (default: the data folder). Returns the meta dict."""
+def period_info(base_months, mtd_days):
+    """Describes the period the dataset covers. `mtd_days` is the number of days of billing a single, unfinished base
+    month holds (month to date); with it the figures are the actual month-to-date amounts, not a monthly run-rate."""
+    if not mtd_days:
+        return {"mtd": False, "days": None, "label": ""}
+    import calendar
+    d = datetime.strptime(base_months[0][:10], "%Y-%m-%d")
+    mon = d.strftime("%b")
+    return {"mtd": True, "days": int(mtd_days),
+            "label": f"{month_text(base_months[0])} month to date, 1 to {int(mtd_days)} {mon}",
+            "short": f"{mon} MTD"}
+
+
+def check_period(base_months, cost_month, mtd_days):
+    """Validates the month-to-date and cost-month choices. Returns (cost_month or None, mtd_days or None)."""
+    import calendar
+    if mtd_days not in (None, ""):
+        try:
+            mtd_days = int(mtd_days)
+        except (TypeError, ValueError):
+            raise DataError("Days of billing in the month must be a whole number.")
+        if len(base_months) != 1:
+            raise DataError("Month to date works with one base month. Tick only the month that is still being billed.")
+        d = datetime.strptime(base_months[0][:10], "%Y-%m-%d")
+        last = calendar.monthrange(d.year, d.month)[1]
+        if not 1 <= mtd_days <= last:
+            raise DataError(f"{month_text(base_months[0])} has {last} days. Enter between 1 and {last} days of billing.")
+        if mtd_days == last:
+            mtd_days = None             # the whole month: nothing to say about month to date
+    else:
+        mtd_days = None
+    if cost_month:
+        if not re.fullmatch(r"\d{4}-\d{2}-01", str(cost_month)):
+            raise DataError("The cost month is not a month.")
+        if [cost_month] == list(base_months):
+            cost_month = None           # the same month: the usual build
+    else:
+        cost_month = None
+    return cost_month, mtd_days
+
+
+def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None,
+                  cost_month=None, mtd_days=None):
+    """Writes rows.csv and meta.json to out_dir (default: the data folder). Returns the meta dict.
+
+    `cost_month` takes the MIS cost rates (per pack, or as a share of revenue) from that month instead of the billing
+    months, for when the MIS of the billing month does not exist yet. `mtd_days` says the one base month is unfinished
+    and holds that many days of billing, so the figures are actual month to date and LPD divides by those days."""
     say = _say(progress)
     out_dir = Path(out_dir or data.DATA_DIR)
     base_months = sorted(base_months)
     if not base_months:
         raise DataError("Choose at least one base month.")
+    cost_month, mtd_days = check_period(base_months, cost_month, mtd_days)
+    cost_months = [cost_month] if cost_month else base_months
+    costs_other = bool(cost_month)
+    period = period_info(base_months, mtd_days)
     basis = read_basis()
 
     say("Reading the offer file", 0.05)
@@ -634,7 +684,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     say("Reading the MIS workbook. This takes a few minutes", 0.2)
     mis_all = load_mis(mis_path, progress)
     mis_cols = dict(mis_all.attrs)
-    mis, mis_have, year_known = pick_mis_months(mis_all, base_months)
+    mis, mis_have, year_known = pick_mis_months(mis_all, cost_months)
     say("Attributing MIS costs to chains", 0.8)
     g["SalesOfficeID"] = g["so_num"]
     g, cost_source = attribute_costs(g, mis, basis)
@@ -651,9 +701,12 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     out_dir.mkdir(parents=True, exist_ok=True)
     final.to_csv(out_dir / "rows.csv", index=False)
 
-    rec = reconcile(final, mis, basis)
-    check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
-    check["mix"] = mix_check(everyone, mis)
+    if costs_other:     # the MIS is another month's, so its totals and prices cannot be compared with this billing
+        rec, check = [], {"skipped": f"Costs come from {month_text(cost_month)}, not the billing month, so billing and the MIS are not compared."}
+    else:
+        rec = reconcile(final, mis, basis)
+        check = price_check(g.loc[final.index, ["sku", "SalesOfficeID", "grp", "family", "name", "units", "net_px"]], mis)
+        check["mix"] = mix_check(everyone, mis)
     offer_check = offer_price_check(g.loc[final.index])
     stages = {"total": float(total_rev), "unreadable": unreadable_rev,
               "not_in_offer": float(total_rev) - unreadable_rev - in_offer_rev, "outside_groups": outside_rev,
@@ -672,7 +725,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             "base_months": base_months, "monthly": monthly, "today": date.today(), "groups": MIS_GROUPS,
             "names": sku_names, "pack_size": pack_size, "dropped_pairs": dropped_pairs,
             "cost_source": cost_source, "gap": gap_breakdown, "offer_months": offer_months,
-            "lines": gap_lines})
+            "lines": gap_lines, "costs_other": costs_other, "cost_month": cost_month, "mtd_days": mtd_days})
     except Exception:       # a diagnostic must never stop a build
         integrity_report = None
     meta = {
@@ -689,7 +742,9 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                     "offer_lines_dropped_missing_terms": terms_dropped,
                     "rows_dropped_invalid_numbers": rows_invalid,
                     "cogs_source_share": cost_source},
-        "mis_months": {"used": base_months, "available": mis_have, "year_known": year_known,
+        "period": period,
+        "costs_from": month_text(cost_month) if costs_other else None,
+        "mis_months": {"used": cost_months, "available": mis_have, "year_known": year_known,
                        "month_column": mis_cols.get("month_column"), "year_column": mis_cols.get("year_column")},
         "reconciliation": rec,
         "price_check": check,

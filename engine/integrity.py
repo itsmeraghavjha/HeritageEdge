@@ -281,6 +281,8 @@ def _months_complete(c):
     if later:
         ev.append(("Later months in the file (ignored)", ", ".join(m[:7] for m in later)))
     cur = today.strftime("%Y-%m-01")
+    if c.get("mtd_days"):
+        return PASS, f"Month to date: {c['mtd_days']} days of billing, so it is smaller than a full month on purpose.", ev, ""
     partial = cur in base
     if len(vals) < 2:
         return (WARN if partial else PASS), "Only one base month, so months cannot be compared with each other.", ev, ""
@@ -767,5 +769,10 @@ def run(ctx):
         names.setdefault(s, f"{d['Variant'].iloc[0]} {d['PackSize'].iloc[0]}".strip() if "Variant" in d.columns else str(int(s)))
     ctx["names"] = names
     out = [chk(ctx) for chk in CHECKS]
+    if ctx.get("costs_other"):      # the MIS is another month's: comparing it with this billing would only mislead
+        for i, x in enumerate(out):
+            if x["area"] == "MIS match":
+                out[i] = {**x, "status": SKIP, "evidence": [], "fix": "",
+                          "headline": f"Costs come from {ctx['cost_month'][:7]}, not the billing month, so billing and the MIS are not compared."}
     summary = {k: sum(1 for x in out if x["status"] == k) for k in (PASS, WARN, FAIL, SKIP)}
     return {"checks": out, "summary": summary}

@@ -127,8 +127,11 @@ def months_text(months):
 
 def days_per_month():
     """Average number of days in the base months: divides a monthly run-rate into per-day figures (LPD, KGPD).
-    30 when the months are unknown (the sample data)."""
+    30 when the months are unknown (the sample data). For a month to date it is the days of billing the month holds."""
     import calendar
+    period = META.get("period") or {}
+    if period.get("mtd") and period.get("days"):
+        return float(period["days"])
     days = []
     for m in META.get("base_months", []) or []:
         try:

@@ -606,6 +606,8 @@ def meta():
         "combos": combos,
         "days": data.days_per_month(),
         "months": data.months_text(data.META.get("base_months", [])),
+        "period": data.META.get("period") or {"mtd": False},
+        "costs_from": data.META.get("costs_from"),
         "user": {"role": g.user["role"] if g.get("user") else None, "limited": limited},
     })
 
@@ -702,10 +704,17 @@ def data_sql_pull():
 @app.post("/api/data/build")
 @data_admin_only
 def data_build():
-    months = (request.get_json(silent=True) or {}).get("months") or []
-    if not datastore.build(months):
+    body = request.get_json(silent=True) or {}
+    months = body.get("months") or []
+    cost_month, mtd_days = body.get("cost_month") or None, body.get("mtd_days") or None
+    try:
+        prepare.check_period(sorted(months), cost_month, mtd_days)
+    except prepare.DataError as exc:
+        return jsonify(error=str(exc)), 400
+    if not datastore.build(months, cost_month, mtd_days):
         return jsonify(error="Another step is still running."), 409
-    log("data_build", f"{len(months)} base month{'' if len(months) == 1 else 's'}")
+    log("data_build", f"{len(months)} base month{'' if len(months) == 1 else 's'}"
+        + (", month to date" if mtd_days else "") + (", costs from another month" if cost_month else ""))
     return jsonify(started=True)
 
 

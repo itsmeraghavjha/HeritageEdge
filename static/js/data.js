@@ -69,7 +69,7 @@
     // volumes
     setState($('volState'), billing ? 'Ready' : 'Not pulled yet', billing ? 'ok' : '');
     $('volInfo').textContent = billing
-      ? `${billing.rows.toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.`
+      ? `${(billing.rows || 0).toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.`
       : 'Monthly packs and invoice value by customer, sales office and SKU, read straight from the billing tables.';
     if (!$('startDate').value) $('startDate').value = sql.default_start;
     if (!$('endDate').value) $('endDate').value = sql.default_end;
@@ -122,7 +122,30 @@
       ? list.map((m) => `<label class="month"><input type="checkbox" value="${m}"${ticked.has(m) ? ' checked' : ''}>
           <span>${HE.esc(monthLabel(m))}</span></label>`).join('')
       : '<span class="sub">Pull billing volumes first. The months available will appear here.</span>');
+    renderBuildOptions();
   }
+
+  // The cost month and the days of billing only matter for a month that has no MIS yet or is not finished.
+  function renderBuildOptions() {
+    const list = status && status.billing ? status.billing.months : [];
+    const sel = $('costMonth'), keep = sel.value;
+    const others = list.filter((m) => !ticked.has(m));
+    sel.innerHTML = '<option value="">The same month as the billing</option>'
+      + others.map((m) => `<option value="${m}">${HE.esc(monthLabel(m))}</option>`).join('');
+    sel.value = others.includes(keep) ? keep : '';
+    const single = ticked.size === 1 ? [...ticked][0] : null;
+    $('mtdField').hidden = !single;
+    if (!single) $('mtdDays').value = '';
+    else if (!$('mtdDays').value && !$('mtdDays').dataset.touched) {
+      const end = status.billing && status.billing.end;          // the To date of the pull, when one was set
+      if (end && end.slice(0, 7) === single.slice(0, 7)) {
+        const day = Number(end.slice(8, 10));
+        const last = new Date(Number(single.slice(0, 4)), Number(single.slice(5, 7)), 0).getDate();
+        if (day < last) $('mtdDays').value = String(day);
+      }
+    }
+  }
+  $('mtdDays').addEventListener('input', () => { $('mtdDays').dataset.touched = '1'; });
 
   const QUALITY = [
     ['billing_revenue_in_offer_scope_pct', 'Billing revenue covered by the offer file', 1, null],
@@ -353,11 +376,19 @@
     const box = e.target.closest('input[type=checkbox]');
     if (!box) return;
     if (box.checked) ticked.add(box.value); else ticked.delete(box.value);
+    renderBuildOptions();
     render();
   });
 
   $('buildBtn').addEventListener('click', async () => {
-    const r = await api('/api/data/build', { months: [...ticked].sort() });
+    const months = [...ticked].sort(), days = $('mtdDays').value.trim();
+    const now = new Date(), thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    if (months.length === 1 && months[0] === thisMonth && !days) {
+      setNote($('buildNote'), `${monthLabel(months[0])} is not finished. Enter how many days of billing it has (for example 11), or tick only finished months.`, 'is-error');
+      return;
+    }
+    const r = await api('/api/data/build', { months, cost_month: $('costMonth').value || null,
+      mtd_days: months.length === 1 && days ? Number(days) : null });
     if (!r.ok) { setNote($('buildNote'), r.data.error || 'Could not start the build.', 'is-error'); return; }
     prevJobState = 'running';
     poll();

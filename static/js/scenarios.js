@@ -163,6 +163,6 @@
     };
   }
 
-  fetch('/api/meta').then((r) => r.json()).then((m) => { meta = m; offerImport(); return load(); })
+  fetch('/api/meta').then((r) => r.json()).then((m) => { meta = m; HE.showPeriod(m); $('scnUnit').textContent = HE.lakhUnit(m).toLowerCase(); offerImport(); return load(); })
     .catch(() => { $('scnEmpty').hidden = false; $('scnEmpty').textContent = 'Could not load the scenarios. Reload the page.'; });
 })();

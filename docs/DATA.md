@@ -63,6 +63,10 @@ The reconciliation:
 
 Global constants for the volume suggestion are at the top of `engine/simulate.py`. They only feed the hint shown next to the volume input, which users set themselves. Treat the suggestion as indicative until the elasticities are calibrated from past promo and price-change history.
 
+## Month to date and costs from another month
+
+Build options on the Data page: "Take costs from the MIS of" (a month other than the billing month) and "Days of billing in the month" (shown when one month is ticked). Rules are in `prepare.check_period`: one base month only, days between 1 and the days in that month, cost month must exist in the MIS file. The offer file needs a column for the billing month (for example `Nov'26 - Month Offer`). See `HOW_IT_WORKS.md`.
+
 ## Refreshing
 
 When new billing months arrive: *Refresh from SQL*, tick the months you want as the baseline, and rebuild. When the offer file changes: upload it again and rebuild.

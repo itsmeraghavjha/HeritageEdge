@@ -69,6 +69,10 @@ def _filter_text(flt_raw):
 def _basis_text():
     from . import data
     months = data.months_text(data.META.get("base_months", []))
+    period = data.META.get("period") or {}
+    if data.MODE == "actual" and period.get("mtd"):
+        costs = f" Costs use the {data.META['costs_from']} MIS rates." if data.META.get("costs_from") else ""
+        return f"Actual {period['label']}, not a full month.{costs}"
     if data.MODE == "actual":
         return f"Monthly run-rate, {months} actual billing." if months else "Monthly run-rate, actual billing."
     return "Monthly run-rate. Sample data, not actuals."
@@ -83,7 +87,7 @@ PIVOT_STEPS = [
     "4. Drag the amounts you want into Values (for example Scenario Net revenue, Scenario Contribution (MC)). Choose Sum.",
     "5. For a percentage, use PivotTable Analyze > Fields, Items & Sets > Calculated Field.",
     "   Example, name MC %: = 'Scenario Contribution (MC)' / 'Scenario Net revenue'. Format it as a percentage.",
-    "Amounts are Rs lakh a month, volume is thousand packs. Baseline columns have no levers applied.",
+    "Amounts are Rs lakh (a month, or month to date when the data says so), volume is thousand packs. Baseline columns have no levers applied.",
 ]
 
 

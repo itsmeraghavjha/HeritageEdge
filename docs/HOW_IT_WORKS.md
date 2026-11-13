@@ -78,6 +78,15 @@ Volume is the one number the data cannot give us: we hold no competitor prices, 
 
 There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
 
+## Month to date, with costs from another month
+
+The Data page can build a P&L for a month that is not finished, for example November so far.
+- Tick the one month, enter the days of billing it has (for example 11), and choose the month whose MIS supplies the costs (for example October).
+- Figures on every screen are the actual billing so far, not scaled to a month. Units are packs billed in those days; LPD divides by the days entered.
+- Costs are the cost-month MIS rates (per litre, per kg or as a % of revenue, as in `config/attribution.csv`) applied to the month-to-date billing. They are a proxy: this month's real costs may differ.
+- MIS-against-billing checks cannot run (the months differ) and show as skipped. Billed-price-against-offer checks still run.
+- The period is recorded in `meta.json` (`period`, `costs_from`) and shown as a note on the simulator, P&L, Scenarios and Excel export.
+
 ## Litres and kg
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. In the data and in the Excel export they are never converted into each other: litres and kg stay in separate columns. On the simulator and P&L screens they are added into one figure, LPD, where one kg counts as one litre (a simplification: density is ignored). Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.
