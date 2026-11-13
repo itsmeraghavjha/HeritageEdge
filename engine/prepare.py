@@ -695,7 +695,13 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
             if earlier:
                 cost_month, cost_months, costs_other = earlier[-1], [earlier[-1]], True
                 say(f"The MIS has no {month_text(want)} yet. Taking costs from {month_text(cost_month)}", 0.25)
-    mis, mis_have, year_known = pick_mis_months(mis_all, cost_months)
+    try:
+        mis, mis_have, year_known = pick_mis_months(mis_all, cost_months)
+    except DataError as exc:
+        raise DataError(f"{exc} (Ticked: {', '.join(month_text(b) for b in base_months)}. "
+                        f"Cost month chosen: {month_text(cost_month) if cost_month else 'none'}. "
+                        f"Latest earlier MIS month: "
+                        f"{month_text(max([k for k in mis_all['month'].unique() if not k.startswith(UNKNOWN_YEAR) and k < base_months[0]], default=base_months[0])) if len(base_months) == 1 else 'not used'}.)")
     say("Attributing MIS costs to chains", 0.8)
     g["SalesOfficeID"] = g["so_num"]
     g, cost_source = attribute_costs(g, mis, basis)
