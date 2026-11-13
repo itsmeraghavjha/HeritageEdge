@@ -213,7 +213,9 @@ def pick_mis_months(mis, base_months):
     if missing:
         raise DataError("The MIS has no Modern Formats or E-Commerce rows for " + ", ".join(month_text(b) for b in missing)
                         + ". It has: " + (", ".join(month_text(k) for k in have) or "no readable months")
-                        + ". Untick those months, or upload a newer MIS.")
+                        + (". To build " + ", ".join(month_text(b) for b in missing)
+                           + " before its MIS exists, tick that month alone: its costs then come from the latest earlier month."
+                           if len(base_months) > 1 else ". Upload a newer MIS, or pick another month."))
     return mis[mis["month"].isin(wanted)].copy(), have, not any(k.startswith(UNKNOWN_YEAR) for k in have)
 
 
