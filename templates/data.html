@@ -56,20 +56,23 @@
 
   <li class="panel step" id="stepBuild">
     <div class="step-head"><h2>Build the dataset</h2><span class="state" id="buildState"></span></div>
-    <p class="sub">Uses the average of the months you tick as the baseline. Reading the MIS takes a few minutes. The simulator and P&amp;L switch to the new data when it finishes.</p>
+    <p class="sub">Tick the month to build. The simulator and P&amp;L switch to it when it finishes, after a few minutes. With several months ticked, the baseline is their average.</p>
     <div class="months" id="months" role="group" aria-label="Base months"></div>
     <div class="build-options">
+      <div class="field" id="mtdField" hidden>
+        <label for="mtdDays">Days billed so far</label>
+        <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 12" inputmode="numeric">
+        <small>Only for a month that is still running. Leave it empty for a finished month.</small>
+      </div>
+    </div>
+    <p class="build-costs">Costs come from the MIS of the same month. If that MIS is not there yet, the latest earlier month is used, for example October for November.</p>
+    <details class="build-costs-pick">
+      <summary>Use a different month for costs</summary>
       <div class="field">
         <label for="costMonth">Take costs from the MIS of</label>
         <select id="costMonth" class="text"></select>
-        <small>Leave this alone and it does the right thing: it uses the MIS of the billing month, and when that MIS does not exist yet (the MIS is written at month end) it takes the latest earlier month, for example the October MIS for November billing. The screens and the Excel say which month the costs came from. Pick a month here only to choose a different one.</small>
       </div>
-      <div class="field" id="mtdField" hidden>
-        <label for="mtdDays">Days of billing in the month</label>
-        <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 11" inputmode="numeric">
-        <small>Fill this in when the month is not finished (month to date). The figures are then the actual amounts so far, and volume per day divides by these days. Leave it empty for a finished month.</small>
-      </div>
-    </div>
+    </details>
     <div class="step-actions">
       <button type="button" class="btn btn-primary" id="buildBtn">Build dataset</button>
     </div>

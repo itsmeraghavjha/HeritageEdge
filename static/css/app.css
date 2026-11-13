@@ -819,3 +819,8 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .step .build-options small { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
 .period-note { margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: #fff7e0; color: #5c4400; font-size: 13.5px; }
 .period-note[hidden] { display: none; }
+
+.step .build-costs { margin: 10px 0 4px 34px; font-size: 13.5px; color: var(--muted); max-width: 640px; }
+.step .build-costs-pick { margin: 4px 0 4px 34px; font-size: 13.5px; }
+.step .build-costs-pick summary { cursor: pointer; color: var(--green, #1f7a3a); }
+.step .build-costs-pick .field { margin-top: 8px; max-width: 320px; }
