@@ -69,7 +69,7 @@
     // volumes
     setState($('volState'), billing ? 'Ready' : 'Not pulled yet', billing ? 'ok' : '');
     $('volInfo').textContent = billing
-      ? `${(billing.rows || 0).toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.`
+      ? `${(billing.rows || 0).toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.${billing.last_billed ? ' Latest billing day: ' + new Date(billing.last_billed + 'T00:00:00').toLocaleString('en-IN', { day: 'numeric', month: 'short' }) + '.' : ''}`
       : 'Monthly packs and invoice value by customer, sales office and SKU, read straight from the billing tables.';
     if (!$('startDate').value) $('startDate').value = sql.default_start;
     if (!$('endDate').value) $('endDate').value = sql.default_end;
@@ -154,13 +154,14 @@
     return m === `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   }
 
-  // Days of billing so far, worked out from the pull: its To date, or else the last full day before the pull.
+  // Days of billing so far, worked out from the pull: the latest billing day in the data, else its To date, else the day before the pull.
   // Returns null when the month is finished or the pull gives no answer.
   function autoDays(month) {
     const b = status && status.billing;
     if (!b) return null;
     let ref = null;
-    if (b.end) ref = new Date(b.end + 'T00:00:00');
+    if (b.last_billed) ref = new Date(b.last_billed + 'T00:00:00');   // the latest day the database really has
+    else if (b.end) ref = new Date(b.end + 'T00:00:00');
     else if (b.pulled_at) { ref = new Date(b.pulled_at); ref.setHours(0, 0, 0, 0); ref.setDate(ref.getDate() - 1); }
     if (!ref || Number.isNaN(ref.getTime())) return null;
     const y = Number(month.slice(0, 4)), mo = Number(month.slice(5, 7));

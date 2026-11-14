@@ -86,8 +86,15 @@ class FakeCursor:
     def __init__(self, log):
         self.log, self.sent = log, False
 
+    last_day = date(2026, 8, 30)       # what the latest-billing-day query finds; None means it found nothing
+
     def execute(self, sql, *params):
-        self.log.append(params)
+        self.asked_last = "MAX(" in sql
+        if not self.asked_last:
+            self.log.append(params)
+
+    def fetchone(self):
+        return (self.last_day,)
 
     def fetchmany(self, n):
         if self.sent:
@@ -160,3 +167,23 @@ def test_three_markers_are_refused(monkeypatch, tmp_path):
 def test_a_bad_date_names_which_one():
     with pytest.raises(sql_source.SqlError, match="To date is not a date"):
         sql_source.as_date("soon", "To")
+
+
+def test_the_latest_billing_day_is_kept_with_the_pull(monkeypatch, tmp_path):
+    fake_pull(monkeypatch, tmp_path, TWO)
+    out = sql_source.fetch_billing("2026-08-01", end="2026-08-31")     # asked for the 31st, the database has the 30th
+    assert out["last_billed"] == "2026-08-30" and out["end"] == "2026-08-31"
+
+
+def test_a_failure_finding_the_latest_billing_day_does_not_fail_the_pull(monkeypatch, tmp_path):
+    fake_pull(monkeypatch, tmp_path, TWO)
+    monkeypatch.setattr(FakeCursor, "fetchone", lambda self: (_ for _ in ()).throw(RuntimeError("no access")))
+    out = sql_source.fetch_billing("2026-08-01", end="2026-08-31")
+    assert out["last_billed"] is None and out["rows"] == 1
+
+
+def test_the_latest_billing_day_query_holds_no_login_and_takes_the_same_two_dates():
+    text = (sql_source.SQL_DIR / "last_billing_date.sql").read_text(encoding="utf-8")
+    assert sql_source.marker_count(sql_source.strip_comments(text)) == 2
+    for word in ("PWD", "PASSWORD", "UID=", "SERVER="):
+        assert word not in text.upper()

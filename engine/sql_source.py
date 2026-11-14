@@ -74,6 +74,20 @@ def read_query():
     return strip_comments(path.read_text(encoding="utf-8")).strip()
 
 
+def last_billing_date(conn, start, end):
+    """The latest billing day between start and end (end included, None for no limit), or None when it cannot be read.
+    Best effort: a failure here must never fail the pull."""
+    try:
+        sql = strip_comments((SQL_DIR / "last_billing_date.sql").read_text(encoding="utf-8")).strip()
+        cur = conn.cursor()
+        cur.execute(sql, start, (end + timedelta(days=1)) if end else date(2999, 12, 31))
+        row = cur.fetchone()
+        value = row[0] if row else None
+        return as_date(value, "billing") if value else None
+    except Exception:
+        return None
+
+
 def billing_path():
     return data.DATA_DIR / "billing.csv"
 
@@ -192,6 +206,7 @@ def fetch_billing(start, progress=None, fetch_size=20000, end=None):
     tmp = path.with_suffix(".csv.tmp")
     rows = 0
     months = set()
+    last_billed = None
     try:
         conn.timeout = 900
         cur = conn.cursor()
@@ -215,6 +230,8 @@ def fetch_billing(start, progress=None, fetch_size=20000, end=None):
                         months.add(str(r[idx])[:10])
                 rows += len(batch)
                 say(f"Downloaded {rows:,} rows", 0.15 + min(0.8, rows / 2_000_000))
+        if markers == 2:
+            last_billed = last_billing_date(conn, start, end)
     finally:
         conn.close()
     if rows == 0:
@@ -223,4 +240,5 @@ def fetch_billing(start, progress=None, fetch_size=20000, end=None):
     os.replace(tmp, path)
     say("Saved billing volumes", 1.0)
     return {"rows": rows, "months": sorted(months), "start": start.isoformat(), "end": end.isoformat() if end else None,
+            "last_billed": last_billed.isoformat() if last_billed else None,
             "pulled_at": datetime.now().isoformat(timespec="seconds")}
