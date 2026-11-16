@@ -760,7 +760,7 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .where-it-lands #breakdown .group-head th { padding: 8px 12px 2px; border-bottom: 0; font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; }
 .where-it-lands #breakdown .group-head th.grp { border-bottom: 1px solid var(--line-soft); }
 .where-it-lands #breakdown td.qty-col { white-space: nowrap; }
-.scenario-pl { max-width: 720px; }
+.scenario-pl { max-width: none; }
 .where-it-lands .mc-filter-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 4px 18px 10px; }
 .where-it-lands .mc-filter-label { font-size: 13px; color: var(--muted); }
 .where-it-lands .mc-filter-count { font-size: 13px; color: var(--muted); }
