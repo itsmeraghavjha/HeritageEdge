@@ -682,7 +682,7 @@ def _gap_concentration(c):
         ev.append((f"{r.rank}. {r.name} ({r.family})", f"{pct(r.gap_pct)}, {lakh(r.gap_rupees_a_month)} a month, running {pct(r.cumulative_share_of_gap)} of the gap"))
     head = (f"{k50} of {len(t):,} SKUs make up half of the gap and {k80} make up 80%. Below the file's price the SKUs add up to {lakh(neg)} a month "
             f"and above it to {lakh(pos)}, a net {lakh(net)}. {len(clean):,} SKUs ({pct(clean_rev)} of revenue) are within 0.5% of the file. "
-            "Every SKU is listed in sku_gap.csv in the data folder.")
+            "Every SKU is listed in sku_gap.csv in that period's folder under data/periods.")
     return grade(abs(net * n) / tot_rev, 0.005, 0.03), head, ev, "Take the SKUs at the top of the list to whoever owns their prices." if abs(net * n) / tot_rev >= 0.005 else ""
 
 

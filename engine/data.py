@@ -13,6 +13,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -228,10 +229,22 @@ def _move_old_build():
     target = period_dir(key)
     if (target / "rows.csv").exists():
         return                                   # a newer build already holds this period: leave the old files alone
-    target.mkdir(parents=True, exist_ok=True)
-    for name in ("rows.csv", "meta.json", "sku_gap.csv"):
-        if (DATA_DIR / name).exists():
-            os.replace(DATA_DIR / name, target / name)
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        for name in ("meta.json", "sku_gap.csv", "rows.csv"):          # rows.csv last: it marks the move as done
+            if (DATA_DIR / name).exists():
+                try:
+                    shutil.copy2(DATA_DIR / name, target / name)
+                except OSError:
+                    if name == "rows.csv":
+                        raise
+        for name in ("rows.csv", "meta.json", "sku_gap.csv"):
+            try:
+                (DATA_DIR / name).unlink()
+            except OSError:
+                pass                             # for example open in Excel on Windows: the old copy is simply left
+    except OSError:
+        return                                   # never stop the app from starting; the old build is read next start
 
 
 def _make(key, rows_path, meta, mode, elasticity, basis):

@@ -199,3 +199,24 @@ def test_an_offer_file_from_before_several_were_kept_still_works(uploads):
     (folder / "manifest.json").write_text(json.dumps({"offer": {"name": "Old.xlsx", "stored": "offer.xlsx", "size": 1,
                                                                  "uploaded_at": "2026-10-01T00:00:00"}}))
     assert datastore.uploaded("offer")["name"] == "Old.xlsx" and datastore.pick_offer(["2026-10-01"]).name == "offer.xlsx"
+
+
+def test_an_old_file_that_cannot_be_removed_does_not_stop_the_move(world, real_data, monkeypatch):
+    pd.read_csv(data.SAMPLE_DIR / "rows.csv").to_csv(data.DATA_DIR / "rows.csv", index=False)
+    (data.DATA_DIR / "meta.json").write_text(json.dumps({"base_months": ["2026-11-01"], "built_at": "2026-11-13T07:00:00"}))
+    (data.DATA_DIR / "sku_gap.csv").write_text("sku,gap\n")
+    real_unlink = type(data.DATA_DIR).unlink
+
+    def locked(self, *a, **k):                         # Windows: "being used by another process"
+        if self.name == "sku_gap.csv":
+            raise PermissionError(32, "in use")
+        return real_unlink(self, *a, **k)
+
+    monkeypatch.setattr(type(data.DATA_DIR), "unlink", locked)
+    try:
+        data.reload()                                  # must not raise
+        assert [p["key"] for p in data.periods()] == ["2026-11"]
+        assert (data.period_dir("2026-11") / "sku_gap.csv").exists()
+    finally:
+        shutil.rmtree(data.periods_dir())
+        data.reload()
