@@ -23,7 +23,7 @@ pytest                           # tests
 
 Real data never goes into git. It stays on the computer running the app.
 
-1. `pip install pyodbc` and install the Microsoft ODBC Driver for SQL Server.
+1. `pyodbc` comes with `pip install -r requirements.txt`; also install the Microsoft ODBC Driver for SQL Server.
 2. Copy `.env.example` to `.env` and fill in the SQL Server host, port (optional), database, user and password. Use a read-only login. `.env` is never committed.
 3. The billing query is already in the repo (`engine/sql/billing.sql`). It holds table names only, no login.
 4. Open **Data**: test the connection, pull billing from SQL, upload the offer file and MIS workbook, tick the baseline months and build.
