@@ -8,7 +8,7 @@
   let pollTimer = null;
   let sqlMessage = null;                 // result of the last "Test connection"
   const ticked = new Set();              // base months the user has ticked
-  let monthsKey = '';                    // which month list the checkboxes were built from
+  let monthsKey = '';                    // which month list the month cards were built from
 
   /* ---------- small helpers ---------- */
   function fmtSize(bytes) {
@@ -120,9 +120,10 @@
       monthsKey = key;
       ticked.clear();
       const built = (data.mode === 'actual' ? data.base_months || [] : []).filter((m) => list.includes(m));
-      (built.length ? built : suggested).forEach((m) => ticked.add(m));
+      const pick = (built.length ? built : suggested).slice().sort().pop();   // one month: the latest
+      if (pick) ticked.add(pick);
       $('months').innerHTML = list.length
-        ? list.map((m) => `<label class="dp-month" data-m="${m}"><input type="checkbox" value="${m}"${ticked.has(m) ? ' checked' : ''}>
+        ? list.map((m) => `<label class="dp-month" data-m="${m}"><input type="radio" name="buildMonth" value="${m}"${ticked.has(m) ? ' checked' : ''}>
             <span class="dp-mname">${HE.esc(monthLabel(m))}</span><span class="dp-mtag"></span></label>`).join('')
         : '<span class="dp-empty">Pull billing first. The months it holds will appear here.</span>';
       renderBuildOptions();
@@ -433,9 +434,10 @@
   ['startDate', 'endDate'].forEach((id) => $(id).addEventListener('change', render));
 
   $('months').addEventListener('change', (e) => {
-    const box = e.target.closest('input[type=checkbox]');
+    const box = e.target.closest('input[type=radio]');
     if (!box) return;
-    if (box.checked) ticked.add(box.value); else ticked.delete(box.value);
+    ticked.clear();
+    ticked.add(box.value);
     renderBuildOptions();
     render();
   });
