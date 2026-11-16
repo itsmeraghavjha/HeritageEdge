@@ -442,7 +442,7 @@ document.addEventListener('DOMContentLoaded', () => {
   pick.addEventListener('change', async () => {
     try {
       const r = await fetch('/api/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: pick.value }) });
-      if (r.ok) location.reload();
+      if (r.ok) { window.HE.leaving = true; location.reload(); }
     } catch (e) { /* stay on this period */ }
   });
 });

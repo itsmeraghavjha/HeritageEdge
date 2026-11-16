@@ -11,7 +11,7 @@
     <select id="loadSelect" class="select"></select>
     <button type="button" class="btn" id="resetBtn">Reset levers</button>
     <button type="button" class="btn" id="saveBtn">Save scenario</button>
-    <a class="btn btn-primary" href="/pnl">Open in P&amp;L</a>
+    <a class="btn btn-primary" href="/pnl" data-keep-state>Open in P&amp;L</a>
   </div>
 </header>
 
@@ -58,6 +58,16 @@
     </div>
   </section>
 </div>
+
+<dialog id="leaveDialog" class="dialog">
+  <h2>Save this scenario first?</h2>
+  <p class="dialog-text">Your levers are not saved as a scenario. If you leave now, they are gone once this tab is closed.</p>
+  <div class="dialog-actions">
+    <button type="button" class="btn" id="leaveStay">Stay here</button>
+    <button type="button" class="btn" id="leaveGo">Leave without saving</button>
+    <button type="button" class="btn btn-primary" id="leaveSave">Save scenario</button>
+  </div>
+</dialog>
 
 <dialog id="saveDialog" class="dialog">
   <form method="dialog" id="saveForm">

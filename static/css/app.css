@@ -894,3 +894,6 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .dp-chip.dp-static { cursor: default; align-self: flex-start; justify-self: start; width: fit-content; }
 .dp-chip.dp-static::after { display: none; }
 .dp-chip.dp-static[hidden] { display: none; }
+.dialog .dialog-text { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
+#leaveDialog { width: min(540px, 94vw); }
+#leaveDialog .dialog-actions { flex-wrap: wrap; }

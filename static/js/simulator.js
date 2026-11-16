@@ -416,6 +416,7 @@
       applyScenario(lv, scn.scope, adjust);
       currentScn = { id: scn.id, name: scn.name, mine: scn.mine, owner: scn.owner };
       showEditing();
+      markSaved();
     } catch (err) { window.alert(err.message); }
   }
 
@@ -434,7 +435,7 @@
     const v = e.target.value;
     if (v.startsWith('p:')) {
       const p = HE.PRESETS.find((x) => x.id === v.slice(2));
-      if (p) applyScenario(p.levers, null, {});
+      if (p) { applyScenario(p.levers, null, {}); markSaved(); }       // a starting point is not work worth saving
     } else if (v.startsWith('s:')) {
       openSaved(Number(v.slice(2)));
     }
@@ -454,7 +455,8 @@
       if (name) saveScenario(name);
     }
   });
-  $('saveCancel').addEventListener('click', () => dialog.close());
+  $('saveCancel').addEventListener('click', () => { pendingHref = null; dialog.close(); });
+  dialog.addEventListener('cancel', () => { pendingHref = null; });
   $('saveCopy').addEventListener('click', () => { dialog.close(); saveScenario($('saveName').value, true); });
   $('saveForm').addEventListener('submit', () => saveScenario($('saveName').value));
 
@@ -469,8 +471,48 @@
       currentScn = { id: out.id, name, mine: true, owner: '' };
       showEditing();
       renderLoadSelect();
+      markSaved();
+      if (pendingHref) go(pendingHref);                 // they were leaving: carry on now that it is saved
     } catch (err) { window.alert(err.message); }
   }
+
+
+  /* ---------- unsaved changes ---------- */
+  // Levers that are not saved as a scenario: asked about when leaving through a menu link, and the browser asks when the tab is closed.
+  const MARK_KEY = 'heritageedge:savedmark:v1';
+  const fingerprint = () => JSON.stringify([HE.leversPayload(state), state.scope]);
+  const hasWork = () => Object.keys(HE.DEFAULTS).some((k) => Number(state.levers[k]) !== HE.DEFAULTS[k]) || HE.adjustCount(state.adjust) > 0;
+  let savedMark = null;
+  try { savedMark = sessionStorage.getItem(MARK_KEY); } catch (e) { /* no storage: treat as nothing saved */ }
+  function markSaved() {
+    savedMark = fingerprint();
+    try { sessionStorage.setItem(MARK_KEY, savedMark); } catch (e) { /* ignore */ }
+  }
+  const unsaved = () => hasWork() && fingerprint() !== savedMark;
+  let pendingHref = null;
+  const leaveDialog = $('leaveDialog');
+  function go(href) { HE.leaving = true; window.location.href = href; }
+
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]');
+    if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target === '_blank') return;
+    const url = new URL(a.href, window.location.href);
+    if (url.origin !== window.location.origin || (url.pathname === window.location.pathname && url.hash)) return;
+    if (a.hasAttribute('data-keep-state')) { HE.leaving = true; return; }      // Open in P&L carries the levers over
+    if (!unsaved() || !leaveDialog.showModal) return;
+    e.preventDefault();
+    pendingHref = a.href;
+    leaveDialog.showModal();
+  });
+  $('leaveStay').addEventListener('click', () => { pendingHref = null; leaveDialog.close(); });
+  leaveDialog.addEventListener('cancel', () => { pendingHref = null; });
+  $('leaveGo').addEventListener('click', () => { leaveDialog.close(); go(pendingHref); });
+  $('leaveSave').addEventListener('click', () => { leaveDialog.close(); $('saveBtn').click(); });
+  window.addEventListener('beforeunload', (e) => {
+    if (HE.leaving || !unsaved()) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
 
   /* ---------- start ---------- */
   fetch('/api/meta').then((r) => r.json()).then((m) => {
