@@ -44,7 +44,15 @@ def offers():
     """The stored offer files, oldest first: name, stored, size, uploaded_at and the months each has a column for."""
     m = _manifest()
     items = list(m.get("offers") or ([m["offer"]] if m.get("offer") else []))
-    return [i for i in items if (uploads_dir() / i["stored"]).exists()]
+    items = [i for i in items if (uploads_dir() / i["stored"]).exists()]
+    fill = [i for i in items if "months" not in i]                       # uploaded before the months were read
+    if fill:
+        for i in fill:
+            i["months"] = prepare.offer_file_months(uploads_dir() / i["stored"])
+        m["offers"] = items
+        m.pop("offer", None)
+        _write_json(uploads_dir() / "manifest.json", m)
+    return items
 
 
 def uploaded(kind):
@@ -193,6 +201,21 @@ def _billing_info():
     return info
 
 
+def _out_of_date(period, billing):
+    """What changed after this period was built, in plain words (empty when nothing did)."""
+    built = period.get("built_at") or ""
+    reasons = []
+    if billing and (billing.get("pulled_at") or "") > built:
+        reasons.append("billing was pulled again")
+    mis = uploaded("mis")
+    if mis and mis["uploaded_at"] > built:
+        reasons.append("the MIS was replaced")
+    want = set(period.get("months") or [])
+    if any(o["uploaded_at"] > built and want <= set(o.get("months") or []) for o in offers()):
+        reasons.append("an offer file was added")
+    return reasons
+
+
 def status():
     billing = _billing_info()
     months = billing["months"] if billing else []
@@ -201,7 +224,7 @@ def status():
         "data": {**data.status(), **built},
         "uploads": {k: uploaded(k) for k in ALLOWED},
         "offers": offers(),
-        "periods": data.periods(),
+        "periods": [{**p, "changed": _out_of_date(p, billing)} for p in data.periods()],
         "period_key": data.current().key,
         "billing": billing,
         "suggested_months": prepare.default_base_months(months),

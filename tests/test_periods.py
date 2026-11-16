@@ -220,3 +220,31 @@ def test_an_old_file_that_cannot_be_removed_does_not_stop_the_move(world, real_d
     finally:
         shutil.rmtree(data.periods_dir())
         data.reload()
+
+
+def test_a_period_says_what_changed_after_it_was_built(uploads):
+    datastore.save_upload("mis", Upload("m.xlsx", offer_frame("Oct")))
+    mis_time = datastore.uploaded("mis")["uploaded_at"]
+    period = {"built_at": "2000-01-01T00:00:00", "months": ["2026-10-01"]}
+    reasons = datastore._out_of_date(period, {"pulled_at": "2999-01-01T00:00:00"})
+    assert reasons == ["billing was pulled again", "the MIS was replaced"]
+    fresh = {"built_at": "2999-12-31T00:00:00", "months": ["2026-10-01"]}
+    assert datastore._out_of_date(fresh, {"pulled_at": "2026-11-01T00:00:00"}) == [] and mis_time < fresh["built_at"]
+
+
+def test_only_an_offer_file_that_covers_the_period_makes_it_out_of_date(uploads):
+    datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
+    old = {"built_at": "2000-01-01T00:00:00", "months": ["2026-10-01"]}
+    assert datastore._out_of_date(old, None) == ["an offer file was added"]
+    other = {"built_at": "2000-01-01T00:00:00", "months": ["2026-03-01"]}      # the file has no March column
+    assert datastore._out_of_date(other, None) == []
+
+
+def test_months_are_filled_in_for_an_offer_file_uploaded_before_they_were_read(uploads):
+    folder = uploads / "uploads"
+    folder.mkdir()
+    offer_frame("Sep", "Oct").to_excel(folder / "offer.xlsx", index=False)
+    (folder / "manifest.json").write_text(json.dumps({"offer": {"name": "Old.xlsx", "stored": "offer.xlsx", "size": 1,
+                                                                 "uploaded_at": "2026-10-01T00:00:00"}}))
+    assert datastore.offers()[0]["months"] == ["2026-09-01", "2026-10-01"]
+    assert json.loads((folder / "manifest.json").read_text())["offers"][0]["months"] == ["2026-09-01", "2026-10-01"]

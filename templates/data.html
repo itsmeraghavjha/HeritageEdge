@@ -4,7 +4,7 @@
 <header class="page-head">
   <div>
     <h1>Data</h1>
-    <p class="lede">Bring in your own numbers. Volumes come from SQL Server, the offer file and the MIS workbook are uploaded here. Everything stays on this computer and is never added to GitHub.</p>
+    <p class="lede">Bring in billing, the offer file and the MIS, then build a month. Everything stays on this computer.</p>
   </div>
   <div class="head-actions"><span class="pill" id="modePill"></span></div>
 </header>
@@ -14,79 +14,77 @@
   <div class="progress" id="jobBar" hidden><span></span></div>
 </div>
 
-<ol class="steps">
-  <li class="panel step" id="stepVolumes">
-    <div class="step-head">
-      <h2>Volumes from SQL Server</h2>
-      <span class="state" id="volState"></span>
-    </div>
-    <p class="sub" id="volInfo"></p>
-    <div class="step-actions">
-      <div class="field"><label for="startDate">From</label><input id="startDate" type="date" class="text"></div>
-      <div class="field"><label for="endDate">To</label><input id="endDate" type="date" class="text"></div>
-      <div class="action-buttons">
-        <button type="button" class="btn" id="testSql">Test connection</button>
-        <button type="button" class="btn btn-primary" id="pullSql">Refresh from SQL</button>
+<div class="dp">
+  <div class="dp-tiles">
+    <section class="dp-tile" id="stepVolumes">
+      <header><span class="dp-n">1</span><h2>Billing</h2><span class="state" id="volState"></span></header>
+      <p class="dp-big" id="volBig"></p>
+      <p class="dp-detail" id="volInfo"></p>
+      <div class="dp-actions">
+        <button type="button" class="btn btn-primary" id="pullSql">Refresh</button>
+        <button type="button" class="dp-link" id="testSql">Test connection</button>
       </div>
-    </div>
-    <p class="note" id="sqlNote" role="status"></p>
-  </li>
+      <details class="dp-more"><summary>Dates</summary>
+        <div class="dp-dates">
+          <div class="field"><label for="startDate">From</label><input id="startDate" type="date" class="text"></div>
+          <div class="field"><label for="endDate">To</label><input id="endDate" type="date" class="text"></div>
+        </div>
+      </details>
+      <p class="note" id="sqlNote" role="status"></p>
+    </section>
 
-  <li class="panel step" id="stepOffer">
-    <div class="step-head"><h2>Offer file</h2><span class="state" id="offerState"></span></div>
-    <p class="sub">The monthly offer workbook with list prices, trade margin and offers per customer and SKU. Excel or .xlsb. Upload one for each month you want to look at. Earlier files are kept, and the build picks the file that has the month you tick. A newer version of the same file replaces the old one.</p>
-    <div class="step-actions">
-      <input id="offerFile" type="file" accept=".xlsb,.xlsx,.xlsm" class="visually-hidden">
-      <label for="offerFile" class="btn">Choose file</label>
-      <span class="filename" id="offerName"></span>
-    </div>
-    <div class="file-list" id="offerList">
-    </div>
-    <p class="note" id="offerNote" role="status"></p>
-  </li>
-
-  <li class="panel step" id="stepMis">
-    <div class="step-head"><h2>MIS workbook</h2><span class="state" id="misState"></span></div>
-    <p class="sub">The P&amp;L MIS with costs by SKU, sales office and customer group. It can be large, so uploading may take a minute.</p>
-    <div class="step-actions">
-      <input id="misFile" type="file" accept=".xlsx,.xlsm" class="visually-hidden">
-      <label for="misFile" class="btn">Choose file</label>
-      <span class="filename" id="misName"></span>
-    </div>
-    <p class="note" id="misNote" role="status"></p>
-  </li>
-
-  <li class="panel step" id="stepBuild">
-    <div class="step-head"><h2>Build the dataset</h2><span class="state" id="buildState"></span></div>
-    <p class="sub">Tick the month to build. The simulator and P&amp;L switch to it when it finishes, after a few minutes. With several months ticked, the baseline is their average.</p>
-    <div class="months" id="months" role="group" aria-label="Base months"></div>
-    <div class="build-options">
-      <div id="mtdField" hidden>
-        <p class="build-costs" id="mtdAuto"></p>
-        <details class="build-costs-pick" id="mtdPick">
-          <summary>Change the days</summary>
-          <div class="field">
-            <label for="mtdDays">Days billed so far</label>
-            <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" placeholder="for example 12" inputmode="numeric">
-          </div>
-        </details>
+    <section class="dp-tile" id="stepOffer">
+      <header><span class="dp-n">2</span><h2>Offer files</h2><span class="state" id="offerState"></span></header>
+      <div class="dp-files" id="offerList"></div>
+      <div class="dp-actions">
+        <input id="offerFile" type="file" accept=".xlsb,.xlsx,.xlsm" class="visually-hidden">
+        <label for="offerFile" class="btn">Add file</label>
       </div>
-    </div>
-    <p class="build-costs" id="builtList" hidden></p>
-    <p class="build-costs">Costs come from the MIS of the same month. If that MIS is not there yet, the latest earlier month is used, for example October for November.</p>
-    <details class="build-costs-pick">
-      <summary>Use a different month for costs</summary>
-      <div class="field">
-        <label for="costMonth">Take costs from the MIS of</label>
-        <select id="costMonth" class="text"></select>
+      <p class="note" id="offerNote" role="status"></p>
+    </section>
+
+    <section class="dp-tile" id="stepMis">
+      <header><span class="dp-n">3</span><h2>MIS workbook</h2><span class="state" id="misState"></span></header>
+      <div class="dp-files" id="misName"></div>
+      <div class="dp-actions">
+        <input id="misFile" type="file" accept=".xlsx,.xlsm" class="visually-hidden">
+        <label for="misFile" class="btn">Replace</label>
       </div>
-    </details>
-    <div class="step-actions">
-      <button type="button" class="btn btn-primary" id="buildBtn">Build dataset</button>
+      <p class="note" id="misNote" role="status"></p>
+    </section>
+  </div>
+
+  <section class="dp-build" id="stepBuild">
+    <header><span class="dp-n">4</span><h2>Build</h2></header>
+    <div class="dp-months" id="months" role="group" aria-label="Month to build"></div>
+    <div class="dp-opts">
+      <details class="dp-pop" id="mtdField" hidden>
+        <summary class="dp-chip" id="mtdChip"></summary>
+        <div class="dp-panel">
+          <label for="mtdDays">Days billed so far</label>
+          <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" inputmode="numeric">
+        </div>
+      </details>
+      <details class="dp-pop" id="costPick">
+        <summary class="dp-chip" id="costChip"></summary>
+        <div class="dp-panel">
+          <label for="costMonth">Take costs from the MIS of</label>
+          <select id="costMonth" class="text"></select>
+          <small>Automatic uses the MIS of the month you build, or the latest earlier one if it is not there yet.</small>
+        </div>
+      </details>
     </div>
-    <p class="note" id="buildNote" role="status"></p>
-  </li>
-</ol>
+    <div class="dp-go">
+      <button type="button" class="btn btn-primary btn-lg" id="buildBtn">Build</button>
+      <p class="note" id="buildNote" role="status"></p>
+    </div>
+  </section>
+
+  <section class="dp-built" id="builtBox" hidden>
+    <h2>Built periods</h2>
+    <ul class="dp-periods" id="periodList"></ul>
+  </section>
+</div>
 
 {% if show_report %}
 <section class="panel" id="resultPanel" hidden>

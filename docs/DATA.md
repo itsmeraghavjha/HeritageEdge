@@ -63,6 +63,10 @@ The reconciliation:
 
 Global constants for the volume suggestion are at the top of `engine/simulate.py`. They only feed the hint shown next to the volume input, which users set themselves. Treat the suggestion as indicative until the elasticities are calibrated from past promo and price-change history.
 
+## The Data page
+
+Three source tiles (billing, offer files, MIS), a Build card with one chip per month (each shows Not built, Built <date> or Rebuild) and small chips for the days so far and the cost month, then a list of built periods with a Show button. A period is flagged Rebuild when billing was pulled again, the MIS was replaced or a covering offer file was added after it was built (`datastore._out_of_date`).
+
 ## Periods and offer files
 
 `data/periods/<key>/rows.csv` and `meta.json` hold one build each (`data.period_key`: months joined, for example `2026-08_2026-09`). `data.reload()` reads them all; `data.use(key)` picks one for a request. The offer files are listed in `uploads/manifest.json` under `offers`, each with the months its header has columns for (`prepare.offer_file_months`). Old `data/rows.csv` builds are moved into a period folder on start.

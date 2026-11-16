@@ -48,6 +48,15 @@
   }
 
   /* ---------- rendering ---------- */
+  function shortMonth(m) {
+    const d = new Date(m + 'T00:00:00');
+    return d.toLocaleString('en-IN', { month: 'short' }) + "'" + String(d.getFullYear()).slice(2);
+  }
+  function fmtDay(iso) {
+    return new Date(iso + 'T00:00:00').toLocaleString('en-IN', { day: 'numeric', month: 'short' });
+  }
+  const fileLine = (name, meta) => `<div class="dp-file"><b title="${HE.esc(name)}">${HE.esc(name)}</b><span>${meta}</span></div>`;
+
   function render() {
     const { data, uploads, billing, sql, job } = status;
     const running = job.state === 'running';
@@ -66,17 +75,17 @@
     else if (job.state === 'failed') $('jobText').textContent = job.error || 'That step failed.';
     else if (job.state === 'done') $('jobText').textContent = job.name === 'build' ? 'The dataset is built and in use.' : 'Billing volumes are saved.';
 
-    // volumes
-    setState($('volState'), billing ? 'Ready' : 'Not pulled yet', billing ? 'ok' : '');
-    $('volInfo').textContent = billing
-      ? `${(billing.rows || 0).toLocaleString('en-IN')} rows covering ${monthsRange(billing.months)}. Pulled ${fmtTime(billing.pulled_at)}.${billing.last_billed ? ' Latest billing day: ' + new Date(billing.last_billed + 'T00:00:00').toLocaleString('en-IN', { day: 'numeric', month: 'short' }) + '.' : ''}`
-      : 'Monthly packs and invoice value by customer, sales office and SKU, read straight from the billing tables.';
+    // 1 billing
+    setState($('volState'), billing ? 'Ready' : 'Needed', billing ? 'ok' : '');
+    const upTo = billing && (billing.last_billed || billing.end);
+    $('volBig').textContent = billing ? (upTo ? `Up to ${fmtDay(upTo)}` : monthsRange(billing.months)) : 'Not pulled yet';
+    $('volInfo').textContent = billing ? `${(billing.rows || 0).toLocaleString('en-IN')} rows · pulled ${fmtTime(billing.pulled_at)}` : '';
     if (!$('startDate').value) $('startDate').value = sql.default_start;
     if (!$('endDate').value) $('endDate').value = sql.default_end;
     $('endDate').min = $('startDate').value;          // the pickers cannot cross each other
     $('startDate').max = $('endDate').value;
     if (sql.missing.length) {
-      setNote($('sqlNote'), `SQL is not set up. Add ${sql.missing.join(', ')} to the .env file in the project folder, then restart the app.`, 'is-warn');
+      setNote($('sqlNote'), `SQL is not set up. Add ${sql.missing.join(', ')} to the .env file, then restart the app.`, 'is-warn');
     } else if (sqlMessage) {
       setNote($('sqlNote'), sqlMessage.message, sqlMessage.ok ? 'is-ok' : 'is-error');
     } else {
@@ -85,34 +94,21 @@
     $('testSql').disabled = running;
     $('pullSql').disabled = running || sql.missing.length > 0;
 
-    // uploads
-    [['offer', 'offerFile'], ['mis', 'misFile']].forEach(([kind, input]) => {
-      const info = uploads[kind];
-      setState($(kind + 'State'), info ? 'Uploaded' : 'Needed', info ? 'ok' : '');
-      $(kind + 'Name').textContent = info && kind === 'mis' ? `${info.name} (${fmtSize(info.size)}), uploaded ${fmtTime(info.uploaded_at)}` : '';
-      $(input).disabled = running;
-    });
-    const covers = (f) => (f.months && f.months.length ? `has ${f.months.map((m) => monthLabel(m)).join(', ')}` : 'months not read');
-    $('offerList').innerHTML = (status.offers || []).slice().reverse().map((f) =>
-      `<div>${HE.esc(f.name)} (${fmtSize(f.size)}), ${HE.esc(covers(f))}, uploaded ${HE.esc(fmtTime(f.uploaded_at))}</div>`).join('');
-    const built = $('builtList');
-    built.hidden = !(status.periods && status.periods.length);
-    built.textContent = built.hidden ? '' : 'Already built: ' + status.periods.map((p) => `${p.label}, built ${fmtTime(p.built_at)}`).join('; ')
-      + '. Building the same period again replaces it. Use "Showing" at the top of any page to switch between them.';
+    // 2 offer files, 3 MIS
+    const offers = (status.offers || []).slice().reverse();
+    setState($('offerState'), offers.length ? `${offers.length} file${offers.length === 1 ? '' : 's'}` : 'Needed', offers.length ? 'ok' : '');
+    $('offerList').innerHTML = offers.length ? offers.map((f) =>
+      fileLine(f.name, (f.months && f.months.length ? f.months.map(shortMonth).join(' · ') : 'months not read') + ' · ' + fmtDay(f.uploaded_at.slice(0, 10)))).join('')
+      : '<div class="dp-empty">None yet</div>';
+    const mis = uploads.mis;
+    setState($('misState'), mis ? 'Uploaded' : 'Needed', mis ? 'ok' : '');
+    $('misName').innerHTML = mis ? fileLine(mis.name, `${fmtSize(mis.size)} · ${fmtDay(mis.uploaded_at.slice(0, 10))}`) : '<div class="dp-empty">None yet</div>';
+    $('offerFile').disabled = running;
+    $('misFile').disabled = running;
 
     renderMonths();
-
-    // build
-    const missing = [];
-    if (!billing) missing.push('billing volumes from SQL');
-    if (!uploads.offer) missing.push('the offer file');
-    if (!uploads.mis) missing.push('the MIS workbook');
-    if (billing && ticked.size === 0) missing.push('at least one base month');
-    $('buildBtn').disabled = running || missing.length > 0;
-    setState($('buildState'), data.mode === 'actual' ? `Built ${fmtTime(data.built_at)}` : 'Not built yet', data.mode === 'actual' ? 'ok' : '');
-    if (job.state === 'failed' && job.name === 'build') setNote($('buildNote'), job.error, 'is-error');
-    else setNote($('buildNote'), missing.length ? `Still needed: ${missing.join(', ')}.` : '');
-
+    renderPeriods();
+    renderBuildButton(running);
     renderResult(data);
   }
 
@@ -120,40 +116,85 @@
     const { data, billing, suggested_months: suggested } = status;
     const list = billing ? billing.months : [];
     const key = list.join(',');
-    if (key === monthsKey) return;       // keep the user's ticks while the page refreshes
-    monthsKey = key;
-    ticked.clear();
-    const built = (data.mode === 'actual' ? data.base_months || [] : []).filter((m) => list.includes(m));
-    (built.length ? built : suggested).forEach((m) => ticked.add(m));
-    $('months').innerHTML = '<span class="months-label">Base months</span>' + (list.length
-      ? list.map((m) => `<label class="month"><input type="checkbox" value="${m}"${ticked.has(m) ? ' checked' : ''}>
-          <span>${HE.esc(monthLabel(m))}</span></label>`).join('')
-      : '<span class="sub">Pull billing volumes first. The months available will appear here.</span>');
-    renderBuildOptions();
+    if (key !== monthsKey) {              // keep the user's ticks while the page refreshes
+      monthsKey = key;
+      ticked.clear();
+      const built = (data.mode === 'actual' ? data.base_months || [] : []).filter((m) => list.includes(m));
+      (built.length ? built : suggested).forEach((m) => ticked.add(m));
+      $('months').innerHTML = list.length
+        ? list.map((m) => `<label class="dp-month" data-m="${m}"><input type="checkbox" value="${m}"${ticked.has(m) ? ' checked' : ''}>
+            <span class="dp-mname">${HE.esc(monthLabel(m))}</span><span class="dp-mtag"></span></label>`).join('')
+        : '<span class="dp-empty">Pull billing first. The months it holds will appear here.</span>';
+      renderBuildOptions();
+    }
+    // what is already built for each month
+    const byMonth = {};
+    (status.periods || []).forEach((p) => { if (p.months.length === 1) byMonth[p.months[0]] = p; });
+    document.querySelectorAll('.dp-month').forEach((el) => {
+      const p = byMonth[el.dataset.m], tag = el.querySelector('.dp-mtag');
+      el.classList.toggle('is-built', !!p);
+      el.classList.toggle('is-stale', !!(p && p.changed.length));
+      tag.textContent = !p ? 'Not built' : p.changed.length ? 'Rebuild' : `Built ${fmtDay(p.built_at.slice(0, 10))}`;
+      tag.title = p && p.changed.length ? 'Changed since it was built: ' + p.changed.join(', ') : '';
+    });
   }
 
-  // The cost month and the days of billing only matter for a month that has no MIS yet or is not finished.
+  // The days of billing and the cost month only matter for a month that is still running or has no MIS yet.
   function renderBuildOptions() {
     const list = status && status.billing ? status.billing.months : [];
     const sel = $('costMonth'), keep = sel.value;
     const others = list.filter((m) => !ticked.has(m));
-    sel.innerHTML = '<option value="">The same month as the billing</option>'
+    sel.innerHTML = '<option value="">Automatic</option>'
       + others.map((m) => `<option value="${m}">${HE.esc(monthLabel(m))}</option>`).join('');
     sel.value = others.includes(keep) ? keep : '';
+    $('costChip').textContent = sel.value ? `Costs: ${monthLabel(sel.value)} MIS` : 'Costs: automatic';
+    $('costChip').title = 'Uses the MIS of the month you build. If that MIS is not there yet, the latest earlier month.';
+
     const single = ticked.size === 1 ? [...ticked][0] : null;
-    $('mtdField').hidden = !single;
+    const auto = single ? autoDays(single) : null;
+    const running = single && isCurrentMonth(single);
+    $('mtdField').hidden = !(single && (auto || running));
     if (!single) { $('mtdDays').value = ''; return; }
-    const days = autoDays(single);
-    const text = $('mtdAuto');
-    if (days) {
-      text.textContent = `The month is still running. Billing so far: 1 to ${days} ${monthLabel(single).split(' ')[0]} (${days} days). Figures are the actual amounts so far.`;
-    } else if (isCurrentMonth(single)) {
-      text.textContent = 'The month is still running. Enter how many days of billing it has.';
-    } else {
-      text.textContent = 'The month is finished, so the figures are for the whole month.';
-    }
-    $('mtdPick').open = isCurrentMonth(single) && !days;
-    $('mtdDays').placeholder = days ? String(days) : 'for example 12';
+    const days = $('mtdDays').value.trim() || (auto ? String(auto) : '');
+    $('mtdChip').textContent = days ? `${days} days so far` : 'Enter days so far';
+    $('mtdChip').title = auto ? `Billing runs to day ${auto} of the month. Figures are the actual amounts so far.` : 'How many days of billing the month has.';
+    $('mtdDays').placeholder = auto ? String(auto) : 'for example 12';
+    if (running && !auto) $('mtdField').open = true;
+  }
+
+  function buildLabel() {
+    const months = [...ticked].sort();
+    if (!months.length) return 'Build';
+    if (months.length > 1) return `Build ${months.length} months (average)`;
+    const partial = months[0] && ($('mtdDays').value.trim() || autoDays(months[0]));
+    return `Build ${monthLabel(months[0])}${partial ? ' so far' : ''}`;
+  }
+
+  function renderBuildButton(running) {
+    const { uploads, billing } = status;
+    const missing = [];
+    if (!billing) missing.push('billing');
+    if (!(status.offers || []).length) missing.push('an offer file');
+    if (!uploads.mis) missing.push('the MIS');
+    if (billing && ticked.size === 0) missing.push('a month');
+    $('buildBtn').textContent = buildLabel();
+    $('buildBtn').disabled = running || missing.length > 0;
+    if (status.job.state === 'failed' && status.job.name === 'build') setNote($('buildNote'), status.job.error, 'is-error');
+    else setNote($('buildNote'), missing.length ? `Needs ${missing.join(', ')}.` : '');
+  }
+
+  function renderPeriods() {
+    const list = status.periods || [];
+    $('builtBox').hidden = !list.length;
+    $('periodList').innerHTML = list.map((p) => {
+      const showing = p.key === status.period_key;
+      const tags = (showing ? '<span class="dp-tag is-on">Showing</span>' : '')
+        + (p.changed.length ? `<span class="dp-tag is-warn" title="Changed since it was built">Rebuild: ${HE.esc(p.changed.join(', '))}</span>` : '');
+      return `<li class="dp-period${showing ? ' is-current' : ''}"><div class="dp-pname"><b>${HE.esc(p.label)}</b>
+        <span>Built ${HE.esc(fmtTime(p.built_at))}${p.costs_from ? ' · costs from ' + HE.esc(p.costs_from) + ' MIS' : ''}</span></div>
+        <div class="dp-tags">${tags}</div>
+        ${showing ? '' : `<button type="button" class="btn" data-show="${HE.esc(p.key)}">Show</button>`}</li>`;
+    }).join('');
   }
 
   function isCurrentMonth(m) {
@@ -406,8 +447,18 @@
     const box = e.target.closest('input[type=checkbox]');
     if (!box) return;
     if (box.checked) ticked.add(box.value); else ticked.delete(box.value);
+    $('mtdDays').value = '';
     renderBuildOptions();
     render();
+  });
+  $('mtdDays').addEventListener('input', () => { renderBuildOptions(); renderBuildButton(status.job.state === 'running'); });
+  $('costMonth').addEventListener('change', renderBuildOptions);
+
+  $('periodList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-show]');
+    if (!btn) return;
+    const r = await api('/api/period', { key: btn.dataset.show });
+    if (r.ok) location.reload();
   });
 
   $('buildBtn').addEventListener('click', async () => {
