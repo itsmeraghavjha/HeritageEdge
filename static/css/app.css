@@ -902,3 +902,8 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .dp-month::before { content: ""; position: absolute; left: 14px; top: 15px; width: 14px; height: 14px; border: 1.5px solid #9db39a; border-radius: 50%; background: var(--panel); }
 .dp-month:has(input:checked)::before { border-color: var(--green); background: radial-gradient(circle, var(--green) 0 4px, var(--panel) 5px); }
 .dp-mkind { font-size: 13px; color: var(--ink); }
+
+.dp-offerpick { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 14px; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border, #d8dde3); font-size: 14px; }
+.dp-offerpick[hidden] { display: none; }
+.dp-offerpick.is-warn { background: #fff7e6; border-color: #f0c36d; }
+.dp-offerpick.is-error { background: #fdecea; border-color: #e5a29b; }

@@ -111,7 +111,7 @@ def periods():
             continue
         meta = ds.META
         out.append({"key": key, "label": period_label(meta, short=True), "built_at": meta.get("built_at"),
-                    "mtd": bool((meta.get("period") or {}).get("mtd")), "costs_from": meta.get("costs_from"),
+                    "mtd": bool((meta.get("period") or {}).get("mtd")), "costs_from": meta.get("costs_from"), "offer_file": meta.get("offer_file"),
                     "months": meta.get("base_months", []), "default": key == _DEFAULT})
     return sorted(out, key=lambda p: (max(p["months"] or [""]), p["built_at"] or ""), reverse=True)
 

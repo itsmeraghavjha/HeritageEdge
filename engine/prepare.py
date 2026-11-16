@@ -571,7 +571,7 @@ def check_period(base_months, cost_month, mtd_days):
 
 
 def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None, out_dir=None,
-                  cost_month=None, mtd_days=None):
+                  cost_month=None, mtd_days=None, offer_name=None, offer_fit=None):
     """Writes rows.csv and meta.json to out_dir (default: the data folder). Returns the meta dict.
 
     `cost_month` takes the MIS cost rates (per pack, or as a share of revenue) from that month instead of the billing
@@ -765,6 +765,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
     meta = {
         "built_at": datetime.now().isoformat(timespec="seconds"),
         "base_months": base_months,
+        "offer_file": offer_name, "offer_fit": offer_fit,
         "rows": int(len(final)),
         "net_revenue_cr": round(float((final["units"] * final["net_px"]).sum() / 1e7), 2),
         "quality": {"billing_revenue_with_unreadable_pack_size_pct": round(unreadable_pct * 100, 2),

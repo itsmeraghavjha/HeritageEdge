@@ -69,7 +69,7 @@ Three source tiles (billing, offer files, MIS), a Build card with one card per m
 
 ## Periods and offer files
 
-`data/periods/<key>/rows.csv` and `meta.json` hold one build each (`data.period_key`: months joined, for example `2026-08_2026-09`). `data.reload()` reads them all; `data.use(key)` picks one for a request. The offer files are listed in `uploads/manifest.json` under `offers`, each with the months its header has columns for (`prepare.offer_file_months`). Old `data/rows.csv` builds are moved into a period folder on start.
+`data/periods/<key>/rows.csv` and `meta.json` hold one build each (`data.period_key`: months joined, for example `2026-08_2026-09`). `data.reload()` reads them all; `data.use(key)` picks one for a request. Which one a build uses is `datastore.offer_choice` (the month's own file first, then the nearest later one, then the newest); the name is saved in `meta.json` `offer_file`. The offer files are listed in `uploads/manifest.json` under `offers`, each with the months its header has columns for (`prepare.offer_file_months`). Old `data/rows.csv` builds are moved into a period folder on start.
 
 ## Month to date and costs from another month
 

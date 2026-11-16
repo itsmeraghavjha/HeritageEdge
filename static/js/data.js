@@ -152,6 +152,24 @@
 
   function renderBuildOptions() { /* the card of each month says whether it covers the whole month or the days so far */ }
 
+  // Which offer file the chosen month will use, and a way to add the month's own file when it would use a later month's.
+  function renderOfferPick() {
+    const el = $('offerPick'), months = [...ticked];
+    const o = months.length === 1 && status.offer_for ? status.offer_for[months[0]] : null;
+    if (!o) { el.hidden = true; el.innerHTML = ''; return; }
+    const mon = monthLabel(months[0]);
+    const add = `<label for="offerFile" class="btn">Add ${HE.esc(mon)} offer file</label>`;
+    let cls = 'is-ok', text;
+    if (o.fit === 'exact') text = `Offer file: <b>${HE.esc(o.name)}</b>`;
+    else if (o.fit === 'later') {
+      cls = 'is-warn';
+      text = `Offer file: <b>${HE.esc(o.name)}</b>. It is the ${HE.esc(monthLabel(o.latest))} file, so prices and margins are ${HE.esc(monthLabel(o.latest))}'s. ${HE.esc(mon)} offers are read from its ${HE.esc(mon)} column.`;
+    } else { cls = 'is-error'; text = o.name ? `No offer file has a ${HE.esc(mon)} column. The newest file, <b>${HE.esc(o.name)}</b>, would be used.` : 'No offer file yet.'; }
+    el.hidden = false;
+    el.className = 'dp-offerpick ' + cls;
+    el.innerHTML = `<span>${text}</span>${o.fit === 'exact' ? '' : add}`;
+  }
+
   function buildLabel() {
     const months = [...ticked].sort();
     if (!months.length) return 'Build';
@@ -167,6 +185,7 @@
     if (!(status.offers || []).length) missing.push('an offer file');
     if (!uploads.mis) missing.push('the MIS');
     if (billing && ticked.size === 0) missing.push('a month');
+    renderOfferPick();
     $('buildBtn').textContent = buildLabel();
     $('buildBtn').disabled = running || missing.length > 0;
     if (status.job.state === 'failed' && status.job.name === 'build') setNote($('buildNote'), status.job.error, 'is-error');
@@ -181,7 +200,7 @@
       const tags = (showing ? '<span class="dp-tag is-on">Showing</span>' : '')
         + (p.changed.length ? `<span class="dp-tag is-warn" title="Changed since it was built">Rebuild: ${HE.esc(p.changed.join(', '))}</span>` : '');
       return `<li class="dp-period${showing ? ' is-current' : ''}"><div class="dp-pname"><b>${HE.esc(p.label)}</b>
-        <span>Built ${HE.esc(fmtTime(p.built_at))}${p.costs_from ? ' · costs from ' + HE.esc(p.costs_from) + ' MIS' : ''}</span></div>
+        <span>Built ${HE.esc(fmtTime(p.built_at))}${p.offer_file ? ' · offer ' + HE.esc(p.offer_file) : ''}${p.costs_from ? ' · costs from ' + HE.esc(p.costs_from) + ' MIS' : ''}</span></div>
         <div class="dp-tags">${tags}</div>
         ${showing ? '' : `<button type="button" class="btn" data-show="${HE.esc(p.key)}">Show</button>`}</li>`;
     }).join('');

@@ -175,15 +175,31 @@ def test_a_newer_version_of_the_same_file_replaces_the_old_one(uploads):
     assert len([p for p in (uploads / "uploads").iterdir() if p.name.startswith("offer_")]) == 1
 
 
-def test_a_build_picks_the_offer_file_that_has_its_month(uploads):
+def test_a_build_picks_the_offer_file_whose_own_month_it_is(uploads):
     datastore.save_upload("offer", Upload("Sep file.xlsx", offer_frame("Aug", "Sep")))
     datastore.save_upload("offer", Upload("Oct file.xlsx", offer_frame("Sep", "Oct")))
     datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
-    name = lambda months: next(o["name"] for o in datastore.offers() if o["stored"] == datastore.pick_offer(months).name)
-    assert name(["2026-11-01"]) == "Nov file.xlsx"
-    assert name(["2026-09-01"]) == "Oct file.xlsx"              # Oct and Nov files hold Oct; the newest that has Sep
-    assert name(["2026-08-01"]) == "Sep file.xlsx"
-    assert name(["2026-01-01"]) == "Nov file.xlsx"              # nobody has it: the newest, and the build says what is missing
+    pick = lambda m: [(o["name"], fit) for o, fit in [datastore.offer_choice([m])]][0]
+    assert pick("2026-11-01") == ("Nov file.xlsx", "exact")
+    assert pick("2026-10-01") == ("Oct file.xlsx", "exact")    # the Nov file also has an Oct column, but Oct's own file wins
+    assert pick("2026-09-01") == ("Sep file.xlsx", "exact")
+    assert pick("2026-08-01") == ("Sep file.xlsx", "later")    # only one has August: its prices are September's
+    assert pick("2026-01-01") == ("Nov file.xlsx", "none")     # nobody has it: the newest, and the build says what is missing
+
+
+def test_without_a_file_of_its_own_a_month_uses_the_nearest_later_file(uploads):
+    datastore.save_upload("offer", Upload("Dec file.xlsx", offer_frame("Oct", "Nov", "Dec")))
+    datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
+    name, fit = [(o["name"], f) for o, f in [datastore.offer_choice(["2026-10-01"])]][0]
+    assert (name, fit) == ("Nov file.xlsx", "later")           # November's prices are closer to October than December's
+
+
+def test_the_page_is_told_which_offer_file_each_month_will_use(uploads, monkeypatch):
+    datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
+    monkeypatch.setattr(datastore, "_billing_info", lambda: {"months": ["2026-10-01", "2026-11-01"]})
+    got = datastore.status()["offer_for"]
+    assert got["2026-11-01"] == {"name": "Nov file.xlsx", "fit": "exact", "latest": "2026-11-01"}
+    assert got["2026-10-01"] == {"name": "Nov file.xlsx", "fit": "later", "latest": "2026-11-01"}
 
 
 def test_the_mis_workbook_is_still_a_single_file(uploads):

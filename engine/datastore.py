@@ -71,14 +71,34 @@ def upload_path(kind):
     return uploads_dir() / info["stored"] if info else None
 
 
-def pick_offer(base_months):
-    """The offer file for a build: the newest one that has a column for every month being built, else the newest."""
+def offer_choice(base_months):
+    """Which offer file a build of these months uses, and how good a fit it is.
+
+    A file's price columns (MRP, trade margin, GST) hold its latest month, so the best file for a month is the one whose
+    latest month is that month. Next best is the nearest later file, which still has the month's own offer column.
+    Returns (stored item or None, fit) with fit 'exact', 'later' (prices are from a later month) or 'none' (no file has
+    a column for the month, so the newest file is used and the data checks say so)."""
     items = offers()
     if not items:
-        return None
-    want = set(base_months)
-    fits = [i for i in items if want <= set(i.get("months") or [])]
-    return uploads_dir() / (fits or items)[-1]["stored"]
+        return None, "none"
+    want = sorted(base_months)
+    if len(want) == 1:
+        m = want[0]
+        exact = [i for i in items if i.get("months") and max(i["months"]) == m]
+        if exact:
+            return exact[-1], "exact"
+        later = [i for i in items if m in (i.get("months") or [])]
+        if later:
+            nearest = min(max(i["months"]) for i in later)
+            return [i for i in later if max(i["months"]) == nearest][-1], "later"
+        return items[-1], "none"
+    fits = [i for i in items if set(want) <= set(i.get("months") or [])]
+    return (fits or items)[-1], ("later" if fits else "none")
+
+
+def pick_offer(base_months):
+    item, _ = offer_choice(base_months)
+    return uploads_dir() / item["stored"] if item else None
 
 
 def save_upload(kind, storage):
@@ -176,14 +196,15 @@ def pull_billing(start, end=None):
 def build(base_months, cost_month=None, mtd_days=None):
     def job(progress):
         mis = upload_path("mis")
-        offer = pick_offer(base_months)
-        if not offer:
+        item, fit = offer_choice(base_months)
+        if not item:
             raise prepare.DataError("Upload the offer file first.")
+        offer = uploads_dir() / item["stored"]
         if not mis:
             raise prepare.DataError("Upload the MIS workbook first.")
         prepare.build_dataset(offer, mis, sql_source.billing_path(), base_months, progress,
                               out_dir=data.period_dir(data.period_key(base_months)),
-                              cost_month=cost_month, mtd_days=mtd_days)
+                              cost_month=cost_month, mtd_days=mtd_days, offer_name=item["name"], offer_fit=fit)
         data.reload()
         simulate.refresh()
     return start_job("build", job)
@@ -216,6 +237,14 @@ def _out_of_date(period, billing):
     return reasons
 
 
+def _offer_for(month):
+    """The offer file a build of this month would use: its name, the latest month its prices are from, and the fit."""
+    item, fit = offer_choice([month])
+    if not item:
+        return {"name": None, "fit": "none", "latest": None}
+    return {"name": item["name"], "fit": fit, "latest": max(item["months"]) if item.get("months") else None}
+
+
 def status():
     billing = _billing_info()
     months = billing["months"] if billing else []
@@ -224,6 +253,7 @@ def status():
         "data": {**data.status(), **built},
         "uploads": {k: uploaded(k) for k in ALLOWED},
         "offers": offers(),
+        "offer_for": {m: _offer_for(m) for m in months},
         "periods": [{**p, "changed": _out_of_date(p, billing)} for p in data.periods()],
         "period_key": data.current().key,
         "billing": billing,
