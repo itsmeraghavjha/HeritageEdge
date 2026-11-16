@@ -196,7 +196,7 @@ def test_without_a_file_of_its_own_a_month_uses_the_nearest_later_file(uploads):
 
 def test_the_page_is_told_which_offer_file_each_month_will_use(uploads, monkeypatch):
     datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
-    monkeypatch.setattr(datastore, "_billing_info", lambda: {"months": ["2026-10-01", "2026-11-01"]})
+    monkeypatch.setattr(datastore, "_billing_info", lambda space="month": {"months": ["2026-10-01", "2026-11-01"]})
     got = datastore.status()["offer_for"]
     assert got["2026-11-01"] == {"name": "Nov file.xlsx", "fit": "exact", "latest": "2026-11-01"}
     assert got["2026-10-01"] == {"name": "Nov file.xlsx", "fit": "later", "latest": "2026-11-01"}
@@ -264,3 +264,27 @@ def test_months_are_filled_in_for_an_offer_file_uploaded_before_they_were_read(u
                                                                  "uploaded_at": "2026-10-01T00:00:00"}}))
     assert datastore.offers()[0]["months"] == ["2026-09-01", "2026-10-01"]
     assert json.loads((folder / "manifest.json").read_text())["offers"][0]["months"] == ["2026-09-01", "2026-10-01"]
+
+
+def test_the_projection_tab_keeps_its_own_uploads_and_billing(uploads, monkeypatch):
+    datastore.save_upload("offer", Upload("Month offer.xlsx", offer_frame("Sep", "Oct")))
+    datastore.save_upload("mis", Upload("Month mis.xlsx", pd.DataFrame({"a": [1]})))
+    assert datastore.status("projection")["offers"] == [] and datastore.status("projection")["uploads"]["mis"] is None
+    datastore.save_upload("offer", Upload("Nov offer.xlsx", offer_frame("Oct", "Nov")), "projection")
+    assert [o["name"] for o in datastore.offers()] == ["Month offer.xlsx"]
+    assert [o["name"] for o in datastore.offers("projection")] == ["Nov offer.xlsx"]
+    assert (uploads / "projection" / "uploads").is_dir()
+    assert datastore.uploaded("mis", "projection") is None and datastore.uploaded("mis")["name"] == "Month mis.xlsx"
+    assert str(sql_source_path("projection")).endswith("projection/billing.csv") or "projection" in str(sql_source_path("projection"))
+    assert sql_source_path("month") == uploads / "billing.csv"
+
+
+def sql_source_path(space):
+    from engine import sql_source
+    return sql_source.billing_path(space)
+
+
+def test_each_tab_lists_only_its_own_builds(two_periods):
+    month = [p["key"] for p in datastore.status("month")["periods"]]
+    proj = [p["key"] for p in datastore.status("projection")["periods"]]
+    assert month == ["2026-10"] and proj == ["2026-11"]          # November was built month to date

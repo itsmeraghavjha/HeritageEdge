@@ -14,6 +14,11 @@
   <div class="progress" id="jobBar" hidden><span></span></div>
 </div>
 
+<div class="dp-tabs" role="tablist" aria-label="What to build">
+  <button type="button" role="tab" class="dp-tab" id="tabMonth" data-space="month">Month<span>A finished month</span></button>
+  <button type="button" role="tab" class="dp-tab" id="tabProjection" data-space="projection">Projection<span>This month so far</span></button>
+</div>
+
 <div class="dp">
   <div class="dp-tiles">
     <section class="dp-tile" id="stepVolumes">
@@ -56,7 +61,7 @@
 
   <section class="dp-build" id="stepBuild">
     <header><span class="dp-n">4</span><h2>Build</h2></header>
-    <p class="dp-ask">Which month do you want to build?</p>
+    <p class="dp-ask" id="askMonth">Which month do you want to build?</p>
     <div class="dp-months" id="months" role="radiogroup" aria-label="Month to build"></div>
     <div class="dp-offerpick" id="offerPick" role="status"></div>
     <div class="dp-go">

@@ -170,7 +170,7 @@ def test_the_build_report_is_hidden_unless_switched_on(world, monkeypatch):
 def test_the_pull_route_takes_both_dates_and_refuses_bad_ones(world, monkeypatch):
     from engine import datastore
     calls = []
-    monkeypatch.setattr(datastore, "pull_billing", lambda start, end=None: calls.append((start, end)) or True)
+    monkeypatch.setattr(datastore, "pull_billing", lambda start, end=None, space="month": calls.append((start, end)) or True)
     c = client("boss@example.com", "Boss-pass-12345")
     ok = c.post("/api/data/sql/pull", json={"start": "2026-08-01", "end": "2026-08-31"})
     assert ok.status_code == 200 and calls == [("2026-08-01", "2026-08-31")]

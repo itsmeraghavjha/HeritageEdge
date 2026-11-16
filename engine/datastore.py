@@ -14,8 +14,17 @@ ALLOWED = {"offer": (".xlsb", ".xlsx", ".xlsm"), "mis": (".xlsx", ".xlsm")}
 KIND_NAMES = {"offer": "offer file", "mis": "MIS workbook"}
 
 
-def uploads_dir():
-    return data.DATA_DIR / "uploads"
+SPACES = ("month", "projection")
+
+
+def root(space="month"):
+    """Each tab of the Data page has its own folder of uploads and billing: the month tab uses data/, the projection tab
+    data/projection/. Builds of both go to data/periods/ and carry the flag that says which tab made them."""
+    return data.DATA_DIR / "projection" if space == "projection" else data.DATA_DIR
+
+
+def uploads_dir(space="month"):
+    return root(space) / "uploads"
 
 
 def _read_json(path):
@@ -36,49 +45,49 @@ def _write_json(path, obj):
 MAX_OFFER_FILES = 8
 
 
-def _manifest():
-    return _read_json(uploads_dir() / "manifest.json")
+def _manifest(space="month"):
+    return _read_json(uploads_dir(space) / "manifest.json")
 
 
-def offers():
+def offers(space="month"):
     """The stored offer files, oldest first: name, stored, size, uploaded_at and the months each has a column for."""
-    m = _manifest()
+    m = _manifest(space)
     items = list(m.get("offers") or ([m["offer"]] if m.get("offer") else []))
-    items = [i for i in items if (uploads_dir() / i["stored"]).exists()]
+    items = [i for i in items if (uploads_dir(space) / i["stored"]).exists()]
     fill = [i for i in items if "months" not in i]                       # uploaded before the months were read
     if fill:
         for i in fill:
-            i["months"] = prepare.offer_file_months(uploads_dir() / i["stored"])
+            i["months"] = prepare.offer_file_months(uploads_dir(space) / i["stored"])
         m["offers"] = items
         m.pop("offer", None)
-        _write_json(uploads_dir() / "manifest.json", m)
+        _write_json(uploads_dir(space) / "manifest.json", m)
     return items
 
 
-def uploaded(kind):
+def uploaded(kind, space="month"):
     """The MIS file, or for the offer file the newest one."""
     if kind == "offer":
-        items = offers()
+        items = offers(space)
         return items[-1] if items else None
-    info = _manifest().get(kind)
-    if info and (uploads_dir() / info["stored"]).exists():
+    info = _manifest(space).get(kind)
+    if info and (uploads_dir(space) / info["stored"]).exists():
         return info
     return None
 
 
-def upload_path(kind):
-    info = uploaded(kind)
-    return uploads_dir() / info["stored"] if info else None
+def upload_path(kind, space="month"):
+    info = uploaded(kind, space)
+    return uploads_dir(space) / info["stored"] if info else None
 
 
-def offer_choice(base_months):
+def offer_choice(base_months, space="month"):
     """Which offer file a build of these months uses, and how good a fit it is.
 
     A file's price columns (MRP, trade margin, GST) hold its latest month, so the best file for a month is the one whose
     latest month is that month. Next best is the nearest later file, which still has the month's own offer column.
     Returns (stored item or None, fit) with fit 'exact', 'later' (prices are from a later month) or 'none' (no file has
     a column for the month, so the newest file is used and the data checks say so)."""
-    items = offers()
+    items = offers(space)
     if not items:
         return None, "none"
     want = sorted(base_months)
@@ -96,12 +105,12 @@ def offer_choice(base_months):
     return (fits or items)[-1], ("later" if fits else "none")
 
 
-def pick_offer(base_months):
-    item, _ = offer_choice(base_months)
-    return uploads_dir() / item["stored"] if item else None
+def pick_offer(base_months, space="month"):
+    item, _ = offer_choice(base_months, space)
+    return uploads_dir(space) / item["stored"] if item else None
 
 
-def save_upload(kind, storage):
+def save_upload(kind, storage, space="month"):
     """Saves an uploaded file (a werkzeug FileStorage). Raises prepare.DataError for a wrong file type."""
     if kind not in ALLOWED:
         raise prepare.DataError("Unknown file type.")
@@ -109,15 +118,15 @@ def save_upload(kind, storage):
     ext = Path(name).suffix.lower()
     if ext not in ALLOWED[kind]:
         raise prepare.DataError(f"The {KIND_NAMES[kind]} must be one of: {', '.join(ALLOWED[kind])}.")
-    folder = uploads_dir()
+    folder = uploads_dir(space)
     folder.mkdir(parents=True, exist_ok=True)
-    manifest = _manifest()
+    manifest = _manifest(space)
     if kind == "mis":
         for old in folder.glob("mis.*"):
             old.unlink()
         stored = f"mis{ext}"
     else:
-        manifest["offers"] = offers()
+        manifest["offers"] = offers(space)
         stored = f"offer_{datetime.now().strftime('%Y%m%d%H%M%S%f')}{ext}"
     target = folder / stored
     storage.save(target)
@@ -186,23 +195,23 @@ def start_job(name, fn):
 
 
 # ---------- the two jobs ----------
-def pull_billing(start, end=None):
+def pull_billing(start, end=None, space="month"):
     def job(progress):
-        summary = sql_source.fetch_billing(start, progress, end=end)
-        _write_json(data.DATA_DIR / "billing_meta.json", summary)
+        summary = sql_source.fetch_billing(start, progress, end=end, space=space)
+        _write_json(root(space) / "billing_meta.json", summary)
     return start_job("pull", job)
 
 
-def build(base_months, cost_month=None, mtd_days=None):
+def build(base_months, cost_month=None, mtd_days=None, space="month"):
     def job(progress):
-        mis = upload_path("mis")
-        item, fit = offer_choice(base_months)
+        mis = upload_path("mis", space)
+        item, fit = offer_choice(base_months, space)
         if not item:
             raise prepare.DataError("Upload the offer file first.")
-        offer = uploads_dir() / item["stored"]
+        offer = uploads_dir(space) / item["stored"]
         if not mis:
             raise prepare.DataError("Upload the MIS workbook first.")
-        prepare.build_dataset(offer, mis, sql_source.billing_path(), base_months, progress,
+        prepare.build_dataset(offer, mis, sql_source.billing_path(space), base_months, progress,
                               out_dir=data.period_dir(data.period_key(base_months)),
                               cost_month=cost_month, mtd_days=mtd_days, offer_name=item["name"], offer_fit=fit)
         data.reload()
@@ -211,50 +220,52 @@ def build(base_months, cost_month=None, mtd_days=None):
 
 
 # ---------- status for the page ----------
-def _billing_info():
-    path = sql_source.billing_path()
+def _billing_info(space="month"):
+    path = sql_source.billing_path(space)
     if not path.exists():
         return None
-    info = _read_json(data.DATA_DIR / "billing_meta.json")
+    info = _read_json(root(space) / "billing_meta.json")
     if not info.get("months"):
         info["months"] = prepare.billing_months(path)
         info.setdefault("pulled_at", datetime.fromtimestamp(path.stat().st_mtime).isoformat(timespec="seconds"))
     return info
 
 
-def _out_of_date(period, billing):
+def _out_of_date(period, billing, space="month"):
     """What changed after this period was built, in plain words (empty when nothing did)."""
     built = period.get("built_at") or ""
     reasons = []
     if billing and (billing.get("pulled_at") or "") > built:
         reasons.append("billing was pulled again")
-    mis = uploaded("mis")
+    mis = uploaded("mis", space)
     if mis and mis["uploaded_at"] > built:
         reasons.append("the MIS was replaced")
     want = set(period.get("months") or [])
-    if any(o["uploaded_at"] > built and want <= set(o.get("months") or []) for o in offers()):
+    if any(o["uploaded_at"] > built and want <= set(o.get("months") or []) for o in offers(space)):
         reasons.append("an offer file was added")
     return reasons
 
 
-def _offer_for(month):
+def _offer_for(month, space="month"):
     """The offer file a build of this month would use: its name, the latest month its prices are from, and the fit."""
-    item, fit = offer_choice([month])
+    item, fit = offer_choice([month], space)
     if not item:
         return {"name": None, "fit": "none", "latest": None}
     return {"name": item["name"], "fit": fit, "latest": max(item["months"]) if item.get("months") else None}
 
 
-def status():
-    billing = _billing_info()
+def status(space="month"):
+    billing = _billing_info(space)
     months = billing["months"] if billing else []
     built = dict(data.META) if data.MODE == "actual" else {}
+    mine = [p for p in data.periods() if bool(p.get("mtd")) == (space == "projection")]
     return {
+        "space": space,
         "data": {**data.status(), **built},
-        "uploads": {k: uploaded(k) for k in ALLOWED},
-        "offers": offers(),
-        "offer_for": {m: _offer_for(m) for m in months},
-        "periods": [{**p, "changed": _out_of_date(p, billing)} for p in data.periods()],
+        "uploads": {k: uploaded(k, space) for k in ALLOWED},
+        "offers": offers(space),
+        "offer_for": {m: _offer_for(m, space) for m in months},
+        "periods": [{**p, "changed": _out_of_date(p, billing, space)} for p in mine],
         "period_key": data.current().key,
         "billing": billing,
         "suggested_months": prepare.default_base_months(months),

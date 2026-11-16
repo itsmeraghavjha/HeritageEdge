@@ -8,7 +8,8 @@
   let pollTimer = null;
   let sqlMessage = null;                 // result of the last "Test connection"
   const ticked = new Set();              // base months the user has ticked
-  let monthsKey = '';                    // which month list the month cards were built from
+  let space = location.hash === '#projection' ? 'projection' : 'month';   // which tab is open
+  let monthsKey = null;                    // which month list the month cards were built from
 
   /* ---------- small helpers ---------- */
   function fmtSize(bytes) {
@@ -120,18 +121,20 @@
 
   function renderMonths() {
     const { data, billing, suggested_months: suggested } = status;
-    const list = billing ? billing.months : [];
+    // the Month tab builds finished months, the Projection tab the month still running
+    const all = billing ? billing.months : [];
+    const list = all.filter((m) => (space === 'projection') === !!autoDays(m));
     const key = list.join(',');
     if (key !== monthsKey) {              // keep the user's ticks while the page refreshes
       monthsKey = key;
       ticked.clear();
       const built = (data.mode === 'actual' ? data.base_months || [] : []).filter((m) => list.includes(m));
-      const pick = (built.length ? built : suggested).slice().sort().pop();   // one month: the latest
+      const pick = (built.length ? built : suggested).filter((m) => list.includes(m)).sort().pop() || list.slice().sort().pop();   // one month: the latest
       if (pick) ticked.add(pick);
       $('months').innerHTML = list.length
         ? list.map((m) => `<label class="dp-month" data-m="${m}"><input type="radio" name="buildMonth" value="${m}"${ticked.has(m) ? ' checked' : ''}>
             <span class="dp-mname">${HE.esc(monthLabel(m))}</span><span class="dp-mkind"></span><span class="dp-mtag"></span></label>`).join('')
-        : '<span class="dp-empty">Pull billing first. The months it holds will appear here.</span>';
+        : '<span class="dp-empty">' + (space === 'projection' ? 'Refresh billing here. The month that is still running will appear.' : 'Pull billing first. The finished months it holds will appear here.') + '</span>';
       renderBuildOptions();
     }
     // what is already built for each month
@@ -383,7 +386,7 @@
   async function poll() {
     clearTimeout(pollTimer);
     try {
-      const r = await fetch('/api/data/status');
+      const r = await fetch('/api/data/status?space=' + space);
       if (r.status === 401) { location.href = '/login'; return; }
       status = await r.json();
     } catch (e) {
@@ -406,7 +409,7 @@
     const note = $(kind + 'Note');
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', '/api/data/upload/' + kind);
+      xhr.open('POST', '/api/data/upload/' + kind + '?space=' + space);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) setNote(note, `Uploading ${Math.round((e.loaded / e.total) * 100)}%`);
       };
@@ -444,7 +447,7 @@
     const start = $('startDate').value, end = $('endDate').value;
     if (!start || !end) { setNote($('sqlNote'), 'Choose both a From and a To date.', 'is-error'); return; }
     if (end < start) { setNote($('sqlNote'), 'The To date is before the From date.', 'is-error'); return; }
-    const r = await api('/api/data/sql/pull', { start, end });
+    const r = await api('/api/data/sql/pull', { start, end, space });
     if (!r.ok) { setNote($('sqlNote'), r.data.error || 'Could not start the pull.', 'is-error'); return; }
     prevJobState = 'running';
     poll();
@@ -476,12 +479,35 @@
       setNote($('buildNote'), `${monthLabel(months[0])} is not finished and the app cannot tell how far billing goes. Refresh billing, then build.`, 'is-error');
       return;
     }
-    const r = await api('/api/data/build', { months, cost_month: null,
+    const r = await api('/api/data/build', { space, months, cost_month: null,
       mtd_days: months.length === 1 && days ? Number(days) : null });
     if (!r.ok) { setNote($('buildNote'), r.data.error || 'Could not start the build.', 'is-error'); return; }
     prevJobState = 'running';
     poll();
   });
 
+  function showTabs() {
+    document.querySelectorAll('.dp-tab').forEach((t) => {
+      const on = t.dataset.space === space;
+      t.classList.toggle('is-on', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    $('askMonth').textContent = space === 'projection' ? 'Which month is running?' : 'Which month do you want to build?';
+    $('builtBox').querySelector('h2').textContent = space === 'projection' ? 'Built projections' : 'Built months';
+  }
+  document.querySelector('.dp-tabs').addEventListener('click', (e) => {
+    const t = e.target.closest('.dp-tab');
+    if (!t || t.dataset.space === space) return;
+    space = t.dataset.space;
+    history.replaceState(null, '', space === 'projection' ? '#projection' : location.pathname + location.search);
+    monthsKey = null;
+    ticked.clear();
+    status = null;
+    sqlMessage = null;
+    showTabs();
+    poll();
+  });
+
+  showTabs();
   poll();
 })();

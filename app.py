@@ -680,10 +680,18 @@ def api_export():
 
 
 # ---------- data page ----------
+def _space():
+    """Which tab of the Data page asked: the finished-month tab or the projection (month so far) tab."""
+    body = request.get_json(silent=True) or {}
+    value = request.args.get("space") or body.get("space") or "month"
+    return value if value in datastore.SPACES else "month"
+
+
+
 @app.get("/api/data/status")
 @data_admin_only
 def data_status():
-    return jsonify(datastore.status())
+    return jsonify(datastore.status(_space()))
 
 
 @app.post("/api/data/upload/<kind>")
@@ -693,10 +701,10 @@ def data_upload(kind):
     if not file or not file.filename:
         return jsonify(error="Choose a file to upload."), 400
     try:
-        info = datastore.save_upload(kind, file)
+        info = datastore.save_upload(kind, file, _space())
     except prepare.DataError as exc:
         return jsonify(error=str(exc)), 400
-    log("data_upload", kind)
+    log("data_upload", kind + (" (projection)" if _space() == "projection" else ""))
     return jsonify(info)
 
 
@@ -719,7 +727,7 @@ def data_sql_pull():
         return jsonify(error=str(exc)), 400
     if end_d and end_d < start_d:
         return jsonify(error="The To date is before the From date."), 400
-    if not datastore.pull_billing(start_d.isoformat(), end_d.isoformat() if end_d else None):
+    if not datastore.pull_billing(start_d.isoformat(), end_d.isoformat() if end_d else None, _space()):
         return jsonify(error="Another step is still running."), 409
     log("data_pull", f"from {start_d.isoformat()}" + (f" to {end_d.isoformat()}" if end_d else ""))
     return jsonify(started=True)
@@ -735,7 +743,7 @@ def data_build():
         prepare.check_period(sorted(months), cost_month, mtd_days)
     except prepare.DataError as exc:
         return jsonify(error=str(exc)), 400
-    if not datastore.build(months, cost_month, mtd_days):
+    if not datastore.build(months, cost_month, mtd_days, _space()):
         return jsonify(error="Another step is still running."), 409
     log("data_build", f"{len(months)} base month{'' if len(months) == 1 else 's'}"
         + (", month to date" if mtd_days else "") + (", costs from another month" if cost_month else ""))

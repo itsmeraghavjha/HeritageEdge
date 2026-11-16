@@ -88,8 +88,9 @@ def last_billing_date(conn, start, end):
         return None
 
 
-def billing_path():
-    return data.DATA_DIR / "billing.csv"
+def billing_path(space="month"):
+    """The pulled billing. The projection tab keeps its own copy, so pulling there never changes a finished month."""
+    return (data.DATA_DIR / "projection" if space == "projection" else data.DATA_DIR) / "billing.csv"
 
 
 def missing_settings():
@@ -177,7 +178,7 @@ def as_date(value, what):
         raise SqlError(f"The {what} date is not a date.")
 
 
-def fetch_billing(start, progress=None, fetch_size=20000, end=None):
+def fetch_billing(start, progress=None, fetch_size=20000, end=None, space="month"):
     """Runs the billing query from `start` to `end` (both dates, `end` included; None means up to today and later) and
     writes data/billing.csv. Returns a summary dict."""
     start = as_date(start, "From")
@@ -201,7 +202,7 @@ def fetch_billing(start, progress=None, fetch_size=20000, end=None):
 
     say("Connecting to SQL Server", 0.05)
     conn = connect()
-    path = billing_path()
+    path = billing_path(space)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".csv.tmp")
     rows = 0
