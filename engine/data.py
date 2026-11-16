@@ -8,10 +8,12 @@ Grain: one row per chain x customer group x sales office x SKU, with the baselin
 the commercial terms and attributed costs behind them. Team inputs that are safe to share live in
 config/ (elasticity per product family, and how each MIS cost is attributed).
 """
+import contextvars
 import csv
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -39,14 +41,78 @@ DIM_DEFS = (
 )
 DIM_IDS = tuple(d for d, _ in DIM_DEFS)
 
-# Filled by reload(): ROWS, BASIS, OPTIONS, LABEL, MODE, META
-ROWS = []
-BASIS = {}
-OPTIONS = {}
-COMBOS = []     # every distinct combination of dimension values in the data, in DIM_IDS order (as text)
-LABEL = {}
-MODE = "sample"
-META = {}
+# Every built period (Oct, Nov so far, ...) is kept as its own dataset in data/periods/<key>/. A request works on one of
+# them: the one the person chose (see use()), else the newest built. The names ROWS, BASIS, OPTIONS, COMBOS, LABEL, MODE
+# and META are read as data.ROWS and so on; they always answer for the dataset in use, so nothing else needs to know.
+SAMPLE_KEY = "sample"
+_DATASETS = {}                      # key -> Dataset
+_DEFAULT = SAMPLE_KEY               # key shown to anyone who has not chosen
+_CHOSEN = contextvars.ContextVar("heritageedge_period", default=None)
+_FIELDS = ("ROWS", "BASIS", "OPTIONS", "COMBOS", "LABEL", "MODE", "META")
+
+
+class Dataset:
+    """One built period: its rows and everything derived from them."""
+
+    def __init__(self, key, rows, basis, options, label, combos, mode, meta):
+        self.key, self.ROWS, self.BASIS, self.OPTIONS = key, rows, basis, options
+        self.LABEL, self.COMBOS, self.MODE, self.META = label, combos, mode, meta
+        self.base_metrics = None    # filled by simulate on first use
+
+
+def current():
+    """The dataset this request works on."""
+    return _DATASETS.get(_CHOSEN.get()) or _DATASETS[_DEFAULT]
+
+
+def __getattr__(name):              # data.ROWS, data.META ... answer for the dataset in use
+    if name in _FIELDS:
+        return getattr(current(), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def use(key):
+    """Chooses the period for the current request (and thread). An unknown or empty key means the default."""
+    return _CHOSEN.set(key if key in _DATASETS else None)
+
+
+def release(token):
+    _CHOSEN.reset(token)
+
+
+def period_key(base_months):
+    """'2026-10' for October; '2026-08_2026-09' for an average of two months."""
+    return "_".join(m[:7] for m in sorted(base_months))
+
+
+def periods_dir():
+    return DATA_DIR / "periods"
+
+
+def period_dir(key):
+    return periods_dir() / key
+
+
+def period_label(meta, short=False):
+    """'Oct 2026', 'Nov 2026 so far (to 13 Nov)', 'Jul to Sep 2026 (average)'."""
+    months = months_text(meta.get("base_months", []))
+    period = meta.get("period") or {}
+    if period.get("mtd") and period.get("days"):
+        return f"{months} so far ({period['days']} days)" if short else f"{months} so far, {period['days']} days of billing"
+    return f"{months} (average)" if len(meta.get("base_months", [])) > 1 else months
+
+
+def periods():
+    """The built periods, newest month first, for the switcher."""
+    out = []
+    for key, ds in _DATASETS.items():
+        if ds.MODE != "actual":
+            continue
+        meta = ds.META
+        out.append({"key": key, "label": period_label(meta, short=True), "built_at": meta.get("built_at"),
+                    "mtd": bool((meta.get("period") or {}).get("mtd")), "costs_from": meta.get("costs_from"),
+                    "months": meta.get("base_months", []), "default": key == _DEFAULT})
+    return sorted(out, key=lambda p: (max(p["months"] or [""]), p["built_at"] or ""), reverse=True)
 
 
 def _read(path):
@@ -102,14 +168,11 @@ def _label(dim, row):
     return row[dim] or NOT_RECORDED
 
 
-def _load_meta(mode):
-    path = DATA_DIR / "meta.json"
-    if mode == "actual" and path.exists():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            pass
-    return {}
+def _load_meta(path):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
 
 
 def months_text(months):
@@ -129,11 +192,12 @@ def days_per_month():
     """Average number of days in the base months: divides a monthly run-rate into per-day figures (LPD, KGPD).
     30 when the months are unknown (the sample data). For a month to date it is the days of billing the month holds."""
     import calendar
-    period = META.get("period") or {}
+    me = sys.modules[__name__]
+    period = me.META.get("period") or {}
     if period.get("mtd") and period.get("days"):
         return float(period["days"])
     days = []
-    for m in META.get("base_months", []) or []:
+    for m in me.META.get("base_months", []) or []:
         try:
             d = datetime.strptime(m[:10], "%Y-%m-%d")
         except ValueError:
@@ -144,27 +208,35 @@ def days_per_month():
 
 def status():
     """Short description of the data in use, for the sidebar and the data page."""
-    if MODE == "actual":
-        months = months_text(META.get("base_months", []))
-        return {"mode": MODE, "title": "Actual data",
-                "detail": (f"{months} billing, offer terms and MIS costs. Monthly run-rates."
-                           if months else "Billing, offer terms and MIS costs. Monthly run-rates.")}
-    return {"mode": MODE, "title": "Sample data",
+    me = sys.modules[__name__]
+    if me.MODE == "actual":
+        months = months_text(me.META.get("base_months", []))
+        return {"mode": me.MODE, "title": "Actual data",
+                "detail": (f"{period_label(me.META)} billing, offer terms and MIS costs."
+                           if months else "Billing, offer terms and MIS costs.")}
+    return {"mode": me.MODE, "title": "Sample data",
             "detail": "Figures are illustrative monthly run-rates, not actuals."}
 
 
-def reload():
-    """(Re)read the dataset. Called at import and again after a new dataset is built."""
-    global ROWS, BASIS, OPTIONS, LABEL, MODE, META, COMBOS
-    real = DATA_DIR / "rows.csv"
-    use_real = real.exists() and os.environ.get("HERITAGEEDGE_USE_SAMPLE") != "1"
-    path = real if use_real else SAMPLE_DIR / "rows.csv"
+def _move_old_build():
+    """Before periods were kept, one dataset sat in data/rows.csv. Move it into its own period folder."""
+    old = DATA_DIR / "rows.csv"
+    if not old.exists():
+        return
+    meta = _load_meta(DATA_DIR / "meta.json")
+    key = period_key(meta["base_months"]) if meta.get("base_months") else "earlier"
+    target = period_dir(key)
+    if (target / "rows.csv").exists():
+        return                                   # a newer build already holds this period: leave the old files alone
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("rows.csv", "meta.json", "sku_gap.csv"):
+        if (DATA_DIR / name).exists():
+            os.replace(DATA_DIR / name, target / name)
 
-    elasticity = {r["family"]: float(r["elasticity"]) for r in _read(CONFIG_DIR / "assumptions.csv")}
-    basis = {r["line"]: r["basis"] for r in _read(CONFIG_DIR / "attribution.csv")}
 
+def _make(key, rows_path, meta, mode, elasticity, basis):
     rows = []
-    for r in _read(path):
+    for r in _read(rows_path):
         for k in NUM:
             r[k] = float(r[k])
         r["e"] = elasticity.get(r["family"], DEFAULT_ELASTICITY)
@@ -186,11 +258,29 @@ def reload():
         label[dim] = seen
         options[dim] = [{"id": k, "name": v}
                         for k, v in sorted(seen.items(), key=lambda kv: str(kv[1]).lower())]
+    combos = sorted({tuple(str(r[d]) for d in DIM_IDS) for r in rows})
+    return Dataset(key, rows, basis, options, label, combos, mode, meta)
 
-    mode = "actual" if use_real else "sample"
-    COMBOS = sorted({tuple(str(r[d]) for d in DIM_IDS) for r in rows})
-    ROWS, BASIS, OPTIONS, LABEL, MODE = rows, basis, options, label, mode
-    META = _load_meta(mode)
+
+def reload():
+    """(Re)read every built period. Called at import and again after a dataset is built.
+    With nothing built, the sample data is the only dataset."""
+    global _DATASETS, _DEFAULT
+    elasticity = {r["family"]: float(r["elasticity"]) for r in _read(CONFIG_DIR / "assumptions.csv")}
+    basis = {r["line"]: r["basis"] for r in _read(CONFIG_DIR / "attribution.csv")}
+
+    found = {}
+    if os.environ.get("HERITAGEEDGE_USE_SAMPLE") != "1":
+        _move_old_build()
+        for folder in sorted(periods_dir().glob("*")) if periods_dir().exists() else []:
+            if (folder / "rows.csv").exists():
+                found[folder.name] = _make(folder.name, folder / "rows.csv", _load_meta(folder / "meta.json"),
+                                           "actual", elasticity, basis)
+    if not found:
+        found[SAMPLE_KEY] = _make(SAMPLE_KEY, SAMPLE_DIR / "rows.csv", {}, "sample", elasticity, basis)
+    _DATASETS = found
+    # Anyone who has not chosen sees the latest month (the newest build of it if there are several kinds)
+    _DEFAULT = max(found, key=lambda k: (max(found[k].META.get("base_months") or [""]), found[k].META.get("built_at") or ""))
 
 
 reload()

@@ -31,8 +31,28 @@ def _write_json(path, obj):
 
 
 # ---------- uploads ----------
+# One MIS workbook is kept. Offer files are kept for several months (one per period they cover), because each month has
+# its own file and an earlier month may need building again.
+MAX_OFFER_FILES = 8
+
+
+def _manifest():
+    return _read_json(uploads_dir() / "manifest.json")
+
+
+def offers():
+    """The stored offer files, oldest first: name, stored, size, uploaded_at and the months each has a column for."""
+    m = _manifest()
+    items = list(m.get("offers") or ([m["offer"]] if m.get("offer") else []))
+    return [i for i in items if (uploads_dir() / i["stored"]).exists()]
+
+
 def uploaded(kind):
-    info = _read_json(uploads_dir() / "manifest.json").get(kind)
+    """The MIS file, or for the offer file the newest one."""
+    if kind == "offer":
+        items = offers()
+        return items[-1] if items else None
+    info = _manifest().get(kind)
     if info and (uploads_dir() / info["stored"]).exists():
         return info
     return None
@@ -41,6 +61,16 @@ def uploaded(kind):
 def upload_path(kind):
     info = uploaded(kind)
     return uploads_dir() / info["stored"] if info else None
+
+
+def pick_offer(base_months):
+    """The offer file for a build: the newest one that has a column for every month being built, else the newest."""
+    items = offers()
+    if not items:
+        return None
+    want = set(base_months)
+    fits = [i for i in items if want <= set(i.get("months") or [])]
+    return uploads_dir() / (fits or items)[-1]["stored"]
 
 
 def save_upload(kind, storage):
@@ -53,16 +83,36 @@ def save_upload(kind, storage):
         raise prepare.DataError(f"The {KIND_NAMES[kind]} must be one of: {', '.join(ALLOWED[kind])}.")
     folder = uploads_dir()
     folder.mkdir(parents=True, exist_ok=True)
-    for old in folder.glob(f"{kind}.*"):
-        old.unlink()
-    stored = f"{kind}{ext}"
+    manifest = _manifest()
+    if kind == "mis":
+        for old in folder.glob("mis.*"):
+            old.unlink()
+        stored = f"mis{ext}"
+    else:
+        manifest["offers"] = offers()
+        stored = f"offer_{datetime.now().strftime('%Y%m%d%H%M%S%f')}{ext}"
     target = folder / stored
     storage.save(target)
-    manifest = _read_json(folder / "manifest.json")
-    manifest[kind] = {"name": Path(name).name, "stored": stored, "size": target.stat().st_size,
-                      "uploaded_at": datetime.now().isoformat(timespec="seconds")}
+    info = {"name": Path(name).name, "stored": stored, "size": target.stat().st_size,
+            "uploaded_at": datetime.now().isoformat(timespec="seconds")}
+    if kind == "mis":
+        manifest["mis"] = info
+    else:
+        info["months"] = prepare.offer_file_months(target)
+        kept = []
+        for old in manifest["offers"]:
+            same = info["months"] and old.get("months") == info["months"]     # a newer version of the same file
+            if same:
+                (folder / old["stored"]).unlink(missing_ok=True)
+            else:
+                kept.append(old)
+        manifest["offers"] = (kept + [info])[-MAX_OFFER_FILES:]
+        for gone in folder.glob("offer*"):                                    # files dropped from the list, and the old single file
+            if gone.name not in {i["stored"] for i in manifest["offers"]}:
+                gone.unlink(missing_ok=True)
+        manifest.pop("offer", None)
     _write_json(folder / "manifest.json", manifest)
-    return manifest[kind]
+    return info
 
 
 # ---------- background jobs ----------
@@ -117,12 +167,14 @@ def pull_billing(start, end=None):
 
 def build(base_months, cost_month=None, mtd_days=None):
     def job(progress):
-        offer, mis = upload_path("offer"), upload_path("mis")
+        mis = upload_path("mis")
+        offer = pick_offer(base_months)
         if not offer:
             raise prepare.DataError("Upload the offer file first.")
         if not mis:
             raise prepare.DataError("Upload the MIS workbook first.")
         prepare.build_dataset(offer, mis, sql_source.billing_path(), base_months, progress,
+                              out_dir=data.period_dir(data.period_key(base_months)),
                               cost_month=cost_month, mtd_days=mtd_days)
         data.reload()
         simulate.refresh()
@@ -148,6 +200,9 @@ def status():
     return {
         "data": {**data.status(), **built},
         "uploads": {k: uploaded(k) for k in ALLOWED},
+        "offers": offers(),
+        "periods": data.periods(),
+        "period_key": data.current().key,
         "billing": billing,
         "suggested_months": prepare.default_base_months(months),
         "sql": {"missing": sql_source.missing_settings(),

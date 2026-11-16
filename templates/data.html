@@ -34,11 +34,13 @@
 
   <li class="panel step" id="stepOffer">
     <div class="step-head"><h2>Offer file</h2><span class="state" id="offerState"></span></div>
-    <p class="sub">The monthly offer workbook with list prices, trade margin and offers per customer and SKU. Excel or .xlsb.</p>
+    <p class="sub">The monthly offer workbook with list prices, trade margin and offers per customer and SKU. Excel or .xlsb. Upload one for each month you want to look at. Earlier files are kept, and the build picks the file that has the month you tick. A newer version of the same file replaces the old one.</p>
     <div class="step-actions">
       <input id="offerFile" type="file" accept=".xlsb,.xlsx,.xlsm" class="visually-hidden">
       <label for="offerFile" class="btn">Choose file</label>
       <span class="filename" id="offerName"></span>
+    </div>
+    <div class="file-list" id="offerList">
     </div>
     <p class="note" id="offerNote" role="status"></p>
   </li>
@@ -70,6 +72,7 @@
         </details>
       </div>
     </div>
+    <p class="build-costs" id="builtList" hidden></p>
     <p class="build-costs">Costs come from the MIS of the same month. If that MIS is not there yet, the latest earlier month is used, for example October for November.</p>
     <details class="build-costs-pick">
       <summary>Use a different month for costs</summary>

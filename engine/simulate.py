@@ -217,16 +217,24 @@ def derive(m):
     return out
 
 
-BASE_METRICS = []
+def base_metrics():
+    """The baseline (every lever at its default) of each row of the dataset in use, worked out once per dataset."""
+    ds = data.current()
+    if ds.base_metrics is None:
+        ds.base_metrics = [calc_row(r, DEFAULT_LEVERS, False) for r in ds.ROWS]
+    return ds.base_metrics
 
 
 def refresh():
-    """Recompute the baseline. Call after data.reload()."""
-    global BASE_METRICS
-    BASE_METRICS = [calc_row(r, DEFAULT_LEVERS, False) for r in data.ROWS]
+    """Forget the stored baselines. Call after data.reload()."""
+    for ds in data._DATASETS.values():
+        ds.base_metrics = None
 
 
-refresh()
+def __getattr__(name):              # sim.BASE_METRICS answers for the dataset in use
+    if name == "BASE_METRICS":
+        return base_metrics()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def _visible(allowed):
@@ -238,7 +246,7 @@ def view_rows(scope, allowed=None):
     """The rows the simulator screen reports: the ones inside the selection (all rows when nothing is selected),
     out of the rows the person is allowed to see. Returns (rows, baseline metrics for those rows)."""
     keep = [i for i in _visible(allowed) if in_scope(data.ROWS[i], scope)]
-    return [data.ROWS[i] for i in keep], [BASE_METRICS[i] for i in keep]
+    return [data.ROWS[i] for i in keep], [base_metrics()[i] for i in keep]
 
 
 def scenario_metrics(lv, scope, rows=None, adjust=None):
@@ -253,7 +261,7 @@ def bridge(lv, scope, sims=None, rows=None, base=None, adjust=None):
     so each step is a pure rate effect; whatever is left is the volume you entered.
     """
     rows = data.ROWS if rows is None else rows
-    base = BASE_METRICS if base is None else base
+    base = base_metrics() if base is None else base
 
     def cm_for(partial):
         cand = Levers(**{**DEFAULT_LEVERS.__dict__, **partial})
@@ -299,7 +307,7 @@ def breakeven(lv, scope, sims=None, rows=None, base=None, adjust=None):
             unreachable  contribution in scope is zero or negative, so more packs never pay it back
     """
     rows = data.ROWS if rows is None else rows
-    base = BASE_METRICS if base is None else base
+    base = base_metrics() if base is None else base
     inside = [in_scope(r, scope) for r in rows]
     sims = sims if sims is not None else scenario_metrics(lv, scope, rows, adjust)
     resolve = make_resolver(lv, adjust)
@@ -358,7 +366,7 @@ def volume_ladder(lv, scope, sims=None, rows=None, base=None, adjust=None):
     depends on the volume, which is the number the user has to judge."""
     rows = data.ROWS if rows is None else rows
     inside = [in_scope(r, scope) for r in rows]
-    base = total(BASE_METRICS if base is None else base)
+    base = total(base_metrics() if base is None else base)
     # With volume set on single rows there is no one entered figure: the marked case is the scenario's actual change.
     entered = lv.volume_change_pct
     if sims is not None and has_volume_adjust(adjust) and base["units"]:
@@ -443,7 +451,7 @@ def _tree(items, dims, level, path):
 
 def _items(lv, scope, flt=None, sims=None, adjust=None, allowed=None):
     idx = list(_visible(allowed))
-    rows, base = [data.ROWS[i] for i in idx], [BASE_METRICS[i] for i in idx]
+    rows, base = [data.ROWS[i] for i in idx], [base_metrics()[i] for i in idx]
     sims = sims if sims is not None else scenario_metrics(lv, scope, rows, adjust)
     return [{"row": r, "base": b, "sim": s}
             for r, b, s in zip(rows, base, sims)
@@ -470,7 +478,7 @@ def simulate(levers_raw, scope_raw, allowed=None):
         "breakdown": {d: breakdown(items, d) for d in BREAKDOWN_DIMS},
         "rows_in_scope": len(rows),
         "rows_total": len(_visible(allowed)),
-        "whole": derive(total(BASE_METRICS[i] for i in _visible(allowed))),   # everything this person may see, at baseline
+        "whole": derive(total(base_metrics()[i] for i in _visible(allowed))),   # everything this person may see, at baseline
     }
 
 

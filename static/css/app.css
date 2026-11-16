@@ -824,3 +824,8 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .step .build-costs-pick { margin: 4px 0 4px 34px; font-size: 13.5px; }
 .step .build-costs-pick summary { cursor: pointer; color: var(--green, #1f7a3a); }
 .step .build-costs-pick .field { margin-top: 8px; max-width: 320px; }
+
+.main > .period-pick { display: flex; align-items: center; gap: 8px; justify-content: flex-end; margin: -8px 0 10px; font-size: 13px; color: var(--muted); }
+.main > .period-pick select { padding: 6px 10px; border: 1px solid var(--line-soft); border-radius: 8px; background: var(--paper); font: inherit; color: var(--ink, inherit); }
+.step .file-list { margin: 8px 0 0 34px; font-size: 13.5px; color: var(--muted); }
+.step .file-list div { margin: 2px 0; }

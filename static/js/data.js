@@ -89,9 +89,16 @@
     [['offer', 'offerFile'], ['mis', 'misFile']].forEach(([kind, input]) => {
       const info = uploads[kind];
       setState($(kind + 'State'), info ? 'Uploaded' : 'Needed', info ? 'ok' : '');
-      $(kind + 'Name').textContent = info ? `${info.name} (${fmtSize(info.size)}), uploaded ${fmtTime(info.uploaded_at)}` : '';
+      $(kind + 'Name').textContent = info && kind === 'mis' ? `${info.name} (${fmtSize(info.size)}), uploaded ${fmtTime(info.uploaded_at)}` : '';
       $(input).disabled = running;
     });
+    const covers = (f) => (f.months && f.months.length ? `has ${f.months.map((m) => monthLabel(m)).join(', ')}` : 'months not read');
+    $('offerList').innerHTML = (status.offers || []).slice().reverse().map((f) =>
+      `<div>${HE.esc(f.name)} (${fmtSize(f.size)}), ${HE.esc(covers(f))}, uploaded ${HE.esc(fmtTime(f.uploaded_at))}</div>`).join('');
+    const built = $('builtList');
+    built.hidden = !(status.periods && status.periods.length);
+    built.textContent = built.hidden ? '' : 'Already built: ' + status.periods.map((p) => `${p.label}, built ${fmtTime(p.built_at)}`).join('; ')
+      + '. Building the same period again replaces it. Use "Showing" at the top of any page to switch between them.';
 
     renderMonths();
 

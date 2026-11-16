@@ -432,3 +432,15 @@
     btn.addEventListener('click', () => apply(!root.classList.contains('side-collapsed'), true));
   })();
 })();
+
+// Switching the period changes what every screen shows for this person only.
+document.addEventListener('DOMContentLoaded', () => {
+  const pick = document.getElementById('periodPick');
+  if (!pick) return;
+  pick.addEventListener('change', async () => {
+    try {
+      const r = await fetch('/api/period', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: pick.value }) });
+      if (r.ok) location.reload();
+    } catch (e) { /* stay on this period */ }
+  });
+});

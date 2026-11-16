@@ -82,6 +82,13 @@
     </div>
   </aside>
   <main class="main">
+    {% if periods|length > 1 %}
+    <label class="period-pick" for="periodPick"><span>Showing</span>
+      <select id="periodPick">
+        {% for p in periods %}<option value="{{ p.key }}"{{ ' selected' if p.key == period_key }}>{{ p.label }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
     {% block content %}{% endblock %}
   </main>
 </div>

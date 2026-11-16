@@ -63,6 +63,10 @@ The reconciliation:
 
 Global constants for the volume suggestion are at the top of `engine/simulate.py`. They only feed the hint shown next to the volume input, which users set themselves. Treat the suggestion as indicative until the elasticities are calibrated from past promo and price-change history.
 
+## Periods and offer files
+
+`data/periods/<key>/rows.csv` and `meta.json` hold one build each (`data.period_key`: months joined, for example `2026-08_2026-09`). `data.reload()` reads them all; `data.use(key)` picks one for a request. The offer files are listed in `uploads/manifest.json` under `offers`, each with the months its header has columns for (`prepare.offer_file_months`). Old `data/rows.csv` builds are moved into a period folder on start.
+
 ## Month to date and costs from another month
 
 The days of billing are worked out by the page, not typed: the latest billing day the database holds (`engine/sql/last_billing_date.sql`, read at pull time; the database is loaded up to yesterday, so this can be earlier than the To box), else the To date of the SQL pull, or the last full day before the pull when no To date was set (see `autoDays` in `data.js`). A month that is finished gets no days. "Change the days" overrides it.

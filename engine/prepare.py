@@ -464,6 +464,23 @@ def month_offer_column(columns, key):
     return None
 
 
+def offer_file_months(path):
+    """The months an offer file has a column for ("Oct'26 - Month Offer" -> '2026-10-01'), read from the header row
+    only, so it is quick. Returns [] when the file cannot be read: the build then reports the real problem."""
+    path = Path(path)
+    try:
+        header = pd.read_excel(path, engine="pyxlsb" if path.suffix.lower() == ".xlsb" else None, nrows=0)
+    except Exception:
+        return []
+    months = set()
+    for c in header.columns:
+        t = str(c).replace("\u2019", "'").strip()
+        m = re.match(r"([A-Za-z]{3})'(\d{2})\b", t)
+        if m and "offer" in t.lower() and m[1].title() in _MON:
+            months.add(f"20{m[2]}-{_MON.index(m[1].title()) + 1:02d}-01")
+    return sorted(months)
+
+
 def monthly_offers(off, base_months):
     """Sets on_rs, off_rs and offer_rs (rupees per pack, GST-inclusive like the MRP) on the offer rows.
 

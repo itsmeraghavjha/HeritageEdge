@@ -78,6 +78,15 @@ Volume is the one number the data cannot give us: we hold no competitor prices, 
 
 There is no built-in "realistic uplift" threshold; judge the breakeven against what the team has seen in past promos.
 
+## Several periods at once
+
+Every build is kept in its own folder, `data/periods/<months>/` (for example `2026-10` for October, `2026-11` for November so far). Building the same months again replaces that period; building another month adds one. The sidebar's old single build is moved into its folder the first time the app starts.
+
+- A "Showing" box at the top of every page lets a person switch period. The choice is theirs alone, kept in their session; it never changes what anyone else sees.
+- Someone who has not chosen sees the latest month built.
+- Everything on the screen (simulator, P&L, Scenarios, Excel) is worked out on the chosen period. Saved scenarios hold only lever values, so one scenario can be opened on any period.
+- Offer files are kept per month, up to 8. A build uses the newest file that has a column for each month being built ("Nov'26 - Month Offer"), else the newest file. A newer version of a file covering the same months replaces the old one. There is still one MIS workbook.
+
 ## Month to date, with costs from another month
 
 The Data page can build a P&L for a month that is not finished, for example November so far.

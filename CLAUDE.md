@@ -18,7 +18,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 
 ## Architecture
 
-- `engine/data.py`: loads `data/rows.csv` else `sample_data/rows.csv`; one row per chain x customer group x sales office x SKU; dimensions in `DIM_DEFS`.
+- `engine/data.py`: loads every build in `data/periods/<key>/` (else `sample_data/rows.csv`) as a `Dataset`; `data.ROWS`, `META`, `OPTIONS` and so on answer for the period the request chose (`data.use`, set per person from `session['period']` in `app.py`), so never copy them at import time and never assume one dataset; one row per chain x customer group x sales office x SKU; dimensions in `DIM_DEFS`.
 - `engine/sql_source.py` + `sql/billing.sql` (output columns are a tested contract) -> `data/billing.csv`; `engine/prepare.py` builds `rows.csv` from billing + offer file + MIS and writes `meta.json` (quality report, MIS reconciliation); `engine/datastore.py` runs uploads and jobs.
 - `engine/simulate.py`: all maths (`calc_row`, `simulate`, `pnl`, `bridge`); `Levers` frozen dataclass, `LIMITS` clamps input; functions take `allowed` rows; `strip_below_cm` and `BELOW_CONTRIBUTION` for KAMs.
 - `engine/export.py` Excel; `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
@@ -39,6 +39,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 
 ## Gotchas
 
+- Several periods are kept (Oct, Nov so far...). Someone's chosen period is their own (session); a background build can finish while they work, so read `data.*` inside the request, and `simulate.base_metrics()` (not a stored list) for baselines. Offer files are kept per month and picked by the month column (`datastore.pick_offer`).
 - Month to date build: one base month, `mtd_days`, optional `cost_month` (MIS of another month supplies cost rates). Figures are actuals so far, not scaled; `meta.json` `period` drives labels (`HE.lakhUnit`, `HE.showPeriod`) and `days_per_month()`. MIS-vs-billing integrity checks are skipped when costs come from another month.
 - MIS is cut to the base months (`pick_mis_months`); never average MIS costs over months billing does not cover (once overstated net margin by ~3 points). Month column found by header or `MIS_MONTH_COLUMN`.
 - The contribution bridge holds volume at baseline for rate steps; the volume entered is the remainder; it must reconcile to the scenario total (tested).

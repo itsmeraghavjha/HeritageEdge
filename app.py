@@ -95,6 +95,28 @@ def _target(uid):
     return person["email"] if person else f"#{uid}"
 
 
+@app.before_request
+def choose_period():
+    """Each person looks at one built period at a time (their own choice, kept in their session); others are unaffected."""
+    g.period_token = data.use(session.get("period"))
+
+
+@app.teardown_request
+def release_period(exc):
+    token = g.pop("period_token", None)
+    if token is not None:
+        data.release(token)
+
+
+@app.post("/api/period")
+def set_period():
+    key = (request.get_json(silent=True) or {}).get("key")
+    if key not in {p["key"] for p in data.periods()}:
+        return jsonify(error="That period is not built."), 400
+    session["period"] = key
+    return jsonify(ok=True)
+
+
 @app.after_request
 def log_screen_views(response):
     """Counts a screen only when it was really shown: a refused page (a KAM opening Data) is not a view."""
@@ -457,7 +479,8 @@ def no_store(response):
 
 @app.context_processor
 def inject_globals():
-    return {"data_status": data.status(), "auth_enabled": auth_enabled(), "current_user": g.get("user"),
+    return {"periods": data.periods(), "period_key": data.current().key,
+            "data_status": data.status(), "auth_enabled": auth_enabled(), "current_user": g.get("user"),
             "csrf_token": csrf_token, "role_names": users.ROLE_NAMES, "limited": access.limited(g.get("user")),
             "network_svg": lambda: network.svg(network.labels(), url_for("static", filename="img/heritage-logo.png"))}
 
@@ -608,6 +631,7 @@ def meta():
         "months": data.months_text(data.META.get("base_months", [])),
         "period": data.META.get("period") or {"mtd": False},
         "costs_from": data.META.get("costs_from"),
+        "period_key": data.current().key,
         "user": {"role": g.user["role"] if g.get("user") else None, "limited": limited},
     })
 
