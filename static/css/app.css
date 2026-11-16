@@ -891,3 +891,6 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .dp-tag.is-on { background: var(--green-tint); color: #14591a; }
 .dp-tag.is-warn { background: #fdf3d8; color: #8a5a00; }
 @media (max-width: 900px) { .dp-tiles { grid-template-columns: 1fr; } }
+.dp-chip.dp-static { cursor: default; align-self: flex-start; justify-self: start; width: fit-content; }
+.dp-chip.dp-static::after { display: none; }
+.dp-chip.dp-static[hidden] { display: none; }

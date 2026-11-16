@@ -57,23 +57,7 @@
   <section class="dp-build" id="stepBuild">
     <header><span class="dp-n">4</span><h2>Build</h2></header>
     <div class="dp-months" id="months" role="group" aria-label="Month to build"></div>
-    <div class="dp-opts">
-      <details class="dp-pop" id="mtdField" hidden>
-        <summary class="dp-chip" id="mtdChip"></summary>
-        <div class="dp-panel">
-          <label for="mtdDays">Days billed so far</label>
-          <input id="mtdDays" type="number" min="1" max="31" step="1" class="text" inputmode="numeric">
-        </div>
-      </details>
-      <details class="dp-pop" id="costPick">
-        <summary class="dp-chip" id="costChip"></summary>
-        <div class="dp-panel">
-          <label for="costMonth">Take costs from the MIS of</label>
-          <select id="costMonth" class="text"></select>
-          <small>Automatic uses the MIS of the month you build, or the latest earlier one if it is not there yet.</small>
-        </div>
-      </details>
-    </div>
+    <span class="dp-chip dp-static" id="mtdChip" hidden></span>
     <div class="dp-go">
       <button type="button" class="btn btn-primary btn-lg" id="buildBtn">Build</button>
       <p class="note" id="buildNote" role="status"></p>

@@ -139,34 +139,23 @@
     });
   }
 
-  // The days of billing and the cost month only matter for a month that is still running or has no MIS yet.
+  // For a month that is still running, shows how many days of billing the figures will cover. Worked out from the data, not typed.
   function renderBuildOptions() {
-    const list = status && status.billing ? status.billing.months : [];
-    const sel = $('costMonth'), keep = sel.value;
-    const others = list.filter((m) => !ticked.has(m));
-    sel.innerHTML = '<option value="">Automatic</option>'
-      + others.map((m) => `<option value="${m}">${HE.esc(monthLabel(m))}</option>`).join('');
-    sel.value = others.includes(keep) ? keep : '';
-    $('costChip').textContent = sel.value ? `Costs: ${monthLabel(sel.value)} MIS` : 'Costs: automatic';
-    $('costChip').title = 'Uses the MIS of the month you build. If that MIS is not there yet, the latest earlier month.';
-
     const single = ticked.size === 1 ? [...ticked][0] : null;
-    const auto = single ? autoDays(single) : null;
-    const running = single && isCurrentMonth(single);
-    $('mtdField').hidden = !(single && (auto || running));
-    if (!single) { $('mtdDays').value = ''; return; }
-    const days = $('mtdDays').value.trim() || (auto ? String(auto) : '');
-    $('mtdChip').textContent = days ? `${days} days so far` : 'Enter days so far';
-    $('mtdChip').title = auto ? `Billing runs to day ${auto} of the month. Figures are the actual amounts so far.` : 'How many days of billing the month has.';
-    $('mtdDays').placeholder = auto ? String(auto) : 'for example 12';
-    if (running && !auto) $('mtdField').open = true;
+    const days = single ? autoDays(single) : null;
+    const chip = $('mtdChip');
+    chip.hidden = !days;
+    if (days) {
+      chip.textContent = `${days} days so far`;
+      chip.title = `Billing runs to day ${days} of the month. Figures are the actual amounts so far.`;
+    }
   }
 
   function buildLabel() {
     const months = [...ticked].sort();
     if (!months.length) return 'Build';
     if (months.length > 1) return `Build ${months.length} months (average)`;
-    const partial = months[0] && ($('mtdDays').value.trim() || autoDays(months[0]));
+    const partial = months[0] && autoDays(months[0]);
     return `Build ${monthLabel(months[0])}${partial ? ' so far' : ''}`;
   }
 
@@ -447,12 +436,9 @@
     const box = e.target.closest('input[type=checkbox]');
     if (!box) return;
     if (box.checked) ticked.add(box.value); else ticked.delete(box.value);
-    $('mtdDays').value = '';
     renderBuildOptions();
     render();
   });
-  $('mtdDays').addEventListener('input', () => { renderBuildOptions(); renderBuildButton(status.job.state === 'running'); });
-  $('costMonth').addEventListener('change', renderBuildOptions);
 
   $('periodList').addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-show]');
@@ -463,13 +449,13 @@
 
   $('buildBtn').addEventListener('click', async () => {
     const months = [...ticked].sort(), single = months.length === 1;
-    const days = single ? ($('mtdDays').value.trim() || String(autoDays(months[0]) || '')) : '';
+    const days = single ? String(autoDays(months[0]) || '') : '';
     const now = new Date(), thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     if (months.length === 1 && months[0] === thisMonth && !days) {
-      setNote($('buildNote'), `${monthLabel(months[0])} is not finished. Enter how many days of billing it has (for example 11), or tick only finished months.`, 'is-error');
+      setNote($('buildNote'), `${monthLabel(months[0])} is not finished and the app cannot tell how far billing goes. Refresh billing, then build.`, 'is-error');
       return;
     }
-    const r = await api('/api/data/build', { months, cost_month: $('costMonth').value || null,
+    const r = await api('/api/data/build', { months, cost_month: null,
       mtd_days: months.length === 1 && days ? Number(days) : null });
     if (!r.ok) { setNote($('buildNote'), r.data.error || 'Could not start the build.', 'is-error'); return; }
     prevJobState = 'running';
