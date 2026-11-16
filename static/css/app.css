@@ -897,3 +897,8 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .dialog .dialog-text { margin: 0 0 16px; font-size: 14px; color: var(--muted); }
 #leaveDialog { width: min(540px, 94vw); }
 #leaveDialog .dialog-actions { flex-wrap: wrap; }
+.dp-ask { margin: 0; font-size: 14px; font-weight: 500; }
+.dp-month { padding-left: 40px; }
+.dp-month::before { content: ""; position: absolute; left: 14px; top: 15px; width: 14px; height: 14px; border: 1.5px solid #9db39a; border-radius: 50%; background: var(--panel); }
+.dp-month:has(input:checked)::before { border-color: var(--green); background: radial-gradient(circle, var(--green) 0 4px, var(--panel) 5px); }
+.dp-mkind { font-size: 13px; color: var(--ink); }

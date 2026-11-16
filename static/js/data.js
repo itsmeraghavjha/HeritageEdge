@@ -130,7 +130,7 @@
       if (pick) ticked.add(pick);
       $('months').innerHTML = list.length
         ? list.map((m) => `<label class="dp-month" data-m="${m}"><input type="radio" name="buildMonth" value="${m}"${ticked.has(m) ? ' checked' : ''}>
-            <span class="dp-mname">${HE.esc(monthLabel(m))}</span><span class="dp-mtag"></span></label>`).join('')
+            <span class="dp-mname">${HE.esc(monthLabel(m))}</span><span class="dp-mkind"></span><span class="dp-mtag"></span></label>`).join('')
         : '<span class="dp-empty">Pull billing first. The months it holds will appear here.</span>';
       renderBuildOptions();
     }
@@ -139,6 +139,10 @@
     (status.periods || []).forEach((p) => { if (p.months.length === 1) byMonth[p.months[0]] = p; });
     document.querySelectorAll('.dp-month').forEach((el) => {
       const p = byMonth[el.dataset.m], tag = el.querySelector('.dp-mtag');
+      const days = autoDays(el.dataset.m);             // a month still running covers the days billed so far
+      const kind = el.querySelector('.dp-mkind');
+      kind.textContent = days ? `${days} days so far` : 'Full month';
+      kind.title = days ? `Billing runs to day ${days} of the month. Figures are the actual amounts so far.` : '';
       el.classList.toggle('is-built', !!p);
       el.classList.toggle('is-stale', !!(p && p.changed.length));
       tag.textContent = !p ? 'Not built' : p.changed.length ? 'Rebuild' : `Built ${fmtDay(p.built_at.slice(0, 10))}`;
@@ -146,17 +150,7 @@
     });
   }
 
-  // For a month that is still running, shows how many days of billing the figures will cover. Worked out from the data, not typed.
-  function renderBuildOptions() {
-    const single = ticked.size === 1 ? [...ticked][0] : null;
-    const days = single ? autoDays(single) : null;
-    const chip = $('mtdChip');
-    chip.hidden = !days;
-    if (days) {
-      chip.textContent = `${days} days so far`;
-      chip.title = `Billing runs to day ${days} of the month. Figures are the actual amounts so far.`;
-    }
-  }
+  function renderBuildOptions() { /* the card of each month says whether it covers the whole month or the days so far */ }
 
   function buildLabel() {
     const months = [...ticked].sort();

@@ -65,7 +65,7 @@ Global constants for the volume suggestion are at the top of `engine/simulate.py
 
 ## The Data page
 
-Three source tiles (billing, offer files, MIS), a Build card with one card per month (pick one; the page does not offer averaging, though the API still accepts several months) (each shows Not built, Built <date> or Rebuild) and a read-only chip with the days so far for a month still running (the days and the cost month are worked out by the app, with no dropdowns; the API still accepts `cost_month` and `mtd_days`), then a list of built periods with a Show button. A period is flagged Rebuild when billing was pulled again, the MIS was replaced or a covering offer file was added after it was built (`datastore._out_of_date`).
+Three source tiles (billing, offer files, MIS), a Build card with one card per month (pick one; the page does not offer averaging, though the API still accepts several months) (each shows Not built, Built <date> or Rebuild) and each card says "Full month" or "N days so far" (the days and the cost month are worked out by the app, with no dropdowns; the API still accepts `cost_month` and `mtd_days`), then a list of built periods with a Show button. A period is flagged Rebuild when billing was pulled again, the MIS was replaced or a covering offer file was added after it was built (`datastore._out_of_date`).
 
 ## Periods and offer files
 
