@@ -831,7 +831,7 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .step .file-list div { margin: 2px 0; }
 
 /* ---------- Data page ---------- */
-.dp { display: grid; gap: 16px; max-width: 1100px; }
+.dp { display: grid; gap: 16px; }
 .dp header { display: flex; align-items: center; gap: 10px; }
 .dp header h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .dp-n { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--pasture); color: #fff; font-size: 12px; font-weight: 600; flex: none; }

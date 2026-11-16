@@ -55,6 +55,12 @@
   function fmtDay(iso) {
     return new Date(iso + 'T00:00:00').toLocaleString('en-IN', { day: 'numeric', month: 'short' });
   }
+  // "Oct'26 · Nov'26" for a few months, "Jan'25 to Nov'26" for a long run
+  function monthsSpan(months) {
+    if (!months || !months.length) return 'months not read';
+    const m = months.slice().sort();
+    return m.length <= 3 ? m.map(shortMonth).join(' · ') : `${shortMonth(m[0])} to ${shortMonth(m[m.length - 1])}`;
+  }
   const fileLine = (name, meta) => `<div class="dp-file"><b title="${HE.esc(name)}">${HE.esc(name)}</b><span>${meta}</span></div>`;
 
   function render() {
@@ -98,7 +104,7 @@
     const offers = (status.offers || []).slice().reverse();
     setState($('offerState'), offers.length ? `${offers.length} file${offers.length === 1 ? '' : 's'}` : 'Needed', offers.length ? 'ok' : '');
     $('offerList').innerHTML = offers.length ? offers.map((f) =>
-      fileLine(f.name, (f.months && f.months.length ? f.months.map(shortMonth).join(' · ') : 'months not read') + ' · ' + fmtDay(f.uploaded_at.slice(0, 10)))).join('')
+      fileLine(f.name, monthsSpan(f.months) + ' · ' + fmtDay(f.uploaded_at.slice(0, 10)))).join('')
       : '<div class="dp-empty">None yet</div>';
     const mis = uploads.mis;
     setState($('misState'), mis ? 'Uploaded' : 'Needed', mis ? 'ok' : '');
