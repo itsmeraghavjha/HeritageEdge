@@ -67,14 +67,14 @@
   const emptyScope = () => ({});
   const OLD_KEYS = { chains: 'chain', states: 'state', cities: 'city', sos: 'so', families: 'family', skus: 'sku' };
 
-  function read(key, fallback) {
+  function read(key, fallback, store) {
     try {
-      const raw = localStorage.getItem(key);
+      const raw = (store || localStorage).getItem(key);
       return raw ? JSON.parse(raw) : fallback;
     } catch (e) { return fallback; }
   }
-  function write(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable */ }
+  function write(key, value, store) {
+    try { (store || localStorage).setItem(key, JSON.stringify(value)); } catch (e) { /* storage unavailable */ }
   }
 
   // Older saves used plural keys (chains, states, skus). Convert them and drop empty lists.
@@ -130,15 +130,17 @@
   const leversPayload = (state) => (adjustCount(state.adjust)
     ? Object.assign({}, state.levers, { adjust: state.adjust }) : state.levers);
 
+  // The levers being worked on live in this browser tab only (sessionStorage): opening the app afresh starts from the
+  // baseline with no scenario applied, while moving between the simulator and the P&L in the same tab keeps them.
   function loadState() {
-    const s = read(STATE_KEY, null) || read('heritageedge:scenario:v1', {});
+    const s = read(STATE_KEY, null, sessionStorage) || {};
     return {
       levers: Object.assign({}, DEFAULTS, s.levers || {}),
       scope: normalizeSelection(s.scope),
       adjust: normalizeAdjust(s.adjust),
     };
   }
-  function saveState(state) { write(STATE_KEY, state); }
+  function saveState(state) { write(STATE_KEY, state, sessionStorage); }
   function loadSaved() {
     const list = read(SAVED_KEY, null) || read('heritageedge:saved:v1', []);
     return list.map((x) => Object.assign({}, x, { scope: normalizeSelection(x.scope), adjust: normalizeAdjust(x.adjust) }));

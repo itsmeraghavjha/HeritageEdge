@@ -4,7 +4,7 @@
   const $ = (id) => document.getElementById(id);
   const state = HE.loadState();
   const expanded = new Set();
-  let mode = 'sim';
+  let mode = 'base';
   let data = null;
   let meta = null;
   let requestId = 0;
