@@ -161,11 +161,22 @@ def test_the_months_an_offer_file_covers_are_read_from_its_headers(tmp_path):
     assert prepare.offer_file_months(tmp_path / "missing.xlsx") == []
 
 
-def test_offer_files_of_different_months_are_all_kept(uploads):
+def test_a_new_offer_file_replaces_the_old_one_even_for_another_month(uploads):
     datastore.save_upload("offer", Upload("Oct offer.xlsx", offer_frame("Sep", "Oct")))
     datastore.save_upload("offer", Upload("Nov offer.xlsx", offer_frame("Oct", "Nov")))
-    assert [o["name"] for o in datastore.offers()] == ["Oct offer.xlsx", "Nov offer.xlsx"]
-    assert datastore.uploaded("offer")["name"] == "Nov offer.xlsx"
+    assert [o["name"] for o in datastore.offers()] == ["Nov offer.xlsx"]
+    assert len([p for p in (uploads / "uploads").iterdir() if p.name.startswith("offer_")]) == 1
+
+
+def test_older_extra_offer_files_are_not_listed(uploads):
+    folder = uploads / "uploads"
+    folder.mkdir()
+    for n in ("a", "b"):
+        (folder / f"offer_{n}.xlsx").write_bytes(b"x")
+    (folder / "manifest.json").write_text(json.dumps({"offers": [
+        {"name": "A.xlsx", "stored": "offer_a.xlsx", "size": 1, "uploaded_at": "2026-10-01T00:00:00", "months": ["2026-08-01"]},
+        {"name": "B.xlsx", "stored": "offer_b.xlsx", "size": 1, "uploaded_at": "2026-11-01T00:00:00", "months": ["2026-11-01"]}]}))
+    assert [o["name"] for o in datastore.offers()] == ["B.xlsx"]
 
 
 def test_a_newer_version_of_the_same_file_replaces_the_old_one(uploads):
@@ -175,23 +186,12 @@ def test_a_newer_version_of_the_same_file_replaces_the_old_one(uploads):
     assert len([p for p in (uploads / "uploads").iterdir() if p.name.startswith("offer_")]) == 1
 
 
-def test_a_build_picks_the_offer_file_whose_own_month_it_is(uploads):
-    datastore.save_upload("offer", Upload("Sep file.xlsx", offer_frame("Aug", "Sep")))
-    datastore.save_upload("offer", Upload("Oct file.xlsx", offer_frame("Sep", "Oct")))
+def test_the_one_offer_file_is_a_fit_by_its_own_month(uploads):
     datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
-    pick = lambda m: [(o["name"], fit) for o, fit in [datastore.offer_choice([m])]][0]
-    assert pick("2026-11-01") == ("Nov file.xlsx", "exact")
-    assert pick("2026-10-01") == ("Oct file.xlsx", "exact")    # the Nov file also has an Oct column, but Oct's own file wins
-    assert pick("2026-09-01") == ("Sep file.xlsx", "exact")
-    assert pick("2026-08-01") == ("Sep file.xlsx", "later")    # only one has August: its prices are September's
-    assert pick("2026-01-01") == ("Nov file.xlsx", "none")     # nobody has it: the newest, and the build says what is missing
-
-
-def test_without_a_file_of_its_own_a_month_uses_the_nearest_later_file(uploads):
-    datastore.save_upload("offer", Upload("Dec file.xlsx", offer_frame("Oct", "Nov", "Dec")))
-    datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
-    name, fit = [(o["name"], f) for o, f in [datastore.offer_choice(["2026-10-01"])]][0]
-    assert (name, fit) == ("Nov file.xlsx", "later")           # November's prices are closer to October than December's
+    pick = lambda m: datastore.offer_choice([m])[1]
+    assert pick("2026-11-01") == "exact"
+    assert pick("2026-10-01") == "later"        # prices are November's; October's offers come from its column
+    assert pick("2026-01-01") == "none"         # no column for the month
 
 
 def test_the_page_is_told_which_offer_file_each_month_will_use(uploads, monkeypatch):
@@ -251,7 +251,7 @@ def test_a_period_says_what_changed_after_it_was_built(uploads):
 def test_only_an_offer_file_that_covers_the_period_makes_it_out_of_date(uploads):
     datastore.save_upload("offer", Upload("Nov file.xlsx", offer_frame("Oct", "Nov")))
     old = {"built_at": "2000-01-01T00:00:00", "months": ["2026-10-01"]}
-    assert datastore._out_of_date(old, None) == ["an offer file was added"]
+    assert datastore._out_of_date(old, None) == ["the offer file was replaced"]
     other = {"built_at": "2000-01-01T00:00:00", "months": ["2026-03-01"]}      # the file has no March column
     assert datastore._out_of_date(other, None) == []
 

@@ -103,7 +103,8 @@
 
     // 2 offer files, 3 MIS
     const offers = (status.offers || []).slice().reverse();
-    setState($('offerState'), offers.length ? `${offers.length} file${offers.length === 1 ? '' : 's'}` : 'Needed', offers.length ? 'ok' : '');
+    setState($('offerState'), offers.length ? 'Uploaded' : 'Needed', offers.length ? 'ok' : '');
+    $('offerBtn').textContent = offers.length ? 'Replace' : 'Add file';
     $('offerList').innerHTML = offers.length ? offers.map((f) =>
       fileLine(f.name, monthsSpan(f.months) + ' · ' + fmtDay(f.uploaded_at.slice(0, 10)))).join('')
       : '<div class="dp-empty">None yet</div>';
@@ -161,7 +162,7 @@
     const o = months.length === 1 && status.offer_for ? status.offer_for[months[0]] : null;
     if (!o) { el.hidden = true; el.innerHTML = ''; return; }
     const mon = monthLabel(months[0]);
-    const add = `<label for="offerFile" class="btn">Add ${HE.esc(mon)} offer file</label>`;
+    const add = `<label for="offerFile" class="btn">Replace with ${HE.esc(mon)} offer file</label>`;
     let cls = 'is-ok', text;
     if (o.fit === 'exact') text = `Offer file: <b>${HE.esc(o.name)}</b>`;
     else if (o.fit === 'later') {

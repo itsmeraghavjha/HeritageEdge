@@ -86,7 +86,7 @@ Every build is kept in its own folder, `data/periods/<months>/` (for example `20
 - Someone who has not chosen sees the latest month built.
 - Everything on the screen (simulator, P&L, Scenarios, Excel) is worked out on the chosen period. Saved scenarios hold only lever values, so one scenario can be opened on any period.
 - The Data page has a Month tab and a Projection tab (month so far, actuals). Each has its own billing, offer files and MIS.
-- Offer files are kept per month, up to 8. A single-month build uses the file whose own latest month is that month (`datastore.offer_choice`: "exact"), else the nearest later file that has the month's column ("later": offers come from that column but MRP, trade margin and GST are the later month's), else the newest file ("none"). The Data page shows which file will be used and offers "Add <month> offer file"; the file name is kept in `meta.json` `offer_file`. A newer version of a file covering the same months replaces the old one. There is still one MIS workbook.
+- Each tab keeps one offer file; a new upload replaces it. `datastore.offer_choice` says how well it fits the month being built: "exact" (its latest month is that month), "later" (the month's column is there but MRP, trade margin and GST are the file's later month) or "none" (no column for the month). The Data page shows this and offers "Add <month> offer file", which replaces the file. The file name is kept in `meta.json` `offer_file`. There is still one MIS workbook.
 
 ## Month to date, with costs from another month
 

@@ -42,7 +42,7 @@ def _write_json(path, obj):
 # ---------- uploads ----------
 # One MIS workbook is kept. Offer files are kept for several months (one per period they cover), because each month has
 # its own file and an earlier month may need building again.
-MAX_OFFER_FILES = 8
+MAX_OFFER_FILES = 1                     # one offer file per tab: a new upload replaces it
 
 
 def _manifest(space="month"):
@@ -53,7 +53,7 @@ def offers(space="month"):
     """The stored offer files, oldest first: name, stored, size, uploaded_at and the months each has a column for."""
     m = _manifest(space)
     items = list(m.get("offers") or ([m["offer"]] if m.get("offer") else []))
-    items = [i for i in items if (uploads_dir(space) / i["stored"]).exists()]
+    items = [i for i in items if (uploads_dir(space) / i["stored"]).exists()][-MAX_OFFER_FILES:]
     fill = [i for i in items if "months" not in i]                       # uploaded before the months were read
     if fill:
         for i in fill:
@@ -136,14 +136,7 @@ def save_upload(kind, storage, space="month"):
         manifest["mis"] = info
     else:
         info["months"] = prepare.offer_file_months(target)
-        kept = []
-        for old in manifest["offers"]:
-            same = info["months"] and old.get("months") == info["months"]     # a newer version of the same file
-            if same:
-                (folder / old["stored"]).unlink(missing_ok=True)
-            else:
-                kept.append(old)
-        manifest["offers"] = (kept + [info])[-MAX_OFFER_FILES:]
+        manifest["offers"] = [info]                                          # the new file replaces the old one
         for gone in folder.glob("offer*"):                                    # files dropped from the list, and the old single file
             if gone.name not in {i["stored"] for i in manifest["offers"]}:
                 gone.unlink(missing_ok=True)
@@ -242,7 +235,7 @@ def _out_of_date(period, billing, space="month"):
         reasons.append("the MIS was replaced")
     want = set(period.get("months") or [])
     if any(o["uploaded_at"] > built and want <= set(o.get("months") or []) for o in offers(space)):
-        reasons.append("an offer file was added")
+        reasons.append("the offer file was replaced")
     return reasons
 
 
