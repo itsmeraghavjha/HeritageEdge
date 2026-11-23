@@ -86,7 +86,7 @@ def test_attributed_costs_follow_their_basis():
     after = sim.calc_row(row, sim.parse_levers({"price_change_pct": 5, "volume_change_pct": 5}), True)
     assert after["units"] != before["units"]
     for line in ("cogs", "sd", "ou"):
-        assert data.BASIS[line] == "volume"
+        assert data.BASIS[line] == "litre"
     for line in ("pa", "interest", "mktg"):
         assert data.BASIS[line] == "revenue"
         assert close(after[line] / after["net"], before[line] / before["net"])

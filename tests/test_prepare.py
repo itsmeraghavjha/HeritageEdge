@@ -484,3 +484,56 @@ def test_comparisons_with_the_mis_are_skipped_when_costs_come_from_another_month
 def test_a_usual_build_has_no_period_note(built):
     _, meta, _ = built
     assert meta["period"] == {"mtd": False, "days": None, "label": ""} and meta["costs_from"] is None
+
+
+# ---------- per-litre cost basis ----------
+def _mis_and_rows():
+    lines = dict.fromkeys(prepare.LINES, 0.0)
+    mis = pd.DataFrame([
+        {"sku": 1, "SalesOfficeID": 1, "grp": "Modern Formats", "family": "MILK", "packs": 1000, "rev": 20000.0, **lines, "cogs": 10000.0},
+        {"sku": 2, "SalesOfficeID": 1, "grp": "Modern Formats", "family": "MILK", "packs": 1000, "rev": 20000.0, **lines, "cogs": 30000.0}])
+    g = pd.DataFrame([{"sku": s, "SalesOfficeID": 1, "grp": "Modern Formats", "family": "MILK", "net_px": 20.0} for s in (1, 2)])
+    return g, mis
+
+
+def test_a_per_litre_cost_is_stored_as_rupees_per_pack():
+    g, mis = _mis_and_rows()
+    basis = {**dict.fromkeys(prepare.LINES, "revenue"), "cogs": "litre"}
+    out, _ = prepare.attribute_costs(g, mis, basis, {1: 0.5, 2: 1.0})
+    # SKU 1: Rs 10,000 over 500 litres is Rs 20 a litre, so Rs 10 for a 0.5 L pack. SKU 2: Rs 30 a litre, Rs 30 a 1 L pack.
+    assert list(out["cogs"].round(6)) == [10.0, 30.0]
+
+
+def test_per_litre_and_per_pack_give_the_same_rupees_per_pack_when_pack_sizes_are_known():
+    g, mis = _mis_and_rows()
+    per_pack = prepare.attribute_costs(g, mis, {**dict.fromkeys(prepare.LINES, "revenue"), "cogs": "volume"})[0]["cogs"]
+    per_litre = prepare.attribute_costs(g, mis, {**dict.fromkeys(prepare.LINES, "revenue"), "cogs": "litre"}, {1: 0.5, 2: 1.0})[0]["cogs"]
+    assert list(per_pack.round(6)) == list(per_litre.round(6))
+
+
+def test_a_sku_with_no_known_pack_size_falls_back_to_the_family_share_of_revenue():
+    g, mis = _mis_and_rows()
+    basis = {**dict.fromkeys(prepare.LINES, "revenue"), "cogs": "litre"}
+    out, _ = prepare.attribute_costs(g, mis, basis, {2: 1.0})       # SKU 1 has no size
+    # family COGS is 40,000 of 40,000 revenue (100%), times this row's price of Rs 20
+    assert list(out["cogs"].round(6)) == [20.0, 30.0]
+
+
+def test_pack_sizes_come_from_the_pack_text_then_the_sku_name():
+    raw = pd.DataFrame({"MaterialCode": [1, 1, 2, 3], "PackSize": ["500 ML", "500 ML", "", "1 KG"]})
+    sizes = prepare.sku_sizes(raw, {2: "Test curd 400 g", 9: "Test 1 L pack"})
+    assert sizes[1] == 0.5 and sizes[3] == 1.0 and sizes[2] == 0.4 and sizes[9] == 1.0
+
+
+def test_building_on_the_per_litre_basis_gives_the_same_dataset_as_per_pack(tmp_path, monkeypatch):
+    synth.make_offer(tmp_path / "offer.xlsx")
+    synth.make_billing(tmp_path / "billing.csv")
+    synth.make_mis(tmp_path / "mis.xlsx")
+    results = {}
+    for name in ("volume", "litre"):
+        monkeypatch.setattr(prepare, "read_basis", lambda name=name: {**dict.fromkeys(prepare.LINES, "revenue"),
+                                                                       "cogs": name, "sd": name, "ou": name})
+        prepare.build_dataset(tmp_path / "offer.xlsx", tmp_path / "mis.xlsx", tmp_path / "billing.csv", synth.MONTHS,
+                              out_dir=tmp_path / name)
+        results[name] = pd.read_csv(tmp_path / name / "rows.csv")
+    pd.testing.assert_frame_equal(results["volume"], results["litre"])

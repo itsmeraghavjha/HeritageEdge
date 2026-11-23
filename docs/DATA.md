@@ -59,7 +59,7 @@ The reconciliation:
 | File | Contents |
 |---|---|
 | `assumptions.csv` | Elasticity per product family. Edit and restart. A build never overwrites it |
-| `attribution.csv` | For each MIS cost line, `volume` (per pack) or `revenue` (% of net revenue). Change it, then rebuild |
+| `attribution.csv` | For each MIS cost line, `litre` (per litre or kg), `volume` (per pack) or `revenue` (% of net revenue). COGS, S&D and over/under are `litre`. Change it, then rebuild |
 
 Global constants for the volume suggestion are at the top of `engine/simulate.py`. They only feed the hint shown next to the volume input, which users set themselves. Treat the suggestion as indicative until the elasticities are calibrated from past promo and price-change history.
 

@@ -41,6 +41,7 @@ The MIS also has FOC, notional and OI lines. They were zero or close to zero in 
 
 The MIS has no chain column. For every SKU x sales office x customer group it takes the MIS cost and spreads it to chains. `config/attribution.csv` sets the rule for each cost line:
 
+- `litre`: the MIS cost is divided by the litres (or kg, one kg counting as one litre) in the MIS packs, using each SKU's pack size from billing, else from the SKU name in the offer file. Every chain pays the same cost per litre in that cell. The dataset keeps it as rupees per pack (rate per litre x litres in the pack), so the simulator is unchanged. For one SKU the pack size is fixed, so this gives the same rupees per pack as `volume`; it differs only where a SKU's size is unknown, where it takes the product family's share of revenue.
 - `volume`: every chain pays the same cost per pack in that cell.
 - `revenue`: every chain pays the same percentage of its net revenue.
 

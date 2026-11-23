@@ -23,7 +23,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - `engine/simulate.py`: all maths (`calc_row`, `simulate`, `pnl`, `bridge`); `Levers` frozen dataclass, `LIMITS` clamps input; functions take `allowed` rows; `strip_below_cm` and `BELOW_CONTRIBUTION` for KAMs.
 - `engine/export.py` Excel; `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
 - `app.py`: thin routes, login, CSRF, `log(...)`. Keep logic in `engine/`.
-- `config/assumptions.csv` elasticities (volume suggestion only; volume is a user input); `config/attribution.csv` spreads each MIS cost per pack or as % of revenue.
+- `config/assumptions.csv` elasticities (volume suggestion only; volume is a user input); `config/attribution.csv` spreads each MIS cost per litre (COGS, S&D, over/under; stored as rupees per pack), per pack or as % of revenue.
 - Front end: plain JS, one CSS file, no build. `static/js/common.js` has lever defs (`GROUPS`), presets, selectors, formatting, `window.HE`.
 
 ## Conventions

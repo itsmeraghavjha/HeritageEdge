@@ -271,19 +271,52 @@ def load_mis(path, progress=None):
 
 
 # ---------- cost attribution ----------
+# How each MIS cost is spread over the volume or revenue: per pack ("volume"), per litre ("litre": litres or kg in the
+# pack, one kg counting as one litre) or as a share of revenue ("revenue"). Per pack and per litre are both kept in the
+# dataset as rupees per pack, so the simulator never needs to know which one was used.
+PER_PACK_BASES = ("volume", "litre")
+
+
+def sku_sizes(raw, names):
+    """Litres or kg in one pack of each SKU: the pack text of billing, else the size written in the SKU's name in the
+    offer file. SKUs whose size cannot be read are left out. Returns {sku: size}."""
+    size = pd.to_numeric(raw["PackSize"].map(pack_size), errors="coerce")
+    by_sku = size.where(size > 0).groupby(pd.to_numeric(raw["MaterialCode"], errors="coerce")).first().dropna().to_dict()
+    for sku, name in (names or {}).items():
+        if sku not in by_sku:
+            got = integrity.name_pack_size(name, pack_size)
+            if got and got > 0:
+                by_sku[sku] = got
+    return by_sku
+
+
 def rates(m, keys, basis):
-    """MIS cost per pack (volume basis) or per rupee of revenue (revenue basis) at the given level."""
-    t = m.groupby(keys)[["packs", "rev"] + LINES].sum().reset_index()
+    """MIS cost per pack ("volume"), per litre ("litre", needs a `litres` column) or per rupee of revenue ("revenue")
+    at the given level. A per-litre rate is empty where no pack size is known."""
+    cols = ["packs", "rev"] + (["litres"] if "litres" in m.columns else [])
+    t = m.groupby(keys)[cols + LINES].sum().reset_index()
     out = t[keys].copy()
     for line in LINES:
-        den = t["packs"] if basis[line] == "volume" else t["rev"]
+        if basis[line] == "litre":
+            den = t["litres"] if "litres" in t.columns else t["packs"] * float("nan")
+        elif basis[line] == "volume":
+            den = t["packs"]
+        else:
+            den = t["rev"]
         out[line] = (t[line] / den).where(den > 0)
     out["ok"] = (t["packs"] > 0) & (t["rev"] > 0)
     return out
 
 
-def attribute_costs(g, mis, basis):
-    """Adds the six cost columns to g (SKU x office x group level). Returns the cost-source shares."""
+def attribute_costs(g, mis, basis, sizes=None):
+    """Adds the six cost columns to g (SKU x office x group level). Returns the cost-source shares.
+
+    A per-litre line is worked out per litre from the MIS and turned back into rupees per pack with the SKU's pack size,
+    so the dataset holds rupees per pack for every per-pack or per-litre line. A SKU with no known pack size has no
+    per-litre rate and takes the product family's share of revenue instead."""
+    sizes = sizes or {}
+    mis = mis.assign(litres=mis["packs"] * mis["sku"].map(sizes))
+    g = g.assign(size=g["sku"].map(sizes))
     cell = rates(mis, ["sku", "SalesOfficeID", "grp"], basis)
     skul = rates(mis, ["sku", "grp"], basis)
     famr = rates(mis.assign(packs=mis["rev"]), ["family", "grp"], {x: "revenue" for x in LINES})
@@ -295,13 +328,15 @@ def attribute_costs(g, mis, basis):
                 on=["family_k", "grp"], how="left")
     src = pd.Series("family ratio", index=g.index)
     for line in LINES:
+        per_pack = basis[line] in PER_PACK_BASES
+        scale = g["size"] if basis[line] == "litre" else 1.0                 # per litre -> per pack
         fam = g[f"{line}_f"].fillna(0)
-        v = (fam * g["net_px"] if basis[line] == "volume" else fam).copy()   # family fallback: % of revenue
+        v = (fam * g["net_px"] if per_pack else fam).copy()                  # family fallback: % of revenue
         use_s = g["ok_s"].fillna(False).astype(bool) & g[f"{line}_s"].notna()
-        v[use_s] = g.loc[use_s, f"{line}_s"]
+        v[use_s] = (g[f"{line}_s"] * scale)[use_s]
         use_c = g["ok_c"].fillna(False).astype(bool) & g[f"{line}_c"].notna()
-        v[use_c] = g.loc[use_c, f"{line}_c"]
-        g[line] = v.clip(-0.5 * g["net_px"], 3 * g["net_px"]) if basis[line] == "volume" else v.clip(-0.5, 2.0)
+        v[use_c] = (g[f"{line}_c"] * scale)[use_c]
+        g[line] = v.clip(-0.5 * g["net_px"], 3 * g["net_px"]) if per_pack else v.clip(-0.5, 2.0)
         if line == "cogs":
             src[use_s] = "sku average"
             src[use_c] = "sku x office"
@@ -323,7 +358,7 @@ def reconcile(rows, mis, basis):
             continue
         lines, model_sum, mis_sum = [], 0.0, 0.0
         for line in LINES:
-            cost = r["units"] * r[line] if basis[line] == "volume" else r["units"] * r["net_px"] * r[line]
+            cost = r["units"] * r[line] if basis[line] in PER_PACK_BASES else r["units"] * r["net_px"] * r[line]
             mp, sp = float(cost.sum()) / rev_model, float(m[line].sum()) / rev_mis
             model_sum += mp
             mis_sum += sp
@@ -721,7 +756,7 @@ def build_dataset(offer_path, mis_path, billing_path, base_months, progress=None
                         f"{month_text(max([k for k in mis_all['month'].unique() if not k.startswith(UNKNOWN_YEAR) and k < base_months[0]], default=base_months[0])) if len(base_months) == 1 else 'not used'}.)")
     say("Attributing MIS costs to chains", 0.8)
     g["SalesOfficeID"] = g["so_num"]
-    g, cost_source = attribute_costs(g, mis, basis)
+    g, cost_source = attribute_costs(g, mis, basis, sku_sizes(raw, sku_names))
 
     out = g.assign(so=g["SalesOfficeID"].astype("Int64").astype(str), sku=g["sku"].astype("int64").astype(str))
     out["state"] = out["state"].str.title()

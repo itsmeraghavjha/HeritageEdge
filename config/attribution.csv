@@ -1,7 +1,7 @@
 line,basis
-cogs,volume
-sd,volume
+cogs,litre
+sd,litre
 pa,revenue
 interest,revenue
-ou,volume
+ou,litre
 mktg,revenue

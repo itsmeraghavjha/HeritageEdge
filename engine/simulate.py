@@ -182,7 +182,7 @@ def calc_row(row, lv, active, fixed_volume=False):
     rebates = gross * rebate_rate
     net = gross - promo - rebates
     def cost(line):  # attributed MIS cost: per pack, or % of net revenue, depending on data/attribution.csv
-        return units * row[line] if data.BASIS[line] == "volume" else net * row[line]
+        return net * row[line] if data.BASIS[line] == "revenue" else units * row[line]   # per pack or per litre: rupees per pack
 
     cogs = cost("cogs") * (1 + lv.cogs_change_pct / 100)
     gm = net - cogs
