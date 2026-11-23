@@ -552,8 +552,12 @@ def _offer_months(c):
           ("Rows whose offer differs from the file's latest-month numbers", pct(d)),
           ("Average offer per pack, base months and latest month", f"Rs {r['avg_offer_month']:.2f} and Rs {r['avg_offer_numeric']:.2f}"),
           ("Cells that could not be read", str(r["unreadable_cells"]))]
-    head = (f"The offer comes from the {names} columns. {pct(d)} of offer rows differ from the file's latest-month numbers, "
-            "which is the error a build on an earlier month would have carried.")
+    if str(r["source"]).startswith("numeric"):
+        head = (f"The offer comes from the file's own on-invoice and off-invoice rupee columns ({names} is the file's month). "
+                f"The {names} text column gives a different offer on {pct(d)} of rows.")
+    else:
+        head = (f"The offer comes from the {names} columns. {pct(d)} of offer rows differ from the file's latest-month numbers, "
+                "which is the error a build on an earlier month would have carried.")
     bad = r["unreadable_cells"] > 0.01 * r["rows"]
     return (WARN if bad else PASS), head, ev, "Check the month text in the offer file." if bad else ""
 

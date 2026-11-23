@@ -221,7 +221,9 @@ def offer_rows(**cols):
 
 
 def test_month_text_gives_on_and_off_invoice_offers():
-    df = offer_rows(**{"Jul'26 - Month Offer": ["NLC Rs. 70 On Invoice Promo- No Debit", "Rs. 4 Promo - Off Invoice claim", None]})
+    # a later month column exists, so July is not the file's own month and its text is what is read
+    df = offer_rows(**{"Jul'26 - Month Offer": ["NLC Rs. 70 On Invoice Promo- No Debit", "Rs. 4 Promo - Off Invoice claim", None],
+                       "Aug'26 - Month Offer": [None] * 3})
     out, rep = prepare.monthly_offers(df, ["2026-07-01"])
     assert list(out["on_rs"]) == pytest.approx([10.0, 0, 0])        # list price 80, chain pays 70
     assert list(out["off_rs"]) == pytest.approx([0, 4.0, 0])
@@ -431,3 +433,22 @@ def test_a_gap_in_one_sku_is_reported_as_concentrated():
 def test_the_build_writes_the_sku_list(tmp_path):
     build(tmp_path)
     assert (tmp_path / "out" / "sku_gap.csv").exists()
+
+
+def test_the_files_own_month_takes_the_rupee_columns_directly():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["NLC Rs. 70 On Invoice Promo", "Rs. 4 Promo - Off Invoice claim", None]})
+    out, rep = prepare.monthly_offers(df, ["2026-07-01"])           # July is the latest month in the file
+    assert list(out["on_rs"]) == [5.0, 0, 0] and list(out["off_rs"]) == [0, 3.0, 0]        # the numeric columns, as they are
+    assert rep["source"] == "numeric columns (the file's own month)"
+    assert rep["missing"] == [] and rep["rows_differ_from_numeric_pct"] > 0                # the text is still compared
+    assert list(out["offer_rs"]) == [5.0, 3.0, 0]
+
+
+def test_an_earlier_month_still_reads_its_own_text_column():
+    df = offer_rows(**{"Jul'26 - Month Offer": ["Rs. 2 Promo - Off Invoice claim"] * 3, "Aug'26 - Month Offer": [None] * 3})
+    out, rep = prepare.monthly_offers(df, ["2026-07-01"])
+    assert list(out["off_rs"]) == pytest.approx([2.0] * 3) and rep["source"] == "month columns"
+
+
+def test_month_columns_are_found_in_a_header():
+    assert prepare.month_columns(["Customer", "Jul'26 - Month Offer", "Aug\u201926 - Month Offer", "Sep'26 notes"]) == ["2026-07-01", "2026-08-01"]

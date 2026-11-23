@@ -464,6 +464,17 @@ def month_offer_column(columns, key):
     return None
 
 
+def month_columns(columns):
+    """The months an offer file has a column for ("Oct'26 - Month Offer" -> '2026-10-01'), oldest first."""
+    months = set()
+    for c in columns:
+        t = str(c).replace("\u2019", "'").strip()
+        m = re.match(r"([A-Za-z]{3})'(\d{2})\b", t)
+        if m and "offer" in t.lower() and m[1].title() in _MON:
+            months.add(f"20{m[2]}-{_MON.index(m[1].title()) + 1:02d}-01")
+    return sorted(months)
+
+
 def offer_file_months(path):
     """The months an offer file has a column for ("Oct'26 - Month Offer" -> '2026-10-01'), read from the header row
     only, so it is quick. Returns [] when the file cannot be read: the build then reports the real problem."""
@@ -472,13 +483,7 @@ def offer_file_months(path):
         header = pd.read_excel(path, engine="pyxlsb" if path.suffix.lower() == ".xlsb" else None, nrows=0)
     except Exception:
         return []
-    months = set()
-    for c in header.columns:
-        t = str(c).replace("\u2019", "'").strip()
-        m = re.match(r"([A-Za-z]{3})'(\d{2})\b", t)
-        if m and "offer" in t.lower() and m[1].title() in _MON:
-            months.add(f"20{m[2]}-{_MON.index(m[1].title()) + 1:02d}-01")
-    return sorted(months)
+    return month_columns(header.columns)
 
 
 def monthly_offers(off, base_months):
@@ -487,12 +492,17 @@ def monthly_offers(off, base_months):
     The offer file's numeric columns ("On Invoice offer", "Off Invoice Offer in Value") describe only the latest
     month. Each month also has a text column: "NLC Rs. 16 On Invoice Promo" (the chain pays Rs 16 against list price
     MRP x (1 - trade margin), so the on-invoice offer is the difference) or "Rs. 5 Promo - Off Invoice claim" (a
-    claim paid later), and blank for no offer. When every base month has its column, the offer is the average of those
-    months. If any is missing, the numeric columns are used and the report says so."""
+    claim paid later), and blank for no offer.
+
+    When the build is one month and it is the file's own (latest) month, the numeric columns are that month's offer in
+    rupees, so they are used as they are. Otherwise, when every base month has its column, the offer is the average of
+    those months' text. If any is missing, the numeric columns are used and the report says so."""
     mrp = pd.to_numeric(off["New MRP"], errors="coerce")
     trade = pd.to_numeric(off["TOT Margin on Invoice"], errors="coerce")
     num_on = pd.to_numeric(off["On Invoice offer"], errors="coerce").fillna(0.0)
     num_off = pd.to_numeric(off["Off Invoice Offer in Value"], errors="coerce").fillna(0.0)
+    in_file = month_columns(off.columns)
+    own_month = len(base_months) == 1 and bool(in_file) and base_months[0][:10] == in_file[-1]
     cols = {k: month_offer_column(off.columns, k) for k in base_months}
     missing = [k for k, c in cols.items() if c is None]
     report = {"source": "month columns", "used": [], "missing": missing, "unreadable_cells": 0,
@@ -517,11 +527,18 @@ def monthly_offers(off, base_months):
             on_sum += on_m
             off_sum += off_m
             report["used"].append(key)
-        off["on_rs"], off["off_rs"] = on_sum / len(cols), off_sum / len(cols)
-        differ = ((off["on_rs"] + off["off_rs"]) - (num_on + num_off)).abs() > 0.5
+        text_on, text_off = on_sum / len(cols), off_sum / len(cols)
+        differ = ((text_on + text_off) - (num_on + num_off)).abs() > 0.5     # the month's text against the numeric columns
         report["rows_differ_from_numeric_pct"] = float(differ.mean()) if len(off) else 0.0
-        report["avg_offer_month"] = float((off["on_rs"] + off["off_rs"]).mean())
+        report["avg_offer_month"] = float((text_on + text_off).mean())
         report["avg_offer_numeric"] = float((num_on + num_off).mean())
+        if own_month:       # the numeric columns are this month's offer in rupees: use them directly
+            off["on_rs"], off["off_rs"] = num_on, num_off
+            for key in base_months:
+                off[f"on_rs|{key}"], off[f"off_rs|{key}"] = num_on, num_off
+            report["source"] = "numeric columns (the file's own month)"
+        else:
+            off["on_rs"], off["off_rs"] = text_on, text_off
     off["offer_rs"] = off["on_rs"] + off["off_rs"]
     return off, report
 
