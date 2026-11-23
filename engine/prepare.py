@@ -103,11 +103,21 @@ def default_base_months(months, today=None, count=3):
 
 
 # ---------- readers ----------
+_OFFER_WANTED = {c.lower() for c in OFFER_REQUIRED}
+
+
+def _offer_column_wanted(name):
+    """Only the offer file columns the build uses are read: the required ones and the "Mon'YY - Month Offer" columns
+    (kept to compare with the rupee columns, and to read an earlier month). Every other column is left alone."""
+    text = str(name).replace("\u2019", "'").strip()
+    return text.lower() in _OFFER_WANTED or bool(month_columns([text]))
+
+
 def load_offer(path):
     path = Path(path)
     engine = "pyxlsb" if path.suffix.lower() == ".xlsb" else None
     try:
-        off = pd.read_excel(path, engine=engine)
+        off = pd.read_excel(path, engine=engine, usecols=_offer_column_wanted)
     except ImportError:
         raise DataError("Reading .xlsb files needs the pyxlsb package. Run: pip install pyxlsb")
     except Exception as exc:

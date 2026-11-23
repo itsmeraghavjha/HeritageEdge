@@ -484,3 +484,15 @@ def test_comparisons_with_the_mis_are_skipped_when_costs_come_from_another_month
 def test_a_usual_build_has_no_period_note(built):
     _, meta, _ = built
     assert meta["period"] == {"mtd": False, "days": None, "label": ""} and meta["costs_from"] is None
+
+
+def test_only_the_offer_columns_the_build_uses_are_read(tmp_path):
+    synth.make_offer(tmp_path / "offer.xlsx")
+    full = pd.read_excel(tmp_path / "offer.xlsx")
+    full["Offer Net Margin/Remarks"] = "note"
+    full["Billing Price On Invoice"] = "No"
+    full.to_excel(tmp_path / "wide.xlsx", index=False)
+    got = prepare.load_offer(tmp_path / "wide.xlsx")
+    assert "Offer Net Margin/Remarks" not in got.columns and "Billing Price On Invoice" not in got.columns
+    assert set(prepare.OFFER_REQUIRED) <= set(got.columns)
+    assert any("Month Offer" in c for c in got.columns) or not any("Month Offer" in c for c in full.columns)
