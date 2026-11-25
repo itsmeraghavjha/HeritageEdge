@@ -211,6 +211,61 @@
     } finally { btn.disabled = false; }
   });
 
+  // Scenario sheet: download the levers and row changes as Excel, edit them there, upload it back.
+  function sheetNote(text, bad) {
+    const el = $('sheetNote');
+    el.textContent = text;
+    el.className = bad ? 'banner is-error' : 'banner';
+    el.hidden = !text;
+  }
+
+  $('sheetDownloadBtn').addEventListener('click', async () => {
+    const btn = $('sheetDownloadBtn');
+    btn.disabled = true;
+    try {
+      const r = await HE.postJson('/api/scenario-sheet/download', { levers: HE.leversPayload(state), scope: state.scope });
+      const url = URL.createObjectURL(await r.blob());
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'heritageedge-scenario-sheet.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      sheetNote('');
+    } catch (e) {
+      sheetNote('The scenario sheet could not be downloaded. Try again in a moment.', true);
+    } finally { btn.disabled = false; }
+  });
+
+  $('sheetFile').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    sheetNote('Reading the sheet');
+    try {
+      const r = await fetch('/api/scenario-sheet/upload', { method: 'POST', body: form });
+      const out = await r.json();
+      if (!r.ok) { sheetNote(out.error || 'The sheet could not be read.', true); return; }
+      state.levers = Object.assign({}, state.levers, out.levers);
+      state.adjust = HE.normalizeAdjust(out.adjust);
+      HE.saveState(state);
+      const rep = out.report;
+      const parts = [`Scenario sheet applied: ${rep.levers_set} lever${rep.levers_set === 1 ? '' : 's'} and ${rep.changed_rows} row change${rep.changed_rows === 1 ? '' : 's'}.`];
+      if (rep.clamped.length) parts.push(`Brought into the allowed range: ${rep.clamped.slice(0, 5).join('; ')}${rep.clamped.length > 5 ? ` and ${rep.clamped.length - 5} more` : ''}.`);
+      if (rep.ignored.length) parts.push(`Ignored: ${rep.ignored.join('; ')}.`);
+      sheetNote(parts.join(' '));
+      mode = 'sim';
+      document.querySelectorAll('.seg [role=radio]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === 'sim')));
+      banner();
+      load();
+    } catch (err) {
+      sheetNote('The sheet could not be read. Try again in a moment.', true);
+    }
+  });
+
   fetch('/api/meta').then((r) => r.json()).then((m) => {
     meta = m;
     HE.showPeriod(meta);

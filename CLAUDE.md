@@ -2,7 +2,7 @@
 
 Flask app for the MRF (Heritage Foods, dairy FMCG) team. Humans: `README.md`. **Start with `docs/STATUS.md`** (state, what is left, how we work). Figures are monthly run-rates in rupees; with no real data built it runs on synthetic `sample_data/`.
 
-Screens: `/` promo simulator (levers, scope, KPIs, breakeven, volume ladder, bridge, per-row adjustments); `/scenarios` every saved scenario (search, sort, open to edit, copy, rename, delete); `/pnl` P&L (net revenue to net margin, any grouping, drill-down, Excel); `/data` build the dataset from SQL volumes + offer file + MIS (admin only); `/admin/users` and `/admin/activity` (admin only); login pages.
+Screens: `/` promo simulator (levers, scope, KPIs, breakeven, volume ladder, bridge, per-row adjustments); `/scenarios` every saved scenario (search, sort, open to edit, copy, rename, delete); `/pnl` P&L (net revenue to net margin, any grouping, drill-down, Excel, scenario sheet to download, edit and upload back); `/data` build the dataset from SQL volumes + offer file + MIS (admin only); `/admin/users` and `/admin/activity` (admin only); login pages.
 
 ## Confidential data: the one rule
 
@@ -21,7 +21,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - `engine/data.py`: loads every build in `data/periods/<key>/` (else `sample_data/rows.csv`) as a `Dataset`; `data.ROWS`, `META`, `OPTIONS` and so on answer for the period the request chose (`data.use`, set per person from `session['period']` in `app.py`), so never copy them at import time and never assume one dataset; one row per chain x customer group x sales office x SKU; dimensions in `DIM_DEFS`.
 - `engine/sql_source.py` + `sql/billing.sql` (output columns are a tested contract) -> `data/billing.csv`; `engine/prepare.py` builds `rows.csv` from billing + offer file + MIS and writes `meta.json` (quality report, MIS reconciliation); `engine/datastore.py` runs uploads and jobs.
 - `engine/simulate.py`: all maths (`calc_row`, `simulate`, `pnl`, `bridge`); `Levers` frozen dataclass, `LIMITS` clamps input; functions take `allowed` rows; `strip_below_cm` and `BELOW_CONTRIBUTION` for KAMs.
-- `engine/export.py` Excel; `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
+- `engine/export.py` Excel; `engine/scenario_sheet.py` the download-edit-upload sheet (fills the same levers and `adjust` the engine takes, no maths); `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
 - `app.py`: thin routes, login, CSRF, `log(...)`. Keep logic in `engine/`.
 - `config/assumptions.csv` elasticities (volume suggestion only; volume is a user input); `config/attribution.csv` spreads each MIS cost per pack or as % of revenue.
 - Front end: plain JS, one CSS file, no build. `static/js/common.js` has lever defs (`GROUPS`), presets, selectors, formatting, `window.HE`.

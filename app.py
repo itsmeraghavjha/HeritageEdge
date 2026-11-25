@@ -8,7 +8,7 @@ from functools import wraps
 from flask import (Flask, g, jsonify, redirect, render_template, request, send_file, session, url_for)
 
 from engine import env  # noqa: F401  (loads .env before anything reads settings)
-from engine import access, activity, data, datastore, export, mailer, network, prepare, scenarios, simulate, sql_source, users
+from engine import access, activity, data, datastore, export, mailer, network, prepare, scenario_sheet, scenarios, simulate, sql_source, users
 
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 ** 3          # the MIS workbook can be large
@@ -677,6 +677,32 @@ def api_export():
     log("export", "to contribution only" if limited else "full P&L")
     return send_file(buf, as_attachment=True, download_name="heritageedge-pnl.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.post("/api/scenario-sheet/download")
+def api_sheet_download():
+    """The levers and row adjustments set now, as an Excel sheet to fill in and upload back."""
+    levers, _, _, _ = _payload()
+    allowed, limited = visible()
+    buf = scenario_sheet.build_template(levers, allowed)
+    log("sheet_download", "to contribution only" if limited else "scenario sheet")
+    return send_file(buf, as_attachment=True, download_name="heritageedge-scenario-sheet.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.post("/api/scenario-sheet/upload")
+def api_sheet_upload():
+    """Reads a filled-in scenario sheet and gives back the levers and row adjustments for the P&L to apply."""
+    file = request.files.get("file")
+    if not file:
+        return jsonify(error="Choose the scenario sheet to upload."), 400
+    allowed, _ = visible()
+    try:
+        out = scenario_sheet.read_upload(file.stream, allowed)
+    except scenario_sheet.SheetError as exc:
+        return jsonify(error=str(exc)), 400
+    log("sheet_upload", f"{out['report']['changed_rows']} rows, {out['report']['levers_set']} levers")   # counts only
+    return jsonify(out)
 
 
 # ---------- data page ----------

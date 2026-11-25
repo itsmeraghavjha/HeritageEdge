@@ -110,6 +110,16 @@ Only packs scale (a straight run-rate: no weekday, month-end or trend adjustment
 - The forecast assumes the rest of the month sells at the pace of the days billed so far. A month-end push or a slow end is not in it. The cost rates are the cost month's, as for month to date.
 - Scenarios saved against the forecast hold levers and selection only, like any other, so they open on either view.
 
+## Scenario sheet (change many things in Excel)
+
+On the P&L page, "Download scenario sheet" gives an Excel file and "Upload scenario sheet" reads it back, so a lot of changes can be made at once instead of lever by lever on the screen. It does no maths of its own (`engine/scenario_sheet.py`): the upload fills the same inputs the simulator takes, the seven levers and the row adjustments, and the P&L then calculates as it always does.
+
+- Sheets: Levers (the seven levers, with their allowed range) and Chain, Product category, SKU and State (every one the person may see, largest baseline net revenue first, with price %, promo pp, trade margin pp, other deductions pp and volume % to fill in). Blank means no change. What is set on the screen when the sheet is downloaded comes back filled in.
+- A row adjustment is added to the Levers sheet for the rows it matches, and a row that matches several sheets (a chain and a SKU) gets them added up, exactly as the row adjustments on the simulator do. The sheet cannot set one chain x SKU cell on its own.
+- The scope chosen on the screen is kept; levers and adjustments apply to rows inside it, as before.
+- Checks on upload: a cell that is not a number stops the upload and names the sheet and cell. A value outside the allowed range is brought to the nearest allowed value and listed. A code that is not in the data, or is outside what a KAM may see, is ignored and counted. A KAM's sheet holds only their own chains and states, so a KAM cannot reach other rows by editing a full sheet. The grey Code column is what rows are matched on, not the name.
+- The activity log gets "Scenario sheet downloaded" and "Scenario sheet uploaded" with counts only, never names or values.
+
 ## Litres and kg
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. In the data and in the Excel export they are never converted into each other: litres and kg stay in separate columns. On the simulator and P&L screens they are added into one figure, LPD, where one kg counts as one litre (a simplification: density is ignored). Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.

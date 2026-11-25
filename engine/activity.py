@@ -33,6 +33,8 @@ ACTIONS = {
     "filter": ("Used a filter", "use"),
     "lever": ("Moved a lever", "use"),
     "export": ("Excel export", "export"),
+    "sheet_download": ("Scenario sheet downloaded", "export"),
+    "sheet_upload": ("Scenario sheet uploaded", "use"),
     "scenario_saved": ("Saved a scenario", "use"),
     "scenario_deleted": ("Deleted a scenario", "use"),
     "data_upload": ("Data file uploaded", "data"),
