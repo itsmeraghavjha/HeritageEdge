@@ -381,10 +381,12 @@
 
   /* Wording that follows what the data covers: a monthly run-rate, or the actual month to date. */
   const isMtd = (m) => !!(m && m.period && m.period.mtd);
-  const lakhUnit = (m) => (isMtd(m) ? `Rupees lakh, ${m.period.short}` : 'Rupees lakh a month');
+  const isForecast = (m) => !!(m && m.period && m.period.forecast);
+  const lakhUnit = (m) => (isMtd(m) || isForecast(m) ? `Rupees lakh, ${m.period.short}` : 'Rupees lakh a month');
   function periodText(m) {
     const parts = [];
     if (isMtd(m)) parts.push(`${m.period.label}. These are the actual figures so far, not a full month.`);
+    if (isForecast(m)) parts.push(`${m.period.label}. This is a forecast, not actuals: packs so far x ${m.period.days} / ${m.period.billed_days}, with prices, offers and cost rates as billed.`);
     if (m && m.costs_from) parts.push(`Costs use the ${m.costs_from} MIS rates.`);
     return parts.join(' ');
   }
@@ -396,7 +398,7 @@
   }
 
   window.HE = {
-    LIMITED, allowedKey, isMtd, lakhUnit, periodText, showPeriod,
+    LIMITED, allowedKey, isMtd, isForecast, lakhUnit, periodText, showPeriod,
     DEFAULTS, GROUPS, FLAT, PRESETS, trackLever,
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,

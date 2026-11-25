@@ -46,18 +46,18 @@ def units():
 
 def test_both_periods_are_kept_and_the_newest_build_is_the_default(two_periods):
     keys = [p["key"] for p in data.periods()]
-    assert keys == ["2026-11", "2026-10"]                       # newest month first
-    assert data.current().key == "2026-11" and [p["default"] for p in data.periods()] == [True, False]
+    assert keys == ["2026-11~forecast", "2026-11", "2026-10"]   # newest month first; a month to date also has its forecast
+    assert data.current().key == "2026-11~forecast" and [p["default"] for p in data.periods()] == [True, False, False]
 
 
 def test_rebuilding_an_older_month_does_not_change_what_people_see_by_default(two_periods):
     _period("2026-10", "2026-10-01", "2026-11-20T09:00:00", 1.0)           # October rebuilt after November
     data.reload()
-    assert data.current().key == "2026-11"
+    assert data.current().key == "2026-11~forecast"
 
 
 def test_choosing_a_period_changes_the_numbers_only_while_chosen(two_periods):
-    nov = units()
+    nov = units() * 13 / 30                                     # the default is the forecast; this is November so far
     token = data.use("2026-10")
     try:
         assert data.current().key == "2026-10" and units() == pytest.approx(nov / 2)
@@ -65,13 +65,13 @@ def test_choosing_a_period_changes_the_numbers_only_while_chosen(two_periods):
         assert sum(m["units"] for m in simulate.BASE_METRICS) == pytest.approx(nov / 2)
     finally:
         data.release(token)
-    assert data.current().key == "2026-11" and data.days_per_month() == 13.0
+    assert data.current().key == "2026-11~forecast" and data.days_per_month() == 30.0
 
 
 def test_an_unknown_period_falls_back_to_the_default(two_periods):
     token = data.use("1999-01")
     try:
-        assert data.current().key == "2026-11"
+        assert data.current().key == "2026-11~forecast"
     finally:
         data.release(token)
 
@@ -81,7 +81,7 @@ def test_each_person_has_their_own_period(two_periods):
     assert post_json(ceo, "/api/period", {"key": "2026-10"}).status_code == 200
     a, b = ceo.get("/api/meta").get_json(), boss.get("/api/meta").get_json()
     assert (a["period_key"], a["days"]) == ("2026-10", 31.0)    # the one who chose
-    assert (b["period_key"], b["days"]) == ("2026-11", 13.0)    # nobody else moved
+    assert (b["period_key"], b["days"]) == ("2026-11~forecast", 30.0)    # nobody else moved
 
 
 def test_a_period_that_is_not_built_is_refused(two_periods):
@@ -122,12 +122,63 @@ def test_a_single_old_build_is_moved_into_its_period_folder(world, real_data):
         data.reload()
 
 
+def test_a_month_to_date_also_has_a_full_month_forecast(two_periods):
+    actual, fc = data._DATASETS["2026-11"], data._DATASETS["2026-11~forecast"]
+    f = 30 / 13
+    assert fc.META["period"]["forecast"] and not fc.META["period"]["mtd"] and fc.META["period"]["days"] == 30
+    assert sum(r["units"] for r in fc.ROWS) == pytest.approx(sum(r["units"] for r in actual.ROWS) * f)
+    assert [r["net_px"] for r in fc.ROWS] == [r["net_px"] for r in actual.ROWS]       # prices and cost rates are untouched
+    assert "2026-10~forecast" not in data._DATASETS                                  # a finished month has no forecast
+    assert [p["key"] for p in data.periods() if p["forecast"]] == ["2026-11~forecast"]
+
+
+def test_the_forecast_scales_every_amount_by_the_same_factor_and_keeps_the_rates(two_periods):
+    f = 30 / 13
+    token = data.use("2026-11")
+    try:
+        a = simulate.total(simulate.base_metrics())
+    finally:
+        data.release(token)
+    b = simulate.total(simulate.base_metrics())                # the default: the forecast
+    for key in ("units", "gross", "promo", "rebates", "net", "cogs", "logistics", "cm", "nm"):
+        assert b[key] == pytest.approx(a[key] * f), key
+    assert b["cm"] / b["net"] == pytest.approx(a["cm"] / a["net"])                    # margins do not move
+    assert b["cogs"] / b["litres"] == pytest.approx(a["cogs"] / a["litres"])          # per litre does not move
+
+
+def test_lpd_is_the_same_in_the_forecast_and_the_month_so_far(two_periods):
+    token = data.use("2026-11")
+    try:
+        lpd_so_far = sum(r["units"] * r["size"] for r in data.ROWS) / data.days_per_month()
+    finally:
+        data.release(token)
+    lpd_forecast = sum(r["units"] * r["size"] for r in data.ROWS) / data.days_per_month()
+    assert lpd_forecast == pytest.approx(lpd_so_far)
+
+
+def test_a_complete_month_has_no_forecast(world, real_data):
+    _period("2026-11", "2026-11-01", "2026-12-02T09:00:00", 1.0, mtd_days=30)
+    data.reload()
+    try:
+        assert [p["key"] for p in data.periods()] == ["2026-11"]
+    finally:
+        shutil.rmtree(data.periods_dir())
+        data.reload()
+
+
+def test_data_page_lists_the_build_not_its_forecast(two_periods):
+    st = datastore.status("projection")
+    assert [p["key"] for p in st["periods"]] == ["2026-11"] and st["period_key"] == "2026-11"
+
+
 def test_period_key_and_labels():
     assert data.period_key(["2026-09-01", "2026-08-01"]) == "2026-08_2026-09"
     assert data.period_label({"base_months": ["2026-10-01"]}) == "Oct 2026"
     assert data.period_label({"base_months": ["2026-07-01", "2026-09-01"]}) == "Jul to Sep 2026 (average)"
     nov = {"base_months": ["2026-11-01"], "period": {"mtd": True, "days": 13}}
     assert data.period_label(nov, short=True) == "Nov 2026 so far (13 days)"
+    fc = {"base_months": ["2026-11-01"], "period": {"forecast": True, "days": 30, "billed_days": 13}}
+    assert data.period_label(fc, short=True) == "Nov 2026 forecast, full month"
 
 
 # ---------- offer files, one per month ----------

@@ -98,6 +98,8 @@ def period_label(meta, short=False):
     """'Oct 2026', 'Nov 2026 so far (to 13 Nov)', 'Jul to Sep 2026 (average)'."""
     months = months_text(meta.get("base_months", []))
     period = meta.get("period") or {}
+    if period.get("forecast"):
+        return f"{months} forecast, full month" if short else f"{months} full-month forecast from {period['billed_days']} days of billing"
     if period.get("mtd") and period.get("days"):
         return f"{months} so far ({period['days']} days)" if short else f"{months} so far, {period['days']} days of billing"
     return f"{months} (average)" if len(meta.get("base_months", [])) > 1 else months
@@ -111,9 +113,10 @@ def periods():
             continue
         meta = ds.META
         out.append({"key": key, "label": period_label(meta, short=True), "built_at": meta.get("built_at"),
-                    "mtd": bool((meta.get("period") or {}).get("mtd")), "costs_from": meta.get("costs_from"), "offer_file": meta.get("offer_file"),
+                    "mtd": bool((meta.get("period") or {}).get("mtd") or (meta.get("period") or {}).get("forecast")),
+                    "forecast": bool((meta.get("period") or {}).get("forecast")), "costs_from": meta.get("costs_from"), "offer_file": meta.get("offer_file"),
                     "months": meta.get("base_months", []), "default": key == _DEFAULT})
-    return sorted(out, key=lambda p: (max(p["months"] or [""]), p["built_at"] or ""), reverse=True)
+    return sorted(out, key=lambda p: (max(p["months"] or [""]), p["built_at"] or "", p["forecast"]), reverse=True)
 
 
 def _read(path):
@@ -275,6 +278,40 @@ def _make(key, rows_path, meta, mode, elasticity, basis):
     return Dataset(key, rows, basis, options, label, combos, mode, meta)
 
 
+FORECAST = "~forecast"              # key suffix of the full-month forecast made from a month-to-date build
+
+
+def month_days(month):
+    """Days in a base month ('2026-11-01' -> 30)."""
+    import calendar
+    d = datetime.strptime(str(month)[:10], "%Y-%m-%d")
+    return calendar.monthrange(d.year, d.month)[1]
+
+
+def _forecast(ds):
+    """The full-month forecast of a month-to-date dataset, or None when there is nothing to forecast.
+
+    Straight run-rate: packs so far / days billed x days in the month. Only the packs scale. Prices, trade margin, promo,
+    other deductions and the cost rates per pack are the same, so every amount, each cost line and the margins follow from
+    the packs, and every per-pack, per-litre and percentage figure is unchanged."""
+    meta = ds.META
+    period = meta.get("period") or {}
+    months = meta.get("base_months") or []
+    if not (period.get("mtd") and period.get("days") and len(months) == 1):
+        return None
+    full, billed = month_days(months[0]), int(period["days"])
+    if billed >= full:
+        return None
+    factor = full / billed
+    mon = datetime.strptime(months[0][:10], "%Y-%m-%d").strftime("%b")
+    rows = [{**r, "units": r["units"] * factor} for r in ds.ROWS]
+    fc_period = {"mtd": False, "forecast": True, "days": full, "billed_days": billed, "factor": factor,
+                 "label": f"{months_text(months)} full-month forecast (1 to {billed} {mon} billed, run-rate to {full} {mon})",
+                 "short": f"{mon} forecast"}
+    return Dataset(ds.key + FORECAST, rows, ds.BASIS, ds.OPTIONS, ds.LABEL, ds.COMBOS, ds.MODE,
+                   {**meta, "period": fc_period, "actual_period": period})
+
+
 def reload():
     """(Re)read every built period. Called at import and again after a dataset is built.
     With nothing built, the sample data is the only dataset."""
@@ -289,11 +326,16 @@ def reload():
             if (folder / "rows.csv").exists():
                 found[folder.name] = _make(folder.name, folder / "rows.csv", _load_meta(folder / "meta.json"),
                                            "actual", elasticity, basis)
+        for key, ds in list(found.items()):
+            fc = _forecast(ds)
+            if fc:
+                found[fc.key] = fc
     if not found:
         found[SAMPLE_KEY] = _make(SAMPLE_KEY, SAMPLE_DIR / "rows.csv", {}, "sample", elasticity, basis)
     _DATASETS = found
     # Anyone who has not chosen sees the latest month (the newest build of it if there are several kinds)
-    _DEFAULT = max(found, key=lambda k: (max(found[k].META.get("base_months") or [""]), found[k].META.get("built_at") or ""))
+    _DEFAULT = max(found, key=lambda k: (max(found[k].META.get("base_months") or [""]), found[k].META.get("built_at") or "",
+                                         k.endswith(FORECAST)))      # a month to date opens as its full-month forecast
 
 
 reload()

@@ -117,10 +117,10 @@
     if (!HE.LIMITED) rows.push(['Net margin', HE.inr(b.nm), HE.inr(s.nm), money(dNm, b.nm)]);
     if (lpdText(b) || lpdText(s)) rows.push(['Volume per day', lpdText(b) || '–', lpdText(s) || '–', qtyChange(b, s)]);
     const months = (meta && meta.months) || '';
-    const sub = HE.isMtd(meta) ? `<span class="kpi-month">${HE.esc(meta.period.label)}</span>`
+    const sub = HE.isMtd(meta) || HE.isForecast(meta) ? `<span class="kpi-month">${HE.esc(meta.period.label)}</span>`
       : months ? `<span class="kpi-month">${HE.esc(months)}${months.includes(' to ') ? ', monthly average' : ''}</span>` : '';
     $('kpis').innerHTML = `<table class="kpi-table">
-      <thead><tr><th scope="col"></th><th scope="col">${HE.isMtd(meta) ? 'Original' : 'Original month'}${sub}</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead>
+      <thead><tr><th scope="col"></th><th scope="col">${HE.isMtd(meta) ? 'Original' : HE.isForecast(meta) ? 'Forecast' : 'Original month'}${sub}</th><th scope="col">Scenario</th><th scope="col">Change</th></tr></thead>
       <tbody>${rows.map(([label, o, sc, ch, key]) => `<tr${key ? ' class="kpi-key-row"' : ''}><th scope="row">${label}</th>
         <td>${o}</td><td class="kpi-scn">${sc}</td><td class="kpi-chg ${ch.tone}">${ch.text}</td></tr>`).join('')}</tbody></table>`;
   }

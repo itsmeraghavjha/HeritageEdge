@@ -251,7 +251,7 @@ def status(space="month"):
     billing = _billing_info(space)
     months = billing["months"] if billing else []
     built = dict(data.META) if data.MODE == "actual" else {}
-    mine = [p for p in data.periods() if bool(p.get("mtd")) == (space == "projection")]
+    mine = [p for p in data.periods() if bool(p.get("mtd")) == (space == "projection") and not p.get("forecast")]
     return {
         "space": space,
         "data": {**data.status(), **built},
@@ -259,7 +259,7 @@ def status(space="month"):
         "offers": offers(space),
         "offer_for": {m: _offer_for(m, space) for m in months},
         "periods": [{**p, "changed": _out_of_date(p, billing, space)} for p in mine],
-        "period_key": data.current().key,
+        "period_key": data.current().key.removesuffix(data.FORECAST),     # the forecast belongs to its build
         "billing": billing,
         "suggested_months": prepare.default_base_months(months),
         "sql": {"missing": sql_source.missing_settings(),

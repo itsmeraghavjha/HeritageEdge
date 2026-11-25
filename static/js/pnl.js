@@ -99,7 +99,7 @@
       data.tree.map((n) => rowHtml(n, 0)).join('') + '</tbody>';
     $('tableFoot').textContent = mode === 'delta'
       ? `Scenario minus baseline. ${HE.lakhUnit(meta)}, volume in thousand packs, volume per day (LPD), percentages in points.`
-      : `${HE.lakhUnit(meta)} (1 lakh = 1,00,000). Volume in thousand packs. LPD is litres per day with kg counted as litres (one kg = one litre): litres plus kg ${HE.isMtd(meta) ? 'billed so far' : 'for the month'}, divided by ${daysText()} days.`;
+      : `${HE.lakhUnit(meta)} (1 lakh = 1,00,000). Volume in thousand packs. LPD is litres per day with kg counted as litres (one kg = one litre): litres plus kg ${HE.isMtd(meta) ? 'billed so far' : HE.isForecast(meta) ? 'forecast for the month' : 'for the month'}, divided by ${daysText()} days.`;
   }
 
   function allIds(nodes, out) {

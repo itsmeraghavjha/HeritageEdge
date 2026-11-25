@@ -97,6 +97,19 @@ The Data page can build a P&L for a month that is not finished, for example Nove
 - MIS-against-billing checks cannot run (the months differ) and show as skipped. Billed-price-against-offer checks still run.
 - The period is recorded in `meta.json` (`period`, `costs_from`) and shown as a note on the simulator, P&L, Scenarios and Excel export.
 
+### Full-month forecast
+
+Every month-to-date build also appears as a second view, "Nov forecast, full month" (key `2026-11~forecast`, made in `data.reload` by `data._forecast`; nothing extra is stored on disk). It is the build's own rows with the packs scaled:
+
+packs (forecast) = packs billed so far / days billed x days in the month
+
+Only packs scale (a straight run-rate: no weekday, month-end or trend adjustment). Price, trade margin, promo, other deductions and the cost rates per pack are the build's own, so gross, promo, net revenue, COGS, S&D, over/under, P&A, interest, marketing, contribution and net margin all grow by the same factor (days in month / days billed), while per-pack, per-litre and percentage figures (margins, cost per litre) do not move. LPD is the same as month to date, because it divides litres by days; for the forecast it divides by the full month's days.
+
+- The forecast is the default for someone who has not chosen a period; "Nov so far" stays one click away in the period picker and on the Data page (the Data page lists the build once, not its forecast).
+- Screens, Scenarios and the Excel export say "forecast, not actuals". A finished month has no forecast.
+- The forecast assumes the rest of the month sells at the pace of the days billed so far. A month-end push or a slow end is not in it. The cost rates are the cost month's, as for month to date.
+- Scenarios saved against the forecast hold levers and selection only, like any other, so they open on either view.
+
 ## Litres and kg
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. In the data and in the Excel export they are never converted into each other: litres and kg stay in separate columns. On the simulator and P&L screens they are added into one figure, LPD, where one kg counts as one litre (a simplification: density is ignored). Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.

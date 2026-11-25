@@ -70,6 +70,10 @@ def _basis_text():
     from . import data
     months = data.months_text(data.META.get("base_months", []))
     period = data.META.get("period") or {}
+    if data.MODE == "actual" and period.get("forecast"):
+        costs = f" Costs use the {data.META['costs_from']} MIS rates." if data.META.get("costs_from") else ""
+        return (f"Forecast, not actuals: {period['label']}. Packs so far x {period['days']} / {period['billed_days']}; "
+                f"prices, offers and cost rates unchanged.{costs}")
     if data.MODE == "actual" and period.get("mtd"):
         costs = f" Costs use the {data.META['costs_from']} MIS rates." if data.META.get("costs_from") else ""
         return f"Actual {period['label']}, not a full month.{costs}"
