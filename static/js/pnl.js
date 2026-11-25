@@ -197,18 +197,9 @@
     const btn = $('exportBtn');
     btn.disabled = true;
     try {
-      const r = await HE.postJson('/api/export', { levers: HE.leversPayload(state), scope: state.scope, dims: dims() });
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'heritageedge-pnl.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      $('tableFoot').textContent = 'The export failed. Try again in a moment.';
-    } finally { btn.disabled = false; }
+      await HE.download('/api/export', { levers: HE.leversPayload(state), scope: state.scope, dims: dims() },
+        'heritageedge-pnl.xlsx', 'Excel export');
+    } catch (e) { /* the progress box already says it failed */ } finally { btn.disabled = false; }
   });
 
   // Scenario sheet: download the levers and row changes as Excel, edit them there, upload it back.
@@ -223,19 +214,10 @@
     const btn = $('sheetDownloadBtn');
     btn.disabled = true;
     try {
-      const r = await HE.postJson('/api/scenario-sheet/download', { levers: HE.leversPayload(state), scope: state.scope });
-      const url = URL.createObjectURL(await r.blob());
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'heritageedge-scenario-sheet.xlsx';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      await HE.download('/api/scenario-sheet/download', { levers: HE.leversPayload(state), scope: state.scope },
+        'heritageedge-scenario-sheet.xlsx', 'scenario sheet');
       sheetNote('');
-    } catch (e) {
-      sheetNote('The scenario sheet could not be downloaded. Try again in a moment.', true);
-    } finally { btn.disabled = false; }
+    } catch (e) { /* the progress box already says it failed */ } finally { btn.disabled = false; }
   });
 
   $('sheetFile').addEventListener('change', async (e) => {
@@ -244,11 +226,12 @@
     if (!file) return;
     const form = new FormData();
     form.append('file', file);
-    sheetNote('Reading the sheet');
+    sheetNote('');
+    $('sheetUploadBtn').classList.add('is-disabled');
     try {
-      const r = await fetch('/api/scenario-sheet/upload', { method: 'POST', body: form });
-      const out = await r.json();
-      if (!r.ok) { sheetNote(out.error || 'The sheet could not be read.', true); return; }
+      const res = await HE.uploadFile('/api/scenario-sheet/upload', form, 'scenario sheet');
+      if (!res.ok) { sheetNote(res.body.error || 'The sheet could not be read.', true); return; }
+      const out = res.body;
       state.levers = Object.assign({}, state.levers, out.levers);
       state.adjust = HE.normalizeAdjust(out.adjust);
       const hadScope = HE.hasSelection(state.scope);
@@ -266,7 +249,7 @@
       load();
     } catch (err) {
       sheetNote('The sheet could not be read. Try again in a moment.', true);
-    }
+    } finally { $('sheetUploadBtn').classList.remove('is-disabled'); }
   });
 
   fetch('/api/meta').then((r) => r.json()).then((m) => {

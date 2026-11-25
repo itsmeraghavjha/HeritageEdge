@@ -24,7 +24,7 @@ Real chain-wise prices, offers, volumes and costs must never reach git.
 - `engine/export.py` Excel; `engine/scenario_sheet.py` the download-edit-upload sheet (Levers for COGS / S&D + one Rows sheet with Baseline and Scenario columns in litres and rupees per litre; each changed Scenario value is turned into the lever changes the engine already takes, as a per-row `row` adjustment keyed by `data.row_key`; no new maths); `engine/scenarios.py` saved scenarios; `engine/users.py` accounts, tokens, lockout, KAM scope, aliases; `engine/access.py` KAM sheet import and `allowed_indices`; `engine/mailer.py`; `engine/network.py` login picture; `engine/activity.py` activity log.
 - `app.py`: thin routes, login, CSRF, `log(...)`. Keep logic in `engine/`.
 - `config/assumptions.csv` elasticities (volume suggestion only; volume is a user input); `config/attribution.csv` spreads each MIS cost per pack or as % of revenue.
-- Front end: plain JS, one CSS file, no build. `static/js/common.js` has lever defs (`GROUPS`), presets, selectors, formatting, `window.HE`.
+- Front end: plain JS, one CSS file, no build. `static/js/common.js` has lever defs (`GROUPS`), presets, selectors, formatting, `window.HE`, and `HE.download` / `HE.uploadFile`, which show a progress box (preparing, downloading, uploading, reading) for any slow file transfer: use them for new downloads and uploads.
 
 ## Conventions
 

@@ -311,6 +311,108 @@
     return r;
   }
 
+  /* ---------- transfers: a small progress box for slow downloads and uploads ---------- */
+  const transfer = (() => {
+    let box, text, bar, track, timer;
+    function ensure() {
+      if (box) return;
+      box = document.createElement('div');
+      box.className = 'xfer';
+      box.setAttribute('role', 'status');
+      box.setAttribute('aria-live', 'polite');
+      box.hidden = true;
+      box.innerHTML = '<div class="xfer-text"></div><div class="progress"><span></span></div>';
+      document.body.appendChild(box);
+      text = box.querySelector('.xfer-text');
+      track = box.querySelector('.progress');
+      bar = track.firstElementChild;
+    }
+    // fraction null = busy with no way to know how long (a bar that slides); 0..1 = a filled bar
+    function show(message, fraction) {
+      ensure();
+      clearTimeout(timer);
+      box.hidden = false;
+      box.className = 'xfer';
+      text.textContent = message;
+      track.classList.toggle('is-busy', fraction == null);
+      bar.style.width = fraction == null ? '' : `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
+    }
+    function finish(message, tone, ms) {
+      ensure();
+      clearTimeout(timer);
+      if (!message) { box.hidden = true; return; }
+      box.hidden = false;
+      box.className = `xfer ${tone === 'error' ? 'is-error' : 'is-done'}`;
+      text.textContent = message;
+      track.classList.remove('is-busy');
+      bar.style.width = '100%';
+      timer = setTimeout(() => { box.hidden = true; }, ms || (tone === 'error' ? 8000 : 3500));
+    }
+    return { show, finish };
+  })();
+
+  // POSTs `body` as JSON and saves the reply as a file. The file is built on the server, so the first part has no
+  // progress to report; once bytes arrive the bar follows them.
+  async function download(url, body, filename, what) {
+    transfer.show(`Preparing ${what}`, null);
+    try {
+      const r = await postJson(url, body);
+      const total = Number(r.headers.get('Content-Length')) || 0;
+      let blob;
+      if (r.body && r.body.getReader && total) {
+        const reader = r.body.getReader();
+        const parts = [];
+        let got = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parts.push(value);
+          got += value.length;
+          transfer.show(`Downloading ${what}`, got / total);
+        }
+        blob = new Blob(parts);
+      } else {
+        transfer.show(`Downloading ${what}`, null);
+        blob = await r.blob();
+      }
+      const link = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = link;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(link);
+      transfer.finish(`${what[0].toUpperCase()}${what.slice(1)} downloaded. It is in your Downloads folder.`, 'done');
+    } catch (e) {
+      transfer.finish(`The ${what} could not be downloaded. Try again in a moment.`, 'error');
+      throw e;
+    }
+  }
+
+  // Uploads a FormData file and resolves {ok, status, body}. fetch cannot report upload progress, so this uses XHR.
+  function uploadFile(url, form, what) {
+    return new Promise((resolve) => {
+      transfer.show(`Uploading ${what}`, 0);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) transfer.show(`Uploading ${what}`, e.loaded / e.total); };
+      xhr.upload.onload = () => transfer.show(`Reading ${what}`, null);
+      xhr.onload = () => {
+        let body = {};
+        try { body = JSON.parse(xhr.responseText); } catch (e) { /* not JSON */ }
+        const ok = xhr.status >= 200 && xhr.status < 300;
+        transfer.finish(ok ? '' : (body.error || `The ${what} could not be read.`), ok ? 'done' : 'error');
+        resolve({ ok, status: xhr.status, body });
+      };
+      xhr.onerror = () => {
+        transfer.finish(`The ${what} could not be uploaded. Check that the app is still running.`, 'error');
+        resolve({ ok: false, status: 0, body: { error: 'The upload failed.' } });
+      };
+      xhr.send(form);
+    });
+  }
+
   /* ---------- formatting ---------- */
   const MINUS = '−';
   const RUPEE = '₹';
@@ -403,7 +505,7 @@
     loadState, saveState, loadSaved, storeSaved, emptyScope,
     normalizeSelection, pruneSelection, describeSelection, hasSelection, buildSelectors,
     ADJUST_DIMS, ADJUST_KEYS, normalizeAdjust, adjustCount, leversPayload,
-    postJson, inr, inrSigned, lakh, lakhSigned, thousands, pct, pp, rel, relText, tone, esc,
+    postJson, download, uploadFile, transfer, inr, inrSigned, lakh, lakhSigned, thousands, pct, pp, rel, relText, tone, esc,
     leverText, changedLevers, MINUS,
   };
 
