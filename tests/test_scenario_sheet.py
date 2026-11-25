@@ -13,8 +13,10 @@ from tests.test_kam import client_for, env, world  # noqa: F401  (fixtures)
 
 
 N_DIMS = len(data.DIM_DEFS)
-FIRST = N_DIMS + 2                                  # first lever column on the Rows sheet
-KEY = FIRST + len(sim.ADJUST_LEVERS)                # the key column
+FIRST = N_DIMS + 1                                  # first lever column on the Rows sheet
+BASE = FIRST + len(sim.ADJUST_LEVERS)               # first baseline column
+N_BASE = len(ss._columns(False))
+KEY = BASE + N_BASE                                 # the key column, last
 
 
 def _filled(levers=None, edits=(), allowed=None):
@@ -47,7 +49,8 @@ def test_a_blank_sheet_means_no_change():
 def test_one_line_is_one_row_of_the_baseline_largest_first():
     ws = load_workbook(ss.build_template(None))["Rows"]
     assert ws.max_row - 1 == len(data.ROWS)
-    nets = [ws.cell(row=r, column=N_DIMS + 1).value for r in range(2, ws.max_row + 1)]
+    net_col = BASE + [c[1] for c in ss._columns(False)].index("net")
+    nets = [ws.cell(row=r, column=net_col).value for r in range(2, ws.max_row + 1)]
     assert nets == sorted(nets, reverse=True)
     assert sum(nets) == pytest.approx(sum(m["net"] for m in sim.base_metrics()) / 1e5)
     assert len({ws.cell(row=r, column=KEY).value for r in range(2, ws.max_row + 1)}) == len(data.ROWS)   # keys are unique
@@ -90,6 +93,45 @@ def test_what_is_set_on_the_screen_comes_back_on_every_row_it_reaches_and_gives_
     assert sim.simulate({**out["levers"], "adjust": out["adjust"]}, {}) == sim.simulate(now, {})
 
 
+def test_each_line_shows_the_baseline_p_and_l_of_that_row():
+    ws = load_workbook(ss.build_template(None))["Rows"]
+    heads = [ws.cell(row=1, column=BASE + k).value for k in range(N_BASE)]
+    assert heads[0].startswith("Baseline: Volume") and any(h == "Baseline: Net revenue" for h in heads) and "Baseline: NM %" in heads
+    # a line's numbers are that row's baseline, in the units of the P&L screen (Rs lakh, '000 packs, percentages)
+    line = next(r for r in range(2, ws.max_row + 1) if ws.cell(row=r, column=KEY).value == _key(0))
+    m = sim.derive(sim.base_metrics()[0])
+    for k, (title, key, scale, _) in enumerate(ss._columns(False)):          # LPD and litres share a key, so go by position
+        assert ws.cell(row=line, column=BASE + k).value == pytest.approx(m[key] / scale), title
+
+
+def test_changing_the_baseline_columns_does_nothing_on_upload():
+    wb = _filled()
+    ws = wb["Rows"]
+    for r in range(2, ws.max_row + 1):
+        for c in range(BASE, KEY):
+            ws.cell(row=r, column=c).value = 12345
+    out = _upload(wb)
+    assert out["adjust"] == {} and out["report"]["changed_rows"] == 0
+
+
+def test_a_kam_sheet_has_no_baseline_below_contribution(world):
+    from engine import users
+    allowed = access.allowed_indices(users.get_by_email("asha@example.com"))
+    ws = load_workbook(ss.build_template(None, allowed, True))["Rows"]
+    heads = [c.value for c in ws[1]]
+    assert "Baseline: Contribution (MC)" in heads
+    assert not any(h and any(w in h for w in ("P&A", "Interest", "Marketing", "Net margin", "NM %")) for h in heads)
+    key = heads.index("Key") + 1
+    out = _upload_ws_edit(ws.parent, key, allowed)
+    assert out["report"]["changed_rows"] == 1
+
+
+def _upload_ws_edit(wb, key_col, allowed):
+    ws = wb["Rows"]
+    ws.cell(row=2, column=FIRST).value = 1.5                 # price change on the first line
+    return _upload(wb, allowed)
+
+
 def test_the_levers_sheet_sets_the_seven_levers():
     wb = _filled()
     ws = wb["Levers"]
@@ -123,7 +165,7 @@ def test_percent_signs_and_numbers_stored_as_text_are_accepted():
 def test_a_line_that_is_not_a_row_of_the_baseline_is_ignored_and_reported():
     wb = _filled()
     ws = wb["Rows"]
-    ws.append(["x"] * N_DIMS + [0, 5, None, None, None, None, "no|such|row"])
+    ws.append(["x"] * N_DIMS + [5, None, None, None, None] + [None] * N_BASE + ["no|such|row"])
     out = _upload(wb)
     assert out["adjust"] == {} and any("Rows sheet" in i for i in out["report"]["ignored"])
 
