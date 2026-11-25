@@ -250,6 +250,12 @@ def _move_old_build():
         return                                   # never stop the app from starting; the old build is read next start
 
 
+def row_key(row):
+    """What identifies one dataset row (chain, customer group, state, city, sales office, category, variant, pack, SKU).
+    The scenario sheet uses it to set a lever on exactly one row."""
+    return "|".join(str(row.get(d, "")) for d in DIM_IDS)
+
+
 def _make(key, rows_path, meta, mode, elasticity, basis):
     rows = []
     for r in _read(rows_path):
@@ -261,6 +267,7 @@ def _make(key, rows_path, meta, mode, elasticity, basis):
         r["city"] = r.get("city") or _city(r["so_name"])
         for k in ("grp", "variant", "pack"):
             r[k] = r.get(k) or ""
+        r["rowkey"] = row_key(r)
         r["size"], r["qty_unit"] = pack_qty(r["pack"])
         if not r["qty_unit"]:      # a dataset built before pack sizes were kept: read it from the SKU name
             r["size"], r["qty_unit"] = pack_qty_in_name(r["name"])

@@ -61,7 +61,9 @@ DEFAULT_LEVERS = Levers()
 
 # Row adjustments: a lever can also be set on a single chain, product category, SKU or state. They are added to the
 # screen's levers for the rows they match; where several match one row (a chain and a SKU, say) they add up.
-ADJUST_DIMS = ("chain", "family", "sku", "state")
+# "row" is one dataset row (a chain in a state, for a SKU, and so on): the scenario sheet sets levers there.
+ADJUST_DIMS = ("chain", "family", "sku", "state", "row")
+ADJUST_FIELD = {"row": "rowkey"}              # the row field each adjustment dimension is matched on
 ADJUST_LEVERS = ("price_change_pct", "promo_add_pp", "trade_margin_add_pp", "rebate_add_pp", "volume_change_pct")
 
 
@@ -109,7 +111,7 @@ def make_resolver(lv, adjust, skip=()):
     def resolve(row):
         extra = {}
         for dim, by_id in adjust.items():
-            a = by_id.get(str(row[dim]))
+            a = by_id.get(str(row[ADJUST_FIELD.get(dim, dim)]))
             if a:
                 for k, v in a.items():
                     if k not in skip:

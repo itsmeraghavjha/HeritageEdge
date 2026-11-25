@@ -109,7 +109,7 @@
   const hasSelection = (sel) => Object.keys(sel || {}).some((k) => (sel[k] || []).length);
 
   /* ---------- row adjustments: a lever set on one chain, product category, SKU or state ---------- */
-  const ADJUST_DIMS = ['chain', 'family', 'sku', 'state'];
+  const ADJUST_DIMS = ['chain', 'family', 'sku', 'state', 'row'];       // 'row' is set from the scenario sheet
   const ADJUST_KEYS = ['price_change_pct', 'promo_add_pp', 'trade_margin_add_pp', 'rebate_add_pp', 'volume_change_pct'];
   function normalizeAdjust(raw) {
     const out = {};
