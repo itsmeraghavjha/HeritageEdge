@@ -682,9 +682,9 @@ def api_export():
 @app.post("/api/scenario-sheet/download")
 def api_sheet_download():
     """The levers and row adjustments set now, as an Excel sheet to fill in and upload back."""
-    levers, _, _, _ = _payload()
+    levers, scope, _, _ = _payload()
     allowed, limited = visible()
-    buf = scenario_sheet.build_template(levers, allowed, limited)
+    buf = scenario_sheet.build_template(levers, allowed, limited, scope)
     log("sheet_download", "to contribution only" if limited else "scenario sheet")
     return send_file(buf, as_attachment=True, download_name="heritageedge-scenario-sheet.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

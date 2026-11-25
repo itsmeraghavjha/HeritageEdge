@@ -251,11 +251,14 @@
       if (!r.ok) { sheetNote(out.error || 'The sheet could not be read.', true); return; }
       state.levers = Object.assign({}, state.levers, out.levers);
       state.adjust = HE.normalizeAdjust(out.adjust);
+      const hadScope = HE.hasSelection(state.scope);
+      state.scope = HE.normalizeSelection({});               // the sheet holds a scenario for every row
       HE.saveState(state);
       const rep = out.report;
       const parts = [`Scenario sheet applied: ${rep.levers_set} lever${rep.levers_set === 1 ? '' : 's'} and ${rep.changed_rows} row change${rep.changed_rows === 1 ? '' : 's'}.`];
       if (rep.clamped.length) parts.push(`Brought into the allowed range: ${rep.clamped.slice(0, 5).join('; ')}${rep.clamped.length > 5 ? ` and ${rep.clamped.length - 5} more` : ''}.`);
       if (rep.ignored.length) parts.push(`Ignored: ${rep.ignored.join('; ')}.`);
+      if (hadScope) parts.push('The scope you had chosen was cleared, because the sheet sets each row itself.');
       sheetNote(parts.join(' '));
       mode = 'sim';
       document.querySelectorAll('.seg [role=radio]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === 'sim')));
