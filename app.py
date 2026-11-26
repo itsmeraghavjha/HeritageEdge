@@ -601,6 +601,25 @@ def api_scenario_summary(sid):
     return jsonify(out)
 
 
+@app.post("/api/scenarios/<int:sid>/changes")
+def api_scenario_changes(sid):
+    """Every row a saved scenario changes, as Excel: the detail behind the summary."""
+    scn = scenarios.get(g.get("user"), sid)
+    if not scn:
+        return jsonify({"error": "That scenario was not found."}), 404
+    token = data.use(scn.get("period") or None)
+    try:
+        allowed, limited = visible()
+        buf = scenarios.changes_workbook(scn, allowed, limited)
+    except Exception:
+        return jsonify({"error": "This scenario no longer fits the data."}), 409
+    finally:
+        data.release(token)
+    log("export", "scenario changes")
+    return send_file(buf, as_attachment=True, download_name="heritageedge-scenario-changes.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @app.post("/api/scenarios/import")
 def api_scenarios_import():
     """Moves scenarios saved in this browser (the old way) into the person's account."""

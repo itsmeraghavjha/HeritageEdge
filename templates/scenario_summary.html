@@ -2,6 +2,11 @@
 {% block title %}Scenario summary | HeritageEdge{% endblock %}
 {% block content %}
 <div class="sum" id="sum" data-id="{{ sid }}">
+  <div class="sum-brand" aria-hidden="true">
+    <img src="{{ url_for('static', filename='img/heritage-logo.png') }}" alt="">
+    <div><b>Heritage Foods</b><span>Promo and margin simulator</span></div>
+    <div class="sum-brand-right"><b>Scenario summary</b><span id="sumPrinted"></span></div>
+  </div>
   <header class="page-head sum-head">
     <div>
       <p class="sum-kicker">Scenario summary</p>
@@ -11,6 +16,7 @@
     <div class="head-actions sum-actions">
       <a class="btn" href="/scenarios">All scenarios</a>
       <a class="btn" id="sumOpen" href="/?scenario={{ sid }}">Open in simulator</a>
+      <button type="button" class="btn" id="sumXlsx">Download every changed row (Excel)</button>
       <button type="button" class="btn" id="sumLink">Copy link</button>
       <button type="button" class="btn btn-primary" id="sumPrint">Print or save as PDF</button>
     </div>
@@ -40,6 +46,7 @@
       <div class="sum-where" id="sumWhere"></div></section>
 
     <section class="sum-sec" id="sumTopSec"><h2>Rows that move most</h2>
+      <p class="sum-foot" id="sumTopNote"></p>
       <div class="table-scroll"><table class="data sum-table" id="sumTop"></table></div></section>
 
     <section class="sum-sign" aria-label="Approval">

@@ -104,8 +104,10 @@ def test_the_bridge_reconciles_baseline_to_scenario_and_the_state_table_adds_up(
     by = {l["key"]: l for l in d["lines"]}
     assert steps[-1]["value"] == pytest.approx(by["cm"]["sim"]) and steps[0]["value"] == pytest.approx(by["cm"]["base"])
     state = next(w for w in d["where"] if w["dimension"] == "State")
-    assert state["total"] == state["shown"]                                   # the sample has few states: nothing cut off
-    assert sum(i["d_cm"] for i in state["items"]) == pytest.approx(by["cm"]["sim"] - by["cm"]["base"])
+    for w in d["where"]:                                                      # every group is listed and each table adds to the headline
+        assert w["totals"]["d_cm"] == pytest.approx(by["cm"]["sim"] - by["cm"]["base"])
+        assert w["totals"]["d_net"] == pytest.approx(sum(i["d_net"] for i in w["items"]))
+        assert w["totals"]["rows_affected"] == d["rows_in_scope"]          # LEVERS move every row
 
 
 def test_the_rows_that_move_most_show_the_numbers_they_were_given():
@@ -180,3 +182,15 @@ def test_a_scenario_saved_on_a_period_that_is_gone_is_summarised_on_the_one_in_u
         con.execute("UPDATE scenarios SET period='1999-01' WHERE id=?", (sid,))
     r = client_for("ceo@example.com", "Ceo-pass-12345").get(f"/api/scenarios/{sid}/summary")
     assert r.status_code == 200 and r.get_json()["scenario"]["differs"]
+
+
+def test_the_changes_workbook_lists_every_changed_row_and_matches_the_summary(world):
+    ceo = client_for("ceo@example.com", "Ceo-pass-12345")
+    sid = ceo.post("/api/scenarios", json={"name": "All", "levers": {"promo_add_pp": 2}, "scope": {}, "copy": True}).get_json()["id"]
+    got = ceo.post(f"/api/scenarios/{sid}/changes")
+    assert got.status_code == 200
+    ws = load_workbook(io.BytesIO(got.data))["Changed rows"]
+    summ = ceo.get(f"/api/scenarios/{sid}/summary").get_json()
+    assert ws.max_row - 1 == summ["rows_in_scope"] > 0          # a global lever moves every row
+    assert sum(r[-1].value for r in ws.iter_rows(min_row=2)) == pytest.approx(summ["where"][0]["totals"]["d_cm"] / 1e5, rel=1e-6)
+    assert client_for("ravi@example.com", "Own-pass-12345").post(f"/api/scenarios/{sid}/changes").status_code == 404

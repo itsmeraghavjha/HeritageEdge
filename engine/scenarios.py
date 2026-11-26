@@ -224,7 +224,7 @@ def results(scn, allowed, limited):
 # ---------- the summary for management ----------
 COST_LINES = frozenset({"promo", "rebates", "cogs", "ou", "logistics", "pa", "interest", "mktg"})   # a rise is bad
 SUMMARY_DIMS = ("chain", "state", "family", "sku")
-TOP = 8
+TOP_ROWS = 15                    # rows listed on the page; the Excel download has every changed row
 
 
 def _vol_l(m):
@@ -281,24 +281,25 @@ def summary(scn, allowed, limited):
             g = by.setdefault(str(row[dim]), {"b": [], "s": [], "n": 0})
             g["b"].append(bm)
             g["s"].append(sm)
-            g["n"] += 1 if i in set_changed else 0
+            g["n"] += 1 if (i in set_changed or abs(sm["cm"] - bm["cm"]) > 0.5 or abs(sm["net"] - bm["net"]) > 0.5) else 0   # a row the scenario moves
         out = []
         for key, g in by.items():
             gb, gs = simulate.derive(simulate.total(g["b"])), simulate.derive(simulate.total(g["s"]))
             if g["n"] == 0 and abs(gs["cm"] - gb["cm"]) < 1 and abs(gs["net"] - gb["net"]) < 1:
                 continue
-            out.append({"name": data.LABEL[dim].get(key, key), "rows_changed": g["n"],
+            out.append({"name": data.LABEL[dim].get(key, key), "rows_affected": g["n"],
                         "d_vol": (_vol_l(gs) - _vol_l(gb)) / days, "d_net": gs["net"] - gb["net"],
                         "d_cm": gs["cm"] - gb["cm"], "cm_pct": gs["cm_pct"], "d_cm_pct": gs["cm_pct"] - gb["cm_pct"]})
-        out.sort(key=lambda x: -abs(x["d_cm"]))
-        return {"dimension": dict(data.DIM_DEFS).get(dim, dim), "shown": min(TOP, len(out)), "total": len(out), "items": out[:TOP]}
+        out.sort(key=lambda x: (-abs(x["d_cm"]), x["name"]))              # every group that is affected, biggest first
+        totals = {k: sum(x[k] for x in out) for k in ("rows_affected", "d_vol", "d_net", "d_cm")}
+        return {"dimension": dict(data.DIM_DEFS).get(dim, dim), "items": out, "totals": totals}
 
     set_changed = set(changed)
     where = [group(d) for d in SUMMARY_DIMS]
 
     # the rows that move most, with the numbers they were given
-    top = []
-    for i in sorted(changed, key=lambda i: -abs(sims[i]["cm"] - base[i]["cm"]))[:15]:
+    top_rows = []
+    for i in sorted(changed, key=lambda i: -abs(sims[i]["cm"] - base[i]["cm"]))[:TOP_ROWS]:
         row = rows[i]
         t0, t1 = sheet._terms(row, simulate.DEFAULT_LEVERS), sheet._terms(row, resolve(row))
         steps = []
@@ -306,11 +307,71 @@ def summary(scn, allowed, limited):
             for k, title, _ in sheet.DRIVERS:
                 if abs(t1[k] - t0[k]) > 1e-7:
                     steps.append({"label": title, "base": t0[k], "scenario": t1[k]})
-        top.append({"name": " / ".join(str(data.LABEL[d].get(row[d], row[d])) for d in ("chain", "state", "sku")),
-                    "changes": steps, "d_cm": sims[i]["cm"] - base[i]["cm"], "d_net": sims[i]["net"] - base[i]["net"]})
+        top_rows.append({"name": " / ".join(str(data.LABEL[d].get(row[d], row[d])) for d in ("chain", "state", "sku")), "changes": steps,
+                         "d_vol": (_vol_l(sims[i]) - _vol_l(base[i])) / days,
+                         "d_cm": sims[i]["cm"] - base[i]["cm"], "d_net": sims[i]["net"] - base[i]["net"]})
 
-    out = {"lines": lines, "levers": levers, "row_levers": row_levers, "scope": scope_text, "where": where, "top_rows": top,
+    out = {"lines": lines, "levers": levers, "row_levers": row_levers, "scope": scope_text, "where": where, "top_rows": top_rows, "top_shown": len(top_rows),
            "bridge": simulate.bridge(lv, scope, sims, rows, base, adjust),
            "rows_in_scope": len(rows), "rows_changed": len(changed), "rows_total": len(simulate._visible(allowed)),
            "limited": limited, "period": data.period_label(data.META) if data.MODE == "actual" else "Sample data, not actuals"}
     return out
+
+
+def changes_workbook(scn, allowed, limited):
+    """Every row the scenario changes, with the numbers it was given and what that does to net revenue and contribution,
+    as an Excel file: the detail behind the summary. Returns a BytesIO."""
+    import io
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+    from . import scenario_sheet as sheet
+    from .export import HEADER_FILL, HEADER_FONT
+    lv, adjust = simulate.split_levers(scn["levers"])
+    scope = simulate.parse_scope(scn["scope"])
+    rows, base = simulate.view_rows(scope, allowed)
+    sims = simulate.scenario_metrics(lv, scope, rows, adjust)
+    resolve = simulate.make_resolver(lv, adjust)
+    days = data.days_per_month()
+    titles = [t for _, t in data.DIM_DEFS]
+    head = list(titles)
+    for _, t, _ in sheet.DRIVERS:
+        head += [f"Baseline: {t}", f"Scenario: {t}"]
+    head += ["Volume change (LPD)", "Net revenue change (Rs lakh)", "Contribution change (Rs lakh)"]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Changed rows"
+    ws.append(head)
+    order = [i for i in range(len(rows)) if abs(sims[i]["cm"] - base[i]["cm"]) > 0.5 or abs(sims[i]["net"] - base[i]["net"]) > 0.5
+             or abs(_vol_l(sims[i]) - _vol_l(base[i])) > 1e-6]
+    order.sort(key=lambda i: -abs(sims[i]["cm"] - base[i]["cm"]))
+    for i in order:
+        row = rows[i]
+        t0, t1 = sheet._terms(row, simulate.DEFAULT_LEVERS), sheet._terms(row, resolve(row))
+        drivers = []
+        for k, _, _ in sheet.DRIVERS:
+            drivers += [t0[k], t1[k]] if t0 else [None, None]
+        ws.append([data.LABEL[d].get(row[d], row[d]) for d, _ in data.DIM_DEFS] + drivers +
+                  [(_vol_l(sims[i]) - _vol_l(base[i])) / days, (sims[i]["net"] - base[i]["net"]) / 1e5,
+                   (sims[i]["cm"] - base[i]["cm"]) / 1e5])
+    for r in ws.iter_rows(min_row=2, min_col=len(titles) + 1):
+        for c in r:
+            c.number_format = "#,##0.00"
+    for c in ws[1]:
+        c.fill, c.font = HEADER_FILL, HEADER_FONT
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 48
+    for i, c in enumerate(ws[1], 1):
+        ws.column_dimensions[c.column_letter].width = 22 if i <= len(titles) else 16
+    ws.freeze_panes = "B2"
+    ws.auto_filter.ref = ws.dimensions
+    about = wb.create_sheet("About")
+    for line in (f"Scenario: {scn['name']}", f"Purpose: {scn.get('note') or ''}",
+                 f"Rows changed: {len(order)} of {len(rows)} in scope",
+                 "Biggest contribution change first. Volume is in thousand litres (kg counts as litres); prices and deductions are rupees per litre ex-GST; trade margin is a % of MRP."):
+        about.append([line])
+    about["A1"].font = Font(bold=True, size=13)
+    about.column_dimensions["A"].width = 120
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf

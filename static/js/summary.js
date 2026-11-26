@@ -57,7 +57,7 @@
     if (d.row_levers.length) {
       parts.push(`<h3>Set row by row</h3>
         <p class="sum-foot">${d.rows_changed.toLocaleString('en-IN')} of ${d.rows_in_scope.toLocaleString('en-IN')} rows have their own change (a row is one chain, customer group, state, city, sales office and SKU).</p>
-        <table class="data sum-table"><thead><tr><th>Lever</th><th>Rows changed</th><th>Smallest change</th><th>Largest change</th></tr></thead><tbody>${d.row_levers.map((r) =>
+        <table class="data sum-table"><thead><tr><th>Lever</th><th>Rows affected</th><th>Smallest change</th><th>Largest change</th></tr></thead><tbody>${d.row_levers.map((r) =>
           `<tr><th scope="row">${esc(r.label)}</th><td>${r.rows.toLocaleString('en-IN')}</td><td>${leverVal(r.low, r.unit)}</td><td>${leverVal(r.high, r.unit)}</td></tr>`).join('')}</tbody></table>`);
     }
     if (!d.levers.length && !d.row_levers.length) parts.push('<p class="sum-foot">This scenario changes nothing: it matches the baseline.</p>');
@@ -80,18 +80,21 @@
   }
 
   function where(d) {
+    const sv = (v) => `<span class="${HE.tone(v, true, 0.5)}">${signedNum(v)}</span>`;
     $('sumWhere').innerHTML = d.where.filter((g) => g.items.length).map((g) => `
-      <div class="sum-whereblock"><h3>By ${esc(g.dimension.toLowerCase())}${g.total > g.shown ? `<small> (largest ${g.shown} of ${g.total} affected)</small>` : ''}</h3>
-      <div class="table-scroll"><table class="data sum-table"><thead><tr><th>${esc(g.dimension)}</th><th>Rows changed</th><th>Volume per day (LPD)</th><th>Net revenue</th><th>Contribution</th><th>MC %</th></tr></thead><tbody>${g.items.map((r) =>
-        `<tr><th scope="row">${esc(r.name)}</th><td>${r.rows_changed.toLocaleString('en-IN')}</td>
-          <td><span class="${HE.tone(r.d_vol, true, 0.5)}">${signedNum(r.d_vol)}</span></td>
+      <div class="sum-whereblock"><h3>By ${esc(g.dimension.toLowerCase())}<small> (${g.items.length} affected, biggest contribution change first)</small></h3>
+      <div class="table-scroll"><table class="data sum-table"><thead><tr><th>${esc(g.dimension)}</th><th>Rows affected</th><th>Volume per day (LPD)</th><th>Net revenue</th><th>Contribution</th><th>MC %</th></tr></thead><tbody>${g.items.map((r) =>
+        `<tr><th scope="row">${esc(r.name)}</th><td>${r.rows_affected.toLocaleString('en-IN')}</td><td>${sv(r.d_vol)}</td>
           <td>${moneyD(r.d_net, true)}</td><td>${moneyD(r.d_cm, true)}</td>
-          <td>${HE.pct(r.cm_pct)} <small class="${HE.tone(r.d_cm_pct, true, 0.0005)}">${HE.pp(r.d_cm_pct)}</small></td></tr>`).join('')}</tbody></table></div></div>`).join('')
+          <td>${HE.pct(r.cm_pct)} <small class="${HE.tone(r.d_cm_pct, true, 0.0005)}">${HE.pp(r.d_cm_pct)}</small></td></tr>`).join('')}
+        <tr class="is-total"><th scope="row">Total</th><td>${g.totals.rows_affected.toLocaleString('en-IN')}</td><td>${sv(g.totals.d_vol)}</td>
+          <td>${moneyD(g.totals.d_net, true)}</td><td>${moneyD(g.totals.d_cm, true)}</td><td></td></tr></tbody></table></div></div>`).join('')
       || '<p class="sum-foot">Nothing moves.</p>';
   }
 
   function topRows(d) {
     $('sumTopSec').hidden = !d.top_rows.length;
+    $('sumTopNote').textContent = d.rows_changed > d.top_shown ? `The ${d.top_shown} of ${d.rows_changed.toLocaleString('en-IN')} changed rows with the biggest contribution change. Every changed row is in the Excel download.` : '';
     const f = (step) => `${esc(step.label)}: ${(+step.base.toFixed(2)).toLocaleString('en-IN')} to ${(+step.scenario.toFixed(2)).toLocaleString('en-IN')}`;
     $('sumTop').innerHTML = `<thead><tr><th>Chain / state / SKU</th><th>What changed (baseline to scenario)</th><th>Net revenue</th><th>Contribution</th></tr></thead><tbody>${d.top_rows.map((r) =>
       `<tr><th scope="row">${esc(r.name)}</th><td class="sum-left">${r.changes.map(f).join('<br>') || '–'}</td><td>${moneyD(r.d_net, true)}</td><td>${moneyD(r.d_cm, true)}</td></tr>`).join('')}</tbody>`;
@@ -103,6 +106,7 @@
     $('sumName').textContent = sc.name;
     $('sumMeta').textContent = `Saved by ${sc.mine ? 'you' : (sc.owner || 'someone')} on ${dateText(sc.updated)}. Baseline: ${d.period}.`;
     $('sumBy').textContent = sc.owner || '';
+    $('sumPrinted').textContent = `Printed ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}`;
     $('sumPurpose').hidden = !sc.note;
     $('sumPurposeText').textContent = sc.note || '';
     $('sumKpis').innerHTML = kpis(d);
@@ -118,6 +122,12 @@
   }
 
   $('sumPrint').addEventListener('click', () => window.print());
+  $('sumXlsx').addEventListener('click', async () => {
+    const btn = $('sumXlsx');
+    btn.disabled = true;
+    try { await HE.download(`/api/scenarios/${sid}/changes`, {}, 'heritageedge-scenario-changes.xlsx', 'changed rows'); }
+    catch (e) { /* the progress box reports the failure */ } finally { btn.disabled = false; }
+  });
   $('sumLink').addEventListener('click', async () => {
     const link = window.location.origin + '/scenarios/' + sid;
     try { await navigator.clipboard.writeText(link); $('sumLink').textContent = 'Link copied'; }

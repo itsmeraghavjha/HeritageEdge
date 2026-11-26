@@ -967,3 +967,20 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 .dialog textarea.text { width: 100%; resize: vertical; font: inherit; }
 .sheet-actions { display: inline-flex; gap: 8px; margin-left: 12px; vertical-align: middle; }
 .sum-table td.sum-left { text-align: left; }
+
+/* Branding on the printed summary */
+.sum-brand { display: none; }
+@media print {
+  .sum { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .sum-brand { display: flex; align-items: center; gap: 14px; padding: 0 0 10px; margin: 0 0 14px; border-bottom: 3px solid var(--green); }
+  .sum-brand img { height: 46px; width: auto; }
+  .sum-brand b { display: block; font-size: 16px; }
+  .sum-brand span { display: block; font-size: 12px; color: var(--muted); }
+  .sum-brand-right { margin-left: auto; text-align: right; }
+  .sum-kicker { display: none; }
+  .sum-table tr { break-inside: avoid; }
+  .sum-table thead { display: table-header-group; }
+  @page { margin: 14mm 12mm 18mm;
+    @bottom-left { content: "Heritage Foods. For internal use."; font-size: 9pt; color: #566a5d; }
+    @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 9pt; color: #566a5d; } }
+}
