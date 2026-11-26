@@ -205,10 +205,47 @@
   // Scenario sheet: download the levers and row changes as Excel, edit them there, upload it back.
   function sheetNote(text, bad) {
     const el = $('sheetNote');
-    el.textContent = text;
+    $('sheetNoteText').textContent = text;
     el.className = bad ? 'banner is-error' : 'banner';
     el.hidden = !text;
+    if (!text || bad) $('sheetActions').hidden = true;
   }
+
+  // The sheet just applied can be saved as a scenario, which also gives it a summary page for management.
+  let sheetName = '';
+  function offerSave() {
+    $('sheetActions').hidden = false;
+    $('sheetSaveBtn').hidden = false;
+    $('sheetSummaryLink').hidden = true;
+    const d = $('saveDialog');
+    $('saveName').value = sheetName;
+    $('saveNote').value = '';
+    $('saveError').textContent = '';
+    if (d.showModal) { d.showModal(); $('saveName').select(); }
+  }
+
+  async function saveSheetScenario(thenView) {
+    const name = $('saveName').value.trim();
+    if (!name) { $('saveError').textContent = 'Give the scenario a name.'; return; }
+    $('saveSubmit').disabled = $('saveOnly').disabled = true;
+    try {
+      const r = await fetch('/api/scenarios', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, note: $('saveNote').value, copy: true, levers: HE.leversPayload(state), scope: state.scope }) });
+      const out = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(out.error || 'The scenario could not be saved.');
+      $('saveDialog').close();
+      if (thenView) { window.location.href = `/scenarios/${out.id}`; return; }
+      $('sheetNoteText').textContent += ' Saved as a scenario.';
+      $('sheetSaveBtn').hidden = true;
+      $('sheetSummaryLink').href = `/scenarios/${out.id}`;
+      $('sheetSummaryLink').hidden = false;
+    } catch (err) { $('saveError').textContent = err.message; }
+    finally { $('saveSubmit').disabled = $('saveOnly').disabled = false; }
+  }
+  $('saveForm').addEventListener('submit', (e) => { e.preventDefault(); saveSheetScenario(true); });
+  $('saveOnly').addEventListener('click', () => saveSheetScenario(false));
+  $('saveCancel').addEventListener('click', () => $('saveDialog').close());
+  $('sheetSaveBtn').addEventListener('click', () => offerSave());
 
   $('sheetDownloadBtn').addEventListener('click', async () => {
     const btn = $('sheetDownloadBtn');
@@ -224,6 +261,7 @@
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
+    sheetName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim().slice(0, 80);
     const form = new FormData();
     form.append('file', file);
     sheetNote('');
@@ -247,6 +285,7 @@
       document.querySelectorAll('.seg [role=radio]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.mode === 'sim')));
       banner();
       load();
+      offerSave();
     } catch (err) {
       sheetNote('The sheet could not be read. Try again in a moment.', true);
     } finally { $('sheetUploadBtn').classList.remove('is-disabled'); }

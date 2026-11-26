@@ -122,6 +122,17 @@ On the P&L page, "Download scenario sheet" gives an Excel file and "Upload scena
 - **Checks on upload:** a cell that is not a number stops the upload and names the sheet and cell; a line whose hidden Key is not in this baseline, or is outside what a KAM may see, is ignored and counted; a KAM's sheet holds only their own rows and nothing below contribution. Rows are matched on the hidden Key column, not names. The baseline columns are not read back. Formulas work because Excel stores their result when the file is saved; a file written by a program that does not calculate formulas has no results to read.
 - The activity log gets "Scenario sheet downloaded" and "Scenario sheet uploaded" with counts only, never names or values.
 
+## Saving a sheet scenario and the summary for management
+
+After a scenario sheet is uploaded, the P&L asks for a name and an optional purpose (a note for whoever approves it) and saves it like any other scenario (always as a new one, so a same-named scenario is never overwritten; a number is added to the name). The banner keeps a "Save this scenario" button if the person chose "Not now". A saved scenario also stores the note and the period it was saved on (older ones have neither).
+
+Every saved scenario has a summary page, `/scenarios/<id>`, linked from the Scenarios list ("Summary") and from the save dialog ("Save and view summary"). It is for someone who did not make the scenario, and prints cleanly (Print or save as PDF; the sidebar and buttons drop out and an approval block with prepared by, approved by, date and remarks appears). It shows, top to bottom: the purpose; at a glance (volume per day, net revenue, contribution, MC %, net margin against baseline); what was changed (the global levers, then for row-by-row changes how many rows each lever reaches and its smallest and largest change, and the scope); the P&L baseline against scenario with change and change %; the contribution bridge; where it lands (largest movers by chain, state, product category and SKU); and the rows that move most with the numbers they were given.
+
+- Worked out fresh from the data in use (`scenarios.summary`, the same engine as everywhere else), so it changes when the data is rebuilt. It is computed on the period the scenario was saved on when that period is still built, else on the period in use (the API says which).
+- Who sees it follows the scenario: leadership and admin can open anyone's, a KAM only their own. A KAM's summary covers their rows and stops at contribution.
+- Costs are the data's cost rates; volume is whatever the scenario sets. It is a view of a scenario, not an approval workflow: there is no status or sign-off stored.
+- A scenario saved from a sheet holds one small entry per changed row, so the size limit for a saved scenario is 8 MB (it was 200 KB).
+
 ## Litres and kg
 
 Volume is also shown as litres and kg. Each pack's size comes from its pack text (`500 ML`, `1.5 LTR`, `400 GMS`, `1 KG`, `700+700 ML`) and, for a dataset built before pack sizes were kept, from the SKU name. ML and L packs count as **litres**, GM and KG packs count as **kg**. In the data and in the Excel export they are never converted into each other: litres and kg stay in separate columns. On the simulator and P&L screens they are added into one figure, LPD, where one kg counts as one litre (a simplification: density is ignored). Quantity is packs x pack size, so it moves with the volume change just as packs do. Packs whose size cannot be read are left out of both columns, not guessed.

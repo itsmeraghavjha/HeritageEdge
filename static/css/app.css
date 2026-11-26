@@ -926,3 +926,44 @@ html.side-collapsed .acct-btn { width: 36px; padding: 0; }
 @keyframes xfer-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(263%); } }
 @media (prefers-reduced-motion: reduce) { .xfer .progress.is-busy span { animation: none; width: 100%; opacity: .45; } }
 #sheetUploadBtn.is-disabled { pointer-events: none; opacity: .55; }
+
+/* Scenario summary (printable) */
+.sum-kicker { margin: 0 0 4px; font-size: 12.5px; color: var(--muted); letter-spacing: .02em; }
+.sum-sec, .sum-purpose, .sum-sign { margin: 0 0 22px; }
+.sum h2 { font-size: 17px; font-weight: 600; margin: 0 0 10px; }
+.sum h3 { font-size: 14px; font-weight: 600; margin: 14px 0 6px; }
+.sum h3 small { font-weight: 400; color: var(--muted); }
+.sum-purpose { padding: 12px 16px; background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--gold); border-radius: var(--radius); }
+.sum-purpose p { margin: 0; white-space: pre-wrap; }
+.sum-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.sum-kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; display: grid; gap: 2px; }
+.sum-kpi span { font-size: 12.5px; color: var(--muted); }
+.sum-kpi b { font-size: 22px; font-weight: 600; }
+.sum-list { margin: 0; padding-left: 18px; }
+.sum-foot { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.sum-table th, .sum-table td { white-space: normal; }
+.sum-table tr.is-total th, .sum-table tr.is-total td { font-weight: 600; background: var(--green-tint); }
+.sum-barcell { width: 40%; }
+.sum-bar { display: block; height: 10px; border-radius: 3px; background: var(--muted); }
+.sum-bar.is-up { background: var(--green); }
+.sum-bar.is-down { background: var(--red); }
+.sum-bar.is-total { background: var(--pasture); }
+.sum-whereblock { margin-bottom: 8px; }
+.sum-sign { display: none; }
+.sum-sign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+.sum-sign-grid div { border-bottom: 1px solid var(--ink); min-height: 44px; display: grid; align-content: space-between; }
+.sum-sign-grid span { font-size: 12px; color: var(--muted); }
+@media print {
+  .side, .sum-actions, .side-toggle, .period-note { display: none !important; }
+  .shell { display: block !important; }
+  .main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  body { background: #fff; }
+  .sum-sign { display: block; break-inside: avoid; }
+  .sum-sec, .sum-kpi, .sum tr { break-inside: avoid; }
+  .sum-table { font-size: 11.5px; }
+  .xfer { display: none !important; }
+}
+.dialog-note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+.dialog textarea.text { width: 100%; resize: vertical; font: inherit; }
+.sheet-actions { display: inline-flex; gap: 8px; margin-left: 12px; vertical-align: middle; }
+.sum-table td.sum-left { text-align: left; }

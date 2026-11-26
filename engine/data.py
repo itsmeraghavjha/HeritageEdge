@@ -81,6 +81,11 @@ def release(token):
     _CHOSEN.reset(token)
 
 
+def period_keys():
+    """Every period that can be chosen, including full-month forecasts."""
+    return set(_DATASETS)
+
+
 def period_key(base_months):
     """'2026-10' for October; '2026-08_2026-09' for an average of two months."""
     return "_".join(m[:7] for m in sorted(base_months))

@@ -16,7 +16,13 @@
 </header>
 
 <div class="banner" id="banner" role="status"></div>
-<div class="banner" id="sheetNote" role="status" hidden></div>
+<div class="banner" id="sheetNote" role="status" hidden>
+  <span id="sheetNoteText"></span>
+  <span class="sheet-actions" id="sheetActions" hidden>
+    <button type="button" class="btn btn-small" id="sheetSaveBtn">Save this scenario</button>
+    <a class="btn btn-small" id="sheetSummaryLink" href="#" hidden>View summary for management</a>
+  </span>
+</div>
 
 <div class="toolbar">
   <div class="field-row" id="dimRow" role="group" aria-label="Group rows by"></div>
@@ -39,5 +45,22 @@
   </div>
   <p class="table-foot" id="tableFoot">Rupees lakh a month (1 lakh = 1,00,000). Volume in thousand packs, not litres or kg.</p>
 </div>
+
+<dialog id="saveDialog" class="dialog">
+  <form method="dialog" id="saveForm">
+    <h2>Save this scenario</h2>
+    <p class="dialog-note">Saving keeps it under Scenarios and gives you a summary page to send for approval.</p>
+    <label for="saveName">Scenario name</label>
+    <input id="saveName" name="name" class="text" maxlength="80" required placeholder="Diwali display, Hyderabad" autocomplete="off">
+    <label for="saveNote">Purpose, for whoever approves it (optional)</label>
+    <textarea id="saveNote" class="text" rows="3" maxlength="1000" placeholder="What is this for, and why do these changes make sense?"></textarea>
+    <p class="dialog-error" id="saveError" role="alert"></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn" id="saveCancel">Not now</button>
+      <button type="button" class="btn" id="saveOnly">Save</button>
+      <button type="submit" class="btn btn-primary" id="saveSubmit">Save and view summary</button>
+    </div>
+  </form>
+</dialog>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/pnl.js') }}"></script>{% endblock %}

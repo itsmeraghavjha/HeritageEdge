@@ -15,7 +15,8 @@ from . import data, simulate
 
 MAX_NAME = 80
 MAX_PER_PERSON = 300
-MAX_BYTES = 200_000
+MAX_BYTES = 8_000_000                # a scenario from the scenario sheet holds one small entry per changed row
+MAX_NOTE = 1000
 
 
 class ScenarioError(Exception):
@@ -33,6 +34,10 @@ def _db():
             name TEXT NOT NULL, levers TEXT NOT NULL, scope TEXT NOT NULL,
             created REAL NOT NULL, updated REAL NOT NULL, UNIQUE (owner_id, name));
     """)
+    have = {r["name"] for r in con.execute("PRAGMA table_info(scenarios)")}
+    for column in ("note", "period"):                      # added later: older databases get them here
+        if column not in have:
+            con.execute(f"ALTER TABLE scenarios ADD COLUMN {column} TEXT NOT NULL DEFAULT ''")
     return con
 
 
@@ -63,6 +68,13 @@ def clean_name(name):
     return name
 
 
+def clean_note(note):
+    note = "\n".join(line.rstrip() for line in str(note or "").strip().splitlines())
+    if len(note) > MAX_NOTE:
+        raise ScenarioError(f"Keep the purpose to {MAX_NOTE} characters or fewer.")
+    return note
+
+
 def clean_levers(raw):
     """Lever values clamped to their limits, plus the row adjustments, in the shape the simulator sends."""
     lv, adjust = simulate.split_levers(raw)
@@ -84,7 +96,7 @@ def clean_scope(raw):
 # ---------- storing ----------
 def _shape(row):
     return {"id": row["id"], "name": row["name"], "owner_id": row["owner_id"], "owner": row["owner_email"],
-            "created": row["created"], "updated": row["updated"],
+            "created": row["created"], "updated": row["updated"], "note": row["note"], "period": row["period"],
             "levers": json.loads(row["levers"]), "scope": json.loads(row["scope"])}
 
 
@@ -101,12 +113,14 @@ def _unique_name(con, owner_id, name, ignore_id=None):
     return candidate
 
 
-def save(user, name, levers, scope, scenario_id=None, copy=False):
+def save(user, name, levers, scope, scenario_id=None, copy=False, note=None, period=None):
     """Saves a scenario and returns its id. With an id the person may change, that scenario is updated; otherwise a
     scenario with the same name of the same person is replaced, else a new one is added. With `copy` it is always a new
     scenario (a number is added to the name if the person already has one by that name)."""
     name = clean_name(name)
     lv, sc = clean_levers(levers), clean_scope(scope)
+    note = None if note is None else clean_note(note)       # None keeps what an updated scenario already has
+    period = period if period in data.period_keys() else ""
     if len(json.dumps(lv)) + len(json.dumps(sc)) > MAX_BYTES:
         raise ScenarioError("This scenario is too large to save.")
     owner_id, owner_email = _owner(user)
@@ -123,15 +137,16 @@ def save(user, name, levers, scope, scenario_id=None, copy=False):
             existing = con.execute("SELECT * FROM scenarios WHERE owner_id=? AND name=? COLLATE NOCASE",
                                    (owner_id, name)).fetchone()
         if existing:
-            con.execute("UPDATE scenarios SET name=?, levers=?, scope=?, updated=? WHERE id=?",
+            con.execute("UPDATE scenarios SET name=?, levers=?, scope=?, updated=?, note=?, period=? WHERE id=?",
                         (_unique_name(con, existing["owner_id"], name, existing["id"]), json.dumps(lv), json.dumps(sc),
-                         now, existing["id"]))
+                         now, existing["note"] if note is None else note, period or existing["period"], existing["id"]))
             return existing["id"]
         count = con.execute("SELECT COUNT(*) FROM scenarios WHERE owner_id=?", (owner_id,)).fetchone()[0]
         if count >= MAX_PER_PERSON:
             raise ScenarioError(f"You have {MAX_PER_PERSON} saved scenarios. Delete some before saving more.")
-        cur = con.execute("INSERT INTO scenarios (owner_id, owner_email, name, levers, scope, created, updated) "
-                          "VALUES (?,?,?,?,?,?,?)", (owner_id, owner_email, name, json.dumps(lv), json.dumps(sc), now, now))
+        cur = con.execute("INSERT INTO scenarios (owner_id, owner_email, name, levers, scope, created, updated, note, period) "
+                          "VALUES (?,?,?,?,?,?,?,?,?)",
+                          (owner_id, owner_email, name, json.dumps(lv), json.dumps(sc), now, now, note or "", period))
         return cur.lastrowid
 
 
@@ -180,7 +195,7 @@ def duplicate(user, scenario_id):
     owner_id, owner_email = _owner(user)
     with closing(_db()) as con:
         name = _unique_name(con, owner_id, clean_name(f"{src['name']} (copy)")[:MAX_NAME])
-    return save(user, name, src["levers"], src["scope"])
+    return save(user, name, src["levers"], src["scope"], note=src["note"], period=src["period"])
 
 
 def delete(user, scenario_id):
@@ -204,3 +219,98 @@ def results(scn, allowed, limited):
     if not limited:
         res.update({"nm": s["nm"], "d_nm": s["nm"] - b["nm"]})
     return res
+
+
+# ---------- the summary for management ----------
+COST_LINES = frozenset({"promo", "rebates", "cogs", "ou", "logistics", "pa", "interest", "mktg"})   # a rise is bad
+SUMMARY_DIMS = ("chain", "state", "family", "sku")
+TOP = 8
+
+
+def _vol_l(m):
+    return m["litres"] + m["kg"]                        # kg counts as litres, as in the LPD figure
+
+
+def summary(scn, allowed, limited):
+    """What a saved scenario changes and what it does to the P&L, on the rows this viewer may see, worked out fresh from
+    the data in use. Meant to be read by someone who did not make the scenario: the levers and rows changed first, then the
+    P&L baseline against scenario, what moves contribution, where it lands, and the rows that move most.
+    Rupee amounts are rupees; the screen shows them in lakh. A KAM's figures stop at contribution."""
+    from . import scenario_sheet as sheet
+    lv, adjust = simulate.split_levers(scn["levers"])
+    scope = simulate.parse_scope(scn["scope"])
+    rows, base = simulate.view_rows(scope, allowed)
+    sims = simulate.scenario_metrics(lv, scope, rows, adjust)
+    resolve = simulate.make_resolver(lv, adjust)
+    b, s = simulate.derive(simulate.total(base)), simulate.derive(simulate.total(sims))
+    b["vol_l"], s["vol_l"] = _vol_l(b), _vol_l(s)
+    days = data.days_per_month()
+
+    def hide(key):
+        return limited and key in simulate.BELOW_CONTRIBUTION
+
+    # the P&L, baseline against scenario
+    lines = []
+    for title, key, scale, _ in sheet._pl_columns(limited):
+        kind = "pct" if key.endswith("_pct") else ("lpd" if key == "vol_l" else "money")
+        div = days if key == "vol_l" else 1
+        lines.append({"label": title, "key": key, "kind": kind, "base": b[key] / div, "sim": s[key] / div,
+                      "cost": key in COST_LINES})
+
+    # what was changed: global levers, then how many rows each lever reaches and how far it moves them
+    from .export import LEVER_LABELS
+    levers = [{"label": LEVER_LABELS[k][0], "unit": LEVER_LABELS[k][1], "value": getattr(lv, k)}
+              for k in LEVER_LABELS if getattr(lv, k)]
+    changed, reach = [], {k: [] for k in simulate.ADJUST_LEVERS}
+    for i, row in enumerate(rows):
+        eff = resolve(row)
+        moved = {k: getattr(eff, k) - getattr(lv, k) for k in simulate.ADJUST_LEVERS if abs(getattr(eff, k) - getattr(lv, k)) > 1e-9}
+        if moved:
+            changed.append(i)
+            for k, v in moved.items():
+                reach[k].append(v)
+    row_levers = [{"label": LEVER_LABELS[k][0], "unit": LEVER_LABELS[k][1], "rows": len(v), "low": min(v), "high": max(v)}
+                  for k, v in reach.items() if v]
+    scope_text = [{"dimension": dict(data.DIM_DEFS).get(d, d), "names": [data.LABEL[d].get(i, i) for i in ids]}
+                  for d, ids in scn["scope"].items() if ids]
+
+    # where it lands
+    def group(dim):
+        by = {}
+        for i, (row, bm, sm) in enumerate(zip(rows, base, sims)):
+            g = by.setdefault(str(row[dim]), {"b": [], "s": [], "n": 0})
+            g["b"].append(bm)
+            g["s"].append(sm)
+            g["n"] += 1 if i in set_changed else 0
+        out = []
+        for key, g in by.items():
+            gb, gs = simulate.derive(simulate.total(g["b"])), simulate.derive(simulate.total(g["s"]))
+            if g["n"] == 0 and abs(gs["cm"] - gb["cm"]) < 1 and abs(gs["net"] - gb["net"]) < 1:
+                continue
+            out.append({"name": data.LABEL[dim].get(key, key), "rows_changed": g["n"],
+                        "d_vol": (_vol_l(gs) - _vol_l(gb)) / days, "d_net": gs["net"] - gb["net"],
+                        "d_cm": gs["cm"] - gb["cm"], "cm_pct": gs["cm_pct"], "d_cm_pct": gs["cm_pct"] - gb["cm_pct"]})
+        out.sort(key=lambda x: -abs(x["d_cm"]))
+        return {"dimension": dict(data.DIM_DEFS).get(dim, dim), "shown": min(TOP, len(out)), "total": len(out), "items": out[:TOP]}
+
+    set_changed = set(changed)
+    where = [group(d) for d in SUMMARY_DIMS]
+
+    # the rows that move most, with the numbers they were given
+    top = []
+    for i in sorted(changed, key=lambda i: -abs(sims[i]["cm"] - base[i]["cm"]))[:15]:
+        row = rows[i]
+        t0, t1 = sheet._terms(row, simulate.DEFAULT_LEVERS), sheet._terms(row, resolve(row))
+        steps = []
+        if t0:
+            for k, title, _ in sheet.DRIVERS:
+                if abs(t1[k] - t0[k]) > 1e-7:
+                    steps.append({"label": title, "base": t0[k], "scenario": t1[k]})
+        top.append({"name": " / ".join(str(data.LABEL[d].get(row[d], row[d])) for d in ("chain", "state", "sku")),
+                    "changes": steps, "d_cm": sims[i]["cm"] - base[i]["cm"], "d_net": sims[i]["net"] - base[i]["net"]})
+
+    out = {"lines": lines, "levers": levers, "row_levers": row_levers, "scope": scope_text, "where": where, "top_rows": top,
+           "bridge": simulate.bridge(lv, scope, sims, rows, base, adjust),
+           "rows_in_scope": len(rows), "rows_changed": len(changed), "rows_total": len(simulate._visible(allowed)),
+           "limited": limited, "period": data.period_label(data.META) if data.MODE == "actual" else "Sample data, not actuals"}
+    return out

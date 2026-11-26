@@ -46,7 +46,8 @@
       ? `<span class="scn-confirm">Delete this scenario?
            <button type="button" class="link-btn danger" data-act="delete-yes" data-id="${s.id}">Delete</button>
            <button type="button" class="link-btn" data-act="delete-no">Keep</button></span>`
-      : `<a class="link-btn" href="/?scenario=${s.id}">Open and edit</a>
+      : `<a class="link-btn" href="/scenarios/${s.id}">Summary</a>
+         <a class="link-btn" href="/?scenario=${s.id}">Open and edit</a>
          <button type="button" class="link-btn" data-act="copy" data-id="${s.id}">Make a copy</button>
          ${s.can_change ? `<button type="button" class="link-btn" data-act="rename" data-id="${s.id}">Rename</button>
          <button type="button" class="link-btn" data-act="delete" data-id="${s.id}">Delete</button>` : ''}`;

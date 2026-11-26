@@ -563,11 +563,42 @@ def api_scenario(sid):
 def api_scenario_save():
     body = request.get_json(silent=True) or {}
     try:
-        sid = scenarios.save(g.get("user"), body.get("name"), body.get("levers"), body.get("scope"), body.get("id"), bool(body.get("copy")))
+        sid = scenarios.save(g.get("user"), body.get("name"), body.get("levers"), body.get("scope"), body.get("id"), bool(body.get("copy")),
+                             note=body.get("note"), period=data.current().key)
     except scenarios.ScenarioError as exc:
         return _scenario_error(exc)
     log("scenario_saved")
     return jsonify({"id": sid})
+
+
+@app.get("/scenarios/<int:sid>")
+def scenario_summary_page(sid):
+    """The summary of one saved scenario: what it changes and what it does, to print or save as a PDF."""
+    if not scenarios.get(g.get("user"), sid):
+        return render_template("scenario_missing.html", active="scenarios"), 404
+    return render_template("scenario_summary.html", active="scenarios", sid=sid)
+
+
+@app.get("/api/scenarios/<int:sid>/summary")
+def api_scenario_summary(sid):
+    scn = scenarios.get(g.get("user"), sid)
+    if not scn:
+        return jsonify({"error": "That scenario was not found."}), 404
+    token = data.use(scn["period"] or None)         # the period it was saved on, when that is still built
+    try:
+        allowed, limited = visible()
+        out = scenarios.summary(scn, allowed, limited)
+        out["period_key"] = data.current().key
+        out["meta"] = {"period": data.META.get("period")} if data.MODE == "actual" else {}
+    except Exception:
+        return jsonify({"error": "This scenario no longer fits the data. Open it in the simulator to review it."}), 409
+    finally:
+        data.release(token)
+    mine = g.get("user")
+    out["scenario"] = {"id": scn["id"], "name": scn["name"], "owner": scn["owner"] or "", "created": scn["created"],
+                       "updated": scn["updated"], "note": scn["note"], "mine": scn["owner_id"] == (mine["id"] if mine else 0),
+                       "saved_period": scn["period"], "differs": bool(scn["period"]) and scn["period"] not in data.period_keys()}
+    return jsonify(out)
 
 
 @app.post("/api/scenarios/import")

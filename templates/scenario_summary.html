@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Scenario summary | HeritageEdge{% endblock %}
+{% block content %}
+<div class="sum" id="sum" data-id="{{ sid }}">
+  <header class="page-head sum-head">
+    <div>
+      <p class="sum-kicker">Scenario summary</p>
+      <h1 id="sumName">Loading</h1>
+      <p class="lede" id="sumMeta"></p>
+    </div>
+    <div class="head-actions sum-actions">
+      <a class="btn" href="/scenarios">All scenarios</a>
+      <a class="btn" id="sumOpen" href="/?scenario={{ sid }}">Open in simulator</a>
+      <button type="button" class="btn" id="sumLink">Copy link</button>
+      <button type="button" class="btn btn-primary" id="sumPrint">Print or save as PDF</button>
+    </div>
+  </header>
+
+  <p class="view-note period-note" id="sumError" role="alert" hidden></p>
+  <div id="sumBody" hidden>
+    <section class="sum-purpose" id="sumPurpose" hidden>
+      <h2>Purpose</h2>
+      <p id="sumPurposeText"></p>
+    </section>
+
+    <section class="sum-sec"><h2>At a glance</h2>
+      <div class="sum-kpis" id="sumKpis"></div></section>
+
+    <section class="sum-sec"><h2>What was changed</h2>
+      <div id="sumChanged"></div></section>
+
+    <section class="sum-sec"><h2>Impact on the P&amp;L</h2>
+      <div class="table-scroll"><table class="data sum-table" id="sumPnl"></table></div>
+      <p class="sum-foot" id="sumUnit"></p></section>
+
+    <section class="sum-sec"><h2>What moves contribution</h2>
+      <div class="table-scroll"><table class="data sum-table sum-bridge" id="sumBridge"></table></div></section>
+
+    <section class="sum-sec"><h2>Where it lands</h2>
+      <div class="sum-where" id="sumWhere"></div></section>
+
+    <section class="sum-sec" id="sumTopSec"><h2>Rows that move most</h2>
+      <div class="table-scroll"><table class="data sum-table" id="sumTop"></table></div></section>
+
+    <section class="sum-sign" aria-label="Approval">
+      <h2>Approval</h2>
+      <div class="sum-sign-grid">
+        <div><span>Prepared by</span><b id="sumBy"></b></div>
+        <div><span>Approved by</span><b></b></div>
+        <div><span>Date</span><b></b></div>
+        <div><span>Remarks</span><b></b></div>
+      </div>
+    </section>
+    <p class="sum-foot" id="sumNote"></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/summary.js') }}"></script>{% endblock %}
